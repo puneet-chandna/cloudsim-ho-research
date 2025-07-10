@@ -1,8 +1,5 @@
 package org.cloudbus.cloudsim.algorithm;
 
-import org.cloudsimplus.hosts.Host;
-import org.cloudsimplus.vms.Vm;
-
 import java.util.*;
 import java.time.LocalDateTime;
 import java.time.Duration;
@@ -21,7 +18,7 @@ import java.time.Duration;
 public class OptimizationResult {
 
     // Core optimization results
-    private final Map<Vm, Host> bestSolution;
+    private final int[] bestSolution;              // VM-to-Host mapping (position[vm] = host)
     private final double bestFitness;
     private final MultiObjectiveMetrics bestMetrics;
     private final int solutionIteration;
@@ -69,10 +66,13 @@ public class OptimizationResult {
 
     // Algorithm-specific metrics
     private final Map<String, Double> algorithmSpecificMetrics;
-    private final List<Map<Vm, Host>> eliteSolutions;
+    private final List<int[]> eliteSolutions;      // Top solutions found during optimization
     private final List<Double> eliteFitnesses;
     private final int localSearchApplications;
     private final int successfulLocalSearches;
+    private final int mutationApplications;
+    private final int crossoverApplications;
+    private final double selectionPressure;
 
     // Problem-specific analysis
     private final int totalVms;
@@ -89,6 +89,16 @@ public class OptimizationResult {
     private final Map<String, Object> additionalData;
     private final List<String> warnings;
     private final List<String> errors;
+    
+    // Additional fields for validation and metadata
+    private final List<Map<String, Object>> validationResults;
+    private final Map<String, Object> crossValidationResults;
+    private final Map<String, Object> performanceOnTestSet;
+    private final double generalizationError;
+    private final double overfittingIndicator;
+    private final String algorithmVersion;
+    private final String configurationHash;
+    private final Map<String, Object> reproducibilityInfo;
 
     /**
      * Constructor for comprehensive optimization results
@@ -97,7 +107,7 @@ public class OptimizationResult {
      */
     private OptimizationResult(Builder builder) {
         // Core results
-        this.bestSolution = new HashMap<>(builder.bestSolution);
+        this.bestSolution = Arrays.copyOf(builder.bestSolution, builder.bestSolution.length);
         this.bestFitness = builder.bestFitness;
         this.bestMetrics = builder.bestMetrics;
         this.solutionIteration = builder.solutionIteration;
@@ -149,6 +159,9 @@ public class OptimizationResult {
         this.eliteFitnesses = new ArrayList<>(builder.eliteFitnesses);
         this.localSearchApplications = builder.localSearchApplications;
         this.successfulLocalSearches = builder.successfulLocalSearches;
+        this.mutationApplications = builder.mutationApplications;
+        this.crossoverApplications = builder.crossoverApplications;
+        this.selectionPressure = builder.selectionPressure;
 
         // Problem-specific data
         this.totalVms = builder.totalVms;
@@ -165,10 +178,122 @@ public class OptimizationResult {
         this.additionalData = new HashMap<>(builder.additionalData);
         this.warnings = new ArrayList<>(builder.warnings);
         this.errors = new ArrayList<>(builder.errors);
+        
+        // Additional fields initialization
+        this.validationResults = new ArrayList<>(builder.validationResults);
+        this.crossValidationResults = new HashMap<>(builder.crossValidationResults);
+        this.performanceOnTestSet = new HashMap<>(builder.performanceOnTestSet);
+        this.generalizationError = builder.generalizationError;
+        this.overfittingIndicator = builder.overfittingIndicator;
+        this.algorithmVersion = builder.algorithmVersion;
+        this.configurationHash = builder.configurationHash;
+        this.reproducibilityInfo = new HashMap<>(builder.reproducibilityInfo);
+    }
+
+    /**
+     * Simplified constructor for basic optimization results
+     * Used for research framework compatibility
+     *
+     * @param bestSolution Best hippopotamus solution found
+     * @param convergenceHistory History of best fitness values per iteration
+     * @param diversityHistory History of population diversity per iteration
+     * @param executionMetrics Map of execution metrics
+     * @param statisticalData Map of statistical analysis data
+     */
+    public OptimizationResult(Hippopotamus bestSolution,
+                             List<Double> convergenceHistory,
+                             List<Double> diversityHistory,
+                             Map<String, Object> executionMetrics,
+                             Map<String, Double> statisticalData) {
+        // Core results (simplified)
+        this.bestSolution = new int[0]; // Empty array for now - will be populated differently
+        this.bestFitness = bestSolution != null ? bestSolution.getFitness() : Double.MAX_VALUE;
+        this.bestMetrics = null; // Simplified - not using multi-objective metrics
+        this.solutionIteration = convergenceHistory != null ? convergenceHistory.size() - 1 : 0;
+        this.converged = (Boolean) executionMetrics.getOrDefault("converged", false);
+        this.terminationReason = converged ? "Convergence achieved" : "Maximum iterations reached";
+
+        // Convergence data
+        this.convergenceHistory = new ArrayList<>(convergenceHistory != null ? convergenceHistory : new ArrayList<>());
+        this.averageFitnessHistory = new ArrayList<>(); // Simplified
+        this.worstFitnessHistory = new ArrayList<>(); // Simplified
+        this.improvementIterations = new ArrayList<>(); // Simplified
+        this.convergenceRate = 0.0; // Simplified
+        this.totalIterations = ((Number) executionMetrics.getOrDefault("final_iteration", 0)).intValue();
+
+        // Diversity data
+        this.diversityHistory = new ArrayList<>(diversityHistory != null ? diversityHistory : new ArrayList<>());
+        this.initialDiversity = diversityHistory != null && !diversityHistory.isEmpty() ? diversityHistory.get(0) : 0.0;
+        this.finalDiversity = diversityHistory != null && !diversityHistory.isEmpty() ?
+                             diversityHistory.get(diversityHistory.size() - 1) : 0.0;
+        this.averageDiversity = statisticalData != null ? statisticalData.getOrDefault("average_diversity", 0.0) : 0.0;
+        this.populationEntropy = new ArrayList<>(); // Simplified
+        this.prematureConvergenceIteration = -1; // Simplified
+
+        // Execution data
+        this.startTime = LocalDateTime.now(); // Simplified
+        this.endTime = LocalDateTime.now(); // Simplified
+        this.executionTime = Duration.ofMillis(((Number) executionMetrics.getOrDefault("execution_time_ms", 0L)).longValue());
+        this.totalFunctionEvaluations = ((Number) executionMetrics.getOrDefault("function_evaluations", 0)).intValue();
+        this.averageIterationTime = 0.0; // Simplified
+        this.operationTimings = new HashMap<>(); // Simplified
+        this.operationCounts = new HashMap<>(); // Simplified
+
+        // Resource usage (simplified)
+        this.peakMemoryUsage = 0L;
+        this.averageCpuUsage = 0.0;
+        this.totalMemoryAllocations = 0L;
+        this.garbageCollectionCount = 0;
+
+        // Statistical data
+        this.statisticalMeasures = new HashMap<>(statisticalData != null ? statisticalData.entrySet().stream().collect(HashMap::new,
+                                                   (m, e) -> m.put(e.getKey(), e.getValue()),
+                                                   HashMap::putAll) : new HashMap<>());
+        this.fitnessDistribution = new ArrayList<>(); // Simplified
+        this.fitnessVariance = statisticalData != null ? statisticalData.getOrDefault("final_fitness_std", 0.0) : 0.0;
+        this.fitnessStandardDeviation = Math.sqrt(fitnessVariance);
+        this.fitnessSkewness = 0.0; // Simplified
+        this.fitnessKurtosis = 0.0; // Simplified
+
+        // Algorithm-specific data (simplified)
+        this.algorithmSpecificMetrics = new HashMap<>();
+        this.eliteSolutions = new ArrayList<>();
+        this.eliteFitnesses = new ArrayList<>();
+        this.localSearchApplications = 0;
+        this.successfulLocalSearches = 0;
+        this.mutationApplications = 0;
+        this.crossoverApplications = 0;
+        this.selectionPressure = 0.0;
+        
+        // Problem-specific data (simplified)
+        this.totalVms = 0;
+        this.totalHosts = 0;
+        this.problemComplexity = 0.0;
+        this.resourceUtilizationMetrics = new HashMap<>();
+        this.loadBalancingMetrics = new HashMap<>();
+        this.powerConsumptionMetrics = new HashMap<>();
+        this.slaComplianceMetrics = new HashMap<>();
+
+        // Validation data (simplified)
+        this.validationResults = new ArrayList<>();
+        this.crossValidationResults = new HashMap<>();
+        this.performanceOnTestSet = new HashMap<>();
+        this.generalizationError = 0.0;
+        this.overfittingIndicator = 0.0;
+
+        // Metadata (simplified)
+        this.usedParameters = null;
+        this.experimentId = "simplified_experiment";
+        this.algorithmVersion = "2.0";
+        this.configurationHash = "simplified_hash";
+        this.reproducibilityInfo = new HashMap<>();
+        this.additionalData = new HashMap<>();
+        this.warnings = new ArrayList<>();
+        this.errors = new ArrayList<>();
     }
 
     // Getters for core results
-    public Map<Vm, Host> getBestSolution() { return Collections.unmodifiableMap(bestSolution); }
+    public int[] getBestSolution() { return Arrays.copyOf(bestSolution, bestSolution.length); }
     public double getBestFitness() { return bestFitness; }
     public MultiObjectiveMetrics getBestMetrics() { return bestMetrics; }
     public int getSolutionIteration() { return solutionIteration; }
@@ -216,10 +341,15 @@ public class OptimizationResult {
 
     // Getters for algorithm-specific data
     public Map<String, Double> getAlgorithmSpecificMetrics() { return Collections.unmodifiableMap(algorithmSpecificMetrics); }
-    public List<Map<Vm, Host>> getEliteSolutions() { return Collections.unmodifiableList(eliteSolutions); }
+    public List<int[]> getEliteSolutions() { return Collections.unmodifiableList(eliteSolutions); }
     public List<Double> getEliteFitnesses() { return Collections.unmodifiableList(eliteFitnesses); }
     public int getLocalSearchApplications() { return localSearchApplications; }
     public int getSuccessfulLocalSearches() { return successfulLocalSearches; }
+    
+    // Getters for algorithm-specific additional fields
+    public int getMutationApplications() { return mutationApplications; }
+    public int getCrossoverApplications() { return crossoverApplications; }
+    public double getSelectionPressure() { return selectionPressure; }
 
     // Getters for problem-specific data
     public int getTotalVms() { return totalVms; }
@@ -236,6 +366,16 @@ public class OptimizationResult {
     public Map<String, Object> getAdditionalData() { return Collections.unmodifiableMap(additionalData); }
     public List<String> getWarnings() { return Collections.unmodifiableList(warnings); }
     public List<String> getErrors() { return Collections.unmodifiableList(errors); }
+    
+    // Getters for validation and metadata fields
+    public List<Map<String, Object>> getValidationResults() { return Collections.unmodifiableList(validationResults); }
+    public Map<String, Object> getCrossValidationResults() { return Collections.unmodifiableMap(crossValidationResults); }
+    public Map<String, Object> getPerformanceOnTestSet() { return Collections.unmodifiableMap(performanceOnTestSet); }
+    public double getGeneralizationError() { return generalizationError; }
+    public double getOverfittingIndicator() { return overfittingIndicator; }
+    public String getAlgorithmVersion() { return algorithmVersion; }
+    public String getConfigurationHash() { return configurationHash; }
+    public Map<String, Object> getReproducibilityInfo() { return Collections.unmodifiableMap(reproducibilityInfo); }
 
     /**
      * Get comprehensive summary of optimization results for reporting
@@ -345,7 +485,9 @@ public class OptimizationResult {
 
         // Metadata
         data.put("experimentId", experimentId);
-        data.put("usedParameters", usedParameters.exportData());
+        if (usedParameters != null) {
+            data.put("usedParameters", usedParameters.toString());
+        }
         data.put("warnings", warnings);
         data.put("errors", errors);
         data.put("additionalData", additionalData);
@@ -362,7 +504,7 @@ public class OptimizationResult {
         return converged &&
                errors.isEmpty() &&
                bestFitness > 0 &&
-               !bestSolution.isEmpty() &&
+               bestSolution.length > 0 &&
                totalIterations > 0;
     }
 
@@ -398,10 +540,11 @@ public class OptimizationResult {
 
     // Utility methods
     private String formatDuration(Duration duration) {
-        long hours = duration.toHours();
-        long minutes = duration.toMinutesPart();
-        long seconds = duration.toSecondsPart();
-        long millis = duration.toMillisPart();
+        long totalSeconds = duration.getSeconds();
+        long hours = totalSeconds / 3600;
+        long minutes = (totalSeconds % 3600) / 60;
+        long seconds = totalSeconds % 60;
+        long millis = duration.toMillis() % 1000;
 
         if (hours > 0) {
             return String.format("%dh %dm %ds", hours, minutes, seconds);
@@ -431,7 +574,7 @@ public class OptimizationResult {
      */
     public static class Builder {
         // Core optimization results
-        private Map<Vm, Host> bestSolution = new HashMap<>();
+        private int[] bestSolution = new int[0];
         private double bestFitness = 0.0;
         private MultiObjectiveMetrics bestMetrics;
         private int solutionIteration = -1;
@@ -479,10 +622,13 @@ public class OptimizationResult {
 
         // Algorithm-specific metrics
         private Map<String, Double> algorithmSpecificMetrics = new HashMap<>();
-        private List<Map<Vm, Host>> eliteSolutions = new ArrayList<>();
+        private List<int[]> eliteSolutions = new ArrayList<>();
         private List<Double> eliteFitnesses = new ArrayList<>();
         private int localSearchApplications = 0;
         private int successfulLocalSearches = 0;
+        private int mutationApplications = 0;
+        private int crossoverApplications = 0;
+        private double selectionPressure = 0.0;
 
         // Problem-specific analysis
         private int totalVms = 0;
@@ -499,9 +645,19 @@ public class OptimizationResult {
         private Map<String, Object> additionalData = new HashMap<>();
         private List<String> warnings = new ArrayList<>();
         private List<String> errors = new ArrayList<>();
+        
+        // Additional fields for validation and metadata
+        private List<Map<String, Object>> validationResults = new ArrayList<>();
+        private Map<String, Object> crossValidationResults = new HashMap<>();
+        private Map<String, Object> performanceOnTestSet = new HashMap<>();
+        private double generalizationError = 0.0;
+        private double overfittingIndicator = 0.0;
+        private String algorithmVersion = "1.0";
+        private String configurationHash = "";
+        private Map<String, Object> reproducibilityInfo = new HashMap<>();
 
         // Builder methods for core results
-        public Builder setBestSolution(Map<Vm, Host> bestSolution) { this.bestSolution = new HashMap<>(bestSolution); return this; }
+        public Builder setBestSolution(int[] bestSolution) { this.bestSolution = Arrays.copyOf(bestSolution, bestSolution.length); return this; }
         public Builder setBestFitness(double bestFitness) { this.bestFitness = bestFitness; return this; }
         public Builder setBestMetrics(MultiObjectiveMetrics bestMetrics) { this.bestMetrics = bestMetrics; return this; }
         public Builder setSolutionIteration(int solutionIteration) { this.solutionIteration = solutionIteration; return this; }
@@ -546,10 +702,10 @@ public class OptimizationResult {
         public Builder setFitnessStandardDeviation(double fitnessStandardDeviation) { this.fitnessStandardDeviation = fitnessStandardDeviation; return this; }
         public Builder setFitnessSkewness(double fitnessSkewness) { this.fitnessSkewness = fitnessSkewness; return this; }
         public Builder setFitnessKurtosis(double fitnessKurtosis) { this.fitnessKurtosis = fitnessKurtosis; return this; }
-        
+
         // Builder methods for algorithm-specific metrics
         public Builder setAlgorithmSpecificMetrics(Map<String, Double> algorithmSpecificMetrics) { this.algorithmSpecificMetrics = new HashMap<>(algorithmSpecificMetrics); return this; }
-        public Builder setEliteSolutions(List<Map<Vm, Host>> eliteSolutions) { this.eliteSolutions = new ArrayList<>(eliteSolutions); return this; }
+        public Builder setEliteSolutions(List<int[]> eliteSolutions) { this.eliteSolutions = new ArrayList<>(eliteSolutions); return this; }
         public Builder setEliteFitnesses(List<Double> eliteFitnesses) { this.eliteFitnesses = new ArrayList<>(eliteFitnesses); return this; }
         public Builder setLocalSearchApplications(int localSearchApplications) { this.localSearchApplications = localSearchApplications; return this; }
         public Builder setSuccessfulLocalSearches(int successfulLocalSearches) { this.successfulLocalSearches = successfulLocalSearches; return this; }

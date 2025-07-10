@@ -166,7 +166,8 @@ public class Hippopotamus {
         
         // Update metadata
         lastEvaluationTime = System.currentTimeMillis();
-        metadata.put("last_update_iteration", params.getCurrentIteration());
+        // Remove the problematic method call since getCurrentIteration() doesn't exist
+        metadata.put("last_update_time", lastEvaluationTime);
     }
     
     /**
@@ -198,13 +199,19 @@ public class Hippopotamus {
         detailedMetrics.put("communication_cost", communicationCost);
         
         // Calculate weighted fitness (minimization)
-        ObjectiveWeights weights = ObjectiveWeights.getDefaultWeights();
+        // Default weights for multi-objective optimization
+        double resourceWeight = 0.3;
+        double loadBalanceWeight = 0.25;
+        double powerWeight = 0.2;
+        double slaWeight = 0.15;
+        double communicationWeight = 0.1;
+        
         double calculatedFitness = 
-            weights.getResourceWeight() * (1.0 - resourceUtilization) +
-            weights.getLoadBalanceWeight() * (1.0 - loadBalance) +
-            weights.getPowerWeight() * (1.0 - powerEfficiency) +
-            weights.getSlaWeight() * (1.0 - slaCompliance) +
-            weights.getCommunicationWeight() * communicationCost;
+            resourceWeight * (1.0 - resourceUtilization) +
+            loadBalanceWeight * (1.0 - loadBalance) +
+            powerWeight * (1.0 - powerEfficiency) +
+            slaWeight * (1.0 - slaCompliance) +
+            communicationWeight * communicationCost;
         
         // Update fitness and tracking
         setFitness(calculatedFitness);
@@ -645,6 +652,15 @@ public class Hippopotamus {
     
     public Map<String, Object> getAllMetadata() {
         return new HashMap<>(metadata);
+    }
+    
+    /**
+     * Set detailed metrics for this hippopotamus solution
+     * 
+     * @param metrics Map of metric name to value
+     */
+    public void setDetailedMetrics(Map<String, Double> metrics) {
+        this.detailedMetrics.putAll(metrics);
     }
     
     @Override

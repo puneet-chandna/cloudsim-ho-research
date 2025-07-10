@@ -1,11 +1,11 @@
 package org.cloudbus.cloudsim.util;
 
-import com.sun.management.OperatingSystemMXBean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.lang.management.ManagementFactory;
+import java.lang.management.OperatingSystemMXBean;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -30,7 +30,7 @@ public class ResourceMonitor {
         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
     
     private ResourceMonitor() {
-        this.osBean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+        this.osBean = ManagementFactory.getOperatingSystemMXBean();
         this.runtime = Runtime.getRuntime();
         this.monitorExecutor = Executors.newScheduledThreadPool(2);
         this.monitoringSessions = new ConcurrentHashMap<>();
@@ -48,7 +48,16 @@ public class ResourceMonitor {
      * Monitor CPU usage
      */
     public double monitorCPUUsage() {
-        return osBean.getProcessCpuLoad() * 100.0;
+        double systemLoad = osBean.getSystemLoadAverage();
+        int availableProcessors = osBean.getAvailableProcessors();
+        
+        // If system load average is available, use it as CPU usage approximation
+        if (systemLoad >= 0) {
+            return Math.min(100.0, (systemLoad / availableProcessors) * 100.0);
+        }
+        
+        // Fallback: use a simple calculation based on active threads
+        return Math.min(100.0, (Thread.activeCount() / (double) availableProcessors) * 25.0);
     }
     
     /**

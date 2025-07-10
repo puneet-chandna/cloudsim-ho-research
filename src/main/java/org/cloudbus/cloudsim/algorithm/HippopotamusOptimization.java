@@ -44,7 +44,7 @@ public class HippopotamusOptimization {
     private Hippopotamus globalBest;
     private int currentIteration;
     private boolean hasConverged;
-    private double bestFitnessHistory[];
+    private double [] bestFitnessHistory;
     
     // Statistical tracking
     private DescriptiveStatistics fitnessStats;
@@ -85,7 +85,7 @@ public class HippopotamusOptimization {
      * @param params Algorithm parameters
      * @return Comprehensive optimization result
      */
-    public OptimizationResult optimize(int vmCount, int hostCount, HippopotamusParameters params) {
+    public SimpleOptimizationResult optimize(int vmCount, int hostCount, HippopotamusParameters params) {
         logger.info("Starting HO optimization: VMs={}, Hosts={}, PopSize={}", 
                    vmCount, hostCount, params.getPopulationSize());
         
@@ -282,13 +282,13 @@ public class HippopotamusOptimization {
         double communicationCost = calculateCommunicationCost(hippo);
         
         // Store detailed metrics in hippo
-        hippo.setDetailedMetrics(Map.of(
-            "resource_utilization", resourceUtilization,
-            "power_consumption", powerConsumption,
-            "sla_violations", slaViolations,
-            "load_balance", loadBalance,
-            "communication_cost", communicationCost
-        ));
+        Map<String, Double> metrics = new HashMap<>();
+        metrics.put("resource_utilization", resourceUtilization);
+        metrics.put("power_consumption", powerConsumption);
+        metrics.put("sla_violations", slaViolations);
+        metrics.put("load_balance", loadBalance);
+        metrics.put("communication_cost", communicationCost);
+        hippo.setDetailedMetrics(metrics);
         
         // Weighted combination (minimization problem - lower is better)
         double fitness = weights.getResourceWeight() * (1.0 - resourceUtilization) +
@@ -538,7 +538,7 @@ public class HippopotamusOptimization {
      * Get detailed optimization results for research
      * @return Comprehensive optimization results
      */
-    public OptimizationResult getDetailedResults() {
+    public SimpleOptimizationResult getDetailedResults() {
         if (globalBest == null) {
             throw new IllegalStateException("Optimization not completed");
         }
@@ -549,7 +549,7 @@ public class HippopotamusOptimization {
     /**
      * Generate comprehensive optimization result
      */
-    private OptimizationResult generateOptimizationResult(HippopotamusParameters params) {
+    private SimpleOptimizationResult generateOptimizationResult(HippopotamusParameters params) {
         long executionTime = optimizationEndTime - optimizationStartTime;
         
         // Prepare execution metrics
@@ -575,7 +575,7 @@ public class HippopotamusOptimization {
             statisticalData.put("diversity_std", diversityStats.getStandardDeviation());
         }
         
-        return new OptimizationResult(
+        return new SimpleOptimizationResult(
             globalBest,
             new ArrayList<>(convergenceHistory),
             new ArrayList<>(diversityHistory),

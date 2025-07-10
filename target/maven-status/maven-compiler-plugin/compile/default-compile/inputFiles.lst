@@ -5,6 +5,7 @@
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/reporting/ResearchPaperGenerator.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/reporting/ResearchSummary.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/simulation/ScenarioGenerator.java
+/home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/algorithm/SimpleOptimizationResult.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/reporting/LatexTableGenerator.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/reporting/ComparisonReport.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/policy/PowerAwareHippopotamusPolicy.java
@@ -42,6 +43,7 @@
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/reporting/FinalReportGenerator.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/reporting/VisualizationGenerator.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/util/ConfigurationManager.java
+/home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/algorithm/ObjectiveWeights.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/analyzer/RealDatasetAnalyzer.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/dataset/SyntheticWorkloadGenerator.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/baseline/GeneticAlgorithmVmAllocation.java

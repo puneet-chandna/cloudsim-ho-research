@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.Arrays;
+
 
 /**
  * Configuration class for Hippopotamus Optimization algorithm parameters
@@ -51,6 +51,10 @@ public class HippopotamusParameters {
     private boolean trackDiversity;
     private boolean detailedLogging;
     private int statisticalRuns;
+    private int convergenceWindow;
+    
+    // Objective weights instance
+    private ObjectiveWeights objectiveWeights;
     
     // Parameter Ranges for Sensitivity Analysis
     private static final Map<String, ParameterRange> PARAMETER_RANGES = new HashMap<>();
@@ -150,6 +154,16 @@ public class HippopotamusParameters {
         this.trackDiversity = true;
         this.detailedLogging = true;
         this.statisticalRuns = 30;
+        this.convergenceWindow = 10;
+        
+        // Initialize objective weights
+        this.objectiveWeights = new ObjectiveWeights(
+            this.resourceUtilizationWeight,
+            this.powerConsumptionWeight,
+            this.slaViolationWeight,
+            this.loadBalancingWeight,
+            this.migrationCostWeight
+        );
     }
     
     /**
@@ -187,6 +201,11 @@ public class HippopotamusParameters {
         this.trackDiversity = other.trackDiversity;
         this.detailedLogging = other.detailedLogging;
         this.statisticalRuns = other.statisticalRuns;
+        this.convergenceWindow = other.convergenceWindow;
+        
+        // Copy objective weights
+        this.objectiveWeights = other.objectiveWeights != null ? 
+            new ObjectiveWeights(other.objectiveWeights.toMap()) : null;
     }
     
     /**
@@ -361,6 +380,9 @@ public class HippopotamusParameters {
                 break;
             case "maxLocalSearchIterations":
                 params.maxLocalSearchIterations = (int) value;
+                break;
+            case "convergenceWindow":
+                params.convergenceWindow = (int) value;
                 break;
             default:
                 throw new IllegalArgumentException("Unknown parameter: " + parameterName);
@@ -579,6 +601,39 @@ public class HippopotamusParameters {
         this.statisticalRuns = Math.max(1, statisticalRuns); 
     }
     
+    public int getConvergenceWindow() { return convergenceWindow; }
+    public void setConvergenceWindow(int convergenceWindow) { 
+        this.convergenceWindow = convergenceWindow; 
+    }
+    
+    // Objective weights methods
+    public ObjectiveWeights getObjectiveWeights() { 
+        if (objectiveWeights == null) {
+            objectiveWeights = new ObjectiveWeights(
+                resourceUtilizationWeight, powerConsumptionWeight, 
+                slaViolationWeight, loadBalancingWeight, migrationCostWeight
+            );
+        }
+        return objectiveWeights; 
+    }
+    
+    public void setObjectiveWeights(ObjectiveWeights objectiveWeights) { 
+        this.objectiveWeights = objectiveWeights;
+        if (objectiveWeights != null) {
+            // Sync individual weights with the ObjectiveWeights
+            this.resourceUtilizationWeight = objectiveWeights.getResourceWeight();
+            this.powerConsumptionWeight = objectiveWeights.getPowerWeight();
+            this.slaViolationWeight = objectiveWeights.getSlaWeight();
+            this.loadBalancingWeight = objectiveWeights.getLoadBalanceWeight();
+            this.migrationCostWeight = objectiveWeights.getCommunicationWeight();
+        }
+    }
+    
+    public void setObjectiveWeights(Map<String, Double> weights) {
+        this.objectiveWeights = new ObjectiveWeights(weights);
+        setObjectiveWeights(this.objectiveWeights);
+    }
+    
     @Override
     public String toString() {
         return String.format(
@@ -627,4 +682,34 @@ public class HippopotamusParameters {
             return String.format("Range[%f, %f] default=%f", min, max, defaultValue);
         }
     }
+    
+    /**
+     * Validate all parameters using existing validateParameters method
+     * 
+     * @throws IllegalArgumentException if any parameter is invalid
+     */
+    public void validate() {
+        validateParameters();
+    }
+    
+    /**
+     * Get current iteration for algorithm tracking
+     * 
+     * @return current iteration
+     */
+    public int getCurrentIteration() {
+        return currentIteration;
+    }
+    
+    /**
+     * Set current iteration for algorithm tracking
+     * 
+     * @param currentIteration current iteration value
+     */
+    public void setCurrentIteration(int currentIteration) {
+        this.currentIteration = currentIteration;
+    }
+    
+    // Current iteration tracking for algorithm state
+    private int currentIteration = 0;
 }
