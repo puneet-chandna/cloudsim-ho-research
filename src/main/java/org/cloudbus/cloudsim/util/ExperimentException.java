@@ -1,48 +1,32 @@
 package org.cloudbus.cloudsim.util;
 
 /**
- * Custom unchecked exception for experiment-related failures in the research framework.
- * This exception is used throughout the CloudSim Hippopotamus Optimization research
- * framework to handle errors in a consistent manner.
- * 
- * As per the cross-cutting concerns, this exception is thrown when:
- * - Configuration validation fails
- * - Data integrity issues are detected
- * - Experiment execution encounters fatal errors
- * - Resource allocation failures occur
- * - Statistical analysis prerequisites are not met
- * 
- * @author CloudSim HO Research Team
- * @since 1.0
+ * Custom unchecked exception for experiment-related errors
+ * Used throughout the research framework for consistent error handling
+ * @author Puneet Chandna
+ * @version 2.0
  */
 public class ExperimentException extends RuntimeException {
     
     private static final long serialVersionUID = 1L;
     
-    /**
-     * Error codes for categorizing experiment exceptions
-     */
-    public enum ErrorCode {
-        CONFIGURATION_ERROR("CONF_ERR", "Configuration error"),
-        VALIDATION_ERROR("VAL_ERR", "Validation error"),
-        EXECUTION_ERROR("EXEC_ERR", "Execution error"),
-        RESOURCE_ERROR("RES_ERR", "Resource allocation error"),
-        DATA_ERROR("DATA_ERR", "Data integrity error"),
-        ANALYSIS_ERROR("ANAL_ERR", "Analysis error"),
-        IO_ERROR("IO_ERR", "Input/Output error"),
-        TIMEOUT_ERROR("TIME_ERR", "Timeout error"),
-        UNKNOWN_ERROR("UNK_ERR", "Unknown error");
+    // Error categories for better error classification
+    public enum ErrorCategory {
+        CONFIGURATION_ERROR("Configuration Error"),
+        VALIDATION_ERROR("Validation Error"),
+        DATA_ERROR("Data Error"),
+        ALGORITHM_ERROR("Algorithm Error"),
+        SIMULATION_ERROR("Simulation Error"),
+        ANALYSIS_ERROR("Analysis Error"),
+        REPORTING_ERROR("Reporting Error"),
+        IO_ERROR("I/O Error"),
+        RESOURCE_ERROR("Resource Error"),
+        UNKNOWN_ERROR("Unknown Error");
         
-        private final String code;
         private final String description;
         
-        ErrorCode(String code, String description) {
-            this.code = code;
+        ErrorCategory(String description) {
             this.description = description;
-        }
-        
-        public String getCode() {
-            return code;
         }
         
         public String getDescription() {
@@ -50,187 +34,122 @@ public class ExperimentException extends RuntimeException {
         }
     }
     
-    private ErrorCode errorCode;
-    private String experimentName;
-    private String additionalInfo;
+    private final ErrorCategory category;
+    private final String experimentId;
+    private final String componentName;
     
     /**
-     * Constructs a new experiment exception with the specified detail message.
-     * 
-     * @param message the detail message (which is saved for later retrieval by the getMessage() method)
+     * Constructor with message only
+     * @param message Error message
      */
     public ExperimentException(String message) {
         super(message);
-        this.errorCode = ErrorCode.UNKNOWN_ERROR;
+        this.category = ErrorCategory.UNKNOWN_ERROR;
+        this.experimentId = null;
+        this.componentName = null;
     }
     
     /**
-     * Constructs a new experiment exception with the specified detail message and cause.
-     * 
-     * @param message the detail message (which is saved for later retrieval by the getMessage() method)
-     * @param cause the cause (which is saved for later retrieval by the getCause() method)
+     * Constructor with message and cause
+     * @param message Error message
+     * @param cause Underlying cause
      */
     public ExperimentException(String message, Throwable cause) {
         super(message, cause);
-        this.errorCode = ErrorCode.UNKNOWN_ERROR;
-        
-        // Try to determine error code from cause
-        if (cause != null) {
-            if (cause instanceof java.io.IOException) {
-                this.errorCode = ErrorCode.IO_ERROR;
-            } else if (cause instanceof IllegalArgumentException || 
-                       cause instanceof IllegalStateException) {
-                this.errorCode = ErrorCode.VALIDATION_ERROR;
-            } else if (cause instanceof OutOfMemoryError || 
-                       cause instanceof java.util.concurrent.RejectedExecutionException) {
-                this.errorCode = ErrorCode.RESOURCE_ERROR;
-            }
-        }
+        this.category = ErrorCategory.UNKNOWN_ERROR;
+        this.experimentId = null;
+        this.componentName = null;
     }
     
     /**
-     * Constructs a new experiment exception with error code and message.
-     * 
-     * @param errorCode the error code for categorization
-     * @param message the detail message
+     * Constructor with message and error category
+     * @param message Error message
+     * @param category Error category
      */
-    public ExperimentException(ErrorCode errorCode, String message) {
+    public ExperimentException(String message, ErrorCategory category) {
         super(message);
-        this.errorCode = errorCode;
+        this.category = category;
+        this.experimentId = null;
+        this.componentName = null;
     }
     
     /**
-     * Constructs a new experiment exception with error code, message and cause.
-     * 
-     * @param errorCode the error code for categorization
-     * @param message the detail message
-     * @param cause the cause
+     * Constructor with message, cause, and error category
+     * @param message Error message
+     * @param cause Underlying cause
+     * @param category Error category
      */
-    public ExperimentException(ErrorCode errorCode, String message, Throwable cause) {
+    public ExperimentException(String message, Throwable cause, ErrorCategory category) {
         super(message, cause);
-        this.errorCode = errorCode;
+        this.category = category;
+        this.experimentId = null;
+        this.componentName = null;
     }
     
     /**
-     * Constructs a new experiment exception with full details.
-     * 
-     * @param errorCode the error code for categorization
-     * @param message the detail message
-     * @param experimentName the name of the experiment that failed
-     * @param cause the cause
+     * Full constructor with all details
+     * @param message Error message
+     * @param cause Underlying cause
+     * @param category Error category
+     * @param experimentId Experiment ID where error occurred
+     * @param componentName Component name where error occurred
      */
-    public ExperimentException(ErrorCode errorCode, String message, 
-                             String experimentName, Throwable cause) {
+    public ExperimentException(String message, Throwable cause, ErrorCategory category,
+                             String experimentId, String componentName) {
         super(message, cause);
-        this.errorCode = errorCode;
-        this.experimentName = experimentName;
+        this.category = category;
+        this.experimentId = experimentId;
+        this.componentName = componentName;
     }
     
     /**
-     * Gets the error code associated with this exception.
-     * 
-     * @return the error code
+     * Get error category
+     * @return Error category
      */
-    public ErrorCode getErrorCode() {
-        return errorCode;
+    public ErrorCategory getCategory() {
+        return category;
     }
     
     /**
-     * Sets the error code for this exception.
-     * 
-     * @param errorCode the error code to set
+     * Get experiment ID
+     * @return Experiment ID or null if not applicable
      */
-    public void setErrorCode(ErrorCode errorCode) {
-        this.errorCode = errorCode;
+    public String getExperimentId() {
+        return experimentId;
     }
     
     /**
-     * Gets the experiment name associated with this exception.
-     * 
-     * @return the experiment name, or null if not set
+     * Get component name
+     * @return Component name or null if not applicable
      */
-    public String getExperimentName() {
-        return experimentName;
+    public String getComponentName() {
+        return componentName;
     }
     
     /**
-     * Sets the experiment name associated with this exception.
-     * 
-     * @param experimentName the experiment name
-     */
-    public void setExperimentName(String experimentName) {
-        this.experimentName = experimentName;
-    }
-    
-    /**
-     * Gets additional information about the error.
-     * 
-     * @return additional information, or null if not set
-     */
-    public String getAdditionalInfo() {
-        return additionalInfo;
-    }
-    
-    /**
-     * Sets additional information about the error.
-     * 
-     * @param additionalInfo additional error details
-     */
-    public void setAdditionalInfo(String additionalInfo) {
-        this.additionalInfo = additionalInfo;
-    }
-    
-    /**
-     * Returns a formatted error message including all available details.
-     * 
-     * @return formatted error message
+     * Get detailed error message including all context
+     * @return Detailed error message
      */
     public String getDetailedMessage() {
         StringBuilder sb = new StringBuilder();
-        sb.append("[").append(errorCode.getCode()).append("] ");
-        sb.append(errorCode.getDescription()).append(": ");
-        sb.append(getMessage());
+        sb.append("[").append(category.getDescription()).append("] ");
         
-        if (experimentName != null) {
-            sb.append(" (Experiment: ").append(experimentName).append(")");
+        if (experimentId != null) {
+            sb.append("Experiment: ").append(experimentId).append(" | ");
         }
         
-        if (additionalInfo != null) {
-            sb.append(" - ").append(additionalInfo);
+        if (componentName != null) {
+            sb.append("Component: ").append(componentName).append(" | ");
         }
+        
+        sb.append("Message: ").append(getMessage());
         
         if (getCause() != null) {
-            sb.append(" [Caused by: ").append(getCause().getClass().getSimpleName());
-            sb.append(" - ").append(getCause().getMessage()).append("]");
+            sb.append(" | Cause: ").append(getCause().getClass().getSimpleName())
+              .append(" - ").append(getCause().getMessage());
         }
         
         return sb.toString();
-    }
-    
-    /**
-     * Checks if this exception represents a recoverable error.
-     * Some errors like timeout or temporary resource issues might be recoverable.
-     * 
-     * @return true if the error might be recoverable through retry
-     */
-    public boolean isRecoverable() {
-        return errorCode == ErrorCode.TIMEOUT_ERROR ||
-               errorCode == ErrorCode.RESOURCE_ERROR ||
-               (errorCode == ErrorCode.IO_ERROR && 
-                getCause() instanceof java.io.IOException &&
-                !(getCause() instanceof java.io.FileNotFoundException));
-    }
-    
-    /**
-     * Checks if this exception represents a critical error that should
-     * stop the entire experiment batch.
-     * 
-     * @return true if this is a critical error
-     */
-    public boolean isCritical() {
-        return errorCode == ErrorCode.CONFIGURATION_ERROR ||
-               (errorCode == ErrorCode.RESOURCE_ERROR && 
-                getCause() instanceof OutOfMemoryError);
     }
     
     @Override
@@ -238,77 +157,102 @@ public class ExperimentException extends RuntimeException {
         return getDetailedMessage();
     }
     
+    // Static factory methods for common error scenarios
+    
     /**
-     * Factory method to create a configuration error exception.
-     * 
-     * @param message the error message
-     * @return ExperimentException for configuration error
+     * Create configuration error
      */
     public static ExperimentException configurationError(String message) {
-        return new ExperimentException(ErrorCode.CONFIGURATION_ERROR, message);
+        return new ExperimentException(message, ErrorCategory.CONFIGURATION_ERROR);
     }
     
     /**
-     * Factory method to create a validation error exception.
-     * 
-     * @param message the error message
-     * @return ExperimentException for validation error
+     * Create configuration error with cause
+     */
+    public static ExperimentException configurationError(String message, Throwable cause) {
+        return new ExperimentException(message, cause, ErrorCategory.CONFIGURATION_ERROR);
+    }
+    
+    /**
+     * Create validation error
      */
     public static ExperimentException validationError(String message) {
-        return new ExperimentException(ErrorCode.VALIDATION_ERROR, message);
+        return new ExperimentException(message, ErrorCategory.VALIDATION_ERROR);
     }
     
     /**
-     * Factory method to create an execution error exception.
-     * 
-     * @param message the error message
-     * @param cause the underlying cause
-     * @return ExperimentException for execution error
-     */
-    public static ExperimentException executionError(String message, Throwable cause) {
-        return new ExperimentException(ErrorCode.EXECUTION_ERROR, message, cause);
-    }
-    
-    /**
-     * Factory method to create a data error exception.
-     * 
-     * @param message the error message
-     * @return ExperimentException for data error
+     * Create data error
      */
     public static ExperimentException dataError(String message) {
-        return new ExperimentException(ErrorCode.DATA_ERROR, message);
+        return new ExperimentException(message, ErrorCategory.DATA_ERROR);
     }
     
     /**
-     * Factory method to create an analysis error exception.
-     * 
-     * @param message the error message
-     * @param cause the underlying cause
-     * @return ExperimentException for analysis error
+     * Create data error with cause
      */
-    public static ExperimentException analysisError(String message, Throwable cause) {
-        return new ExperimentException(ErrorCode.ANALYSIS_ERROR, message, cause);
+    public static ExperimentException dataError(String message, Throwable cause) {
+        return new ExperimentException(message, cause, ErrorCategory.DATA_ERROR);
     }
     
     /**
-     * Factory method to create a resource error exception.
-     * 
-     * @param message the error message
-     * @param cause the underlying cause
-     * @return ExperimentException for resource error
+     * Create algorithm error
      */
-    public static ExperimentException resourceError(String message, Throwable cause) {
-        return new ExperimentException(ErrorCode.RESOURCE_ERROR, message, cause);
+    public static ExperimentException algorithmError(String message) {
+        return new ExperimentException(message, ErrorCategory.ALGORITHM_ERROR);
     }
     
     /**
-     * Factory method to wrap IO exceptions.
-     * 
-     * @param message the error message
-     * @param ioException the IO exception to wrap
-     * @return ExperimentException wrapping the IO error
+     * Create algorithm error with cause
      */
-    public static ExperimentException wrapIOException(String message, java.io.IOException ioException) {
-        return new ExperimentException(ErrorCode.IO_ERROR, message, ioException);
+    public static ExperimentException algorithmError(String message, Throwable cause) {
+        return new ExperimentException(message, cause, ErrorCategory.ALGORITHM_ERROR);
+    }
+    
+    /**
+     * Create simulation error
+     */
+    public static ExperimentException simulationError(String message) {
+        return new ExperimentException(message, ErrorCategory.SIMULATION_ERROR);
+    }
+    
+    /**
+     * Create simulation error with cause
+     */
+    public static ExperimentException simulationError(String message, Throwable cause) {
+        return new ExperimentException(message, cause, ErrorCategory.SIMULATION_ERROR);
+    }
+    
+    /**
+     * Create analysis error
+     */
+    public static ExperimentException analysisError(String message) {
+        return new ExperimentException(message, ErrorCategory.ANALYSIS_ERROR);
+    }
+    
+    /**
+     * Create reporting error
+     */
+    public static ExperimentException reportingError(String message) {
+        return new ExperimentException(message, ErrorCategory.REPORTING_ERROR);
+    }
+    
+    /**
+     * Create I/O error
+     */
+    public static ExperimentException ioError(String message, Throwable cause) {
+        return new ExperimentException(message, cause, ErrorCategory.IO_ERROR);
+    }
+    
+    /**
+     * Create resource error
+     */
+    public static ExperimentException resourceError(String message) {
+        return new ExperimentException(message, ErrorCategory.RESOURCE_ERROR);
+    }
+    /**
+     * Create unknown error
+     */
+    public static ExperimentException unknownError(String message) {
+        return new ExperimentException(message, ErrorCategory.UNKNOWN_ERROR);
     }
 }
