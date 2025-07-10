@@ -1,0 +1,319 @@
+# Algorithm Parameters Configuration
+# Detailed parameter specifications for all optimization algorithms
+
+# Hippopotamus Optimization Algorithm Parameters
+hippopotamus_optimization:
+  default_parameters:
+    population_size: 50
+    max_iterations: 200
+    convergence_threshold: 0.001
+    diversity_threshold: 0.1
+    adaptive_parameters: true
+    mutation_probability: 0.1
+    crossover_probability: 0.8
+    selection_pressure: 2.0
+    
+  parameter_ranges:
+    population_size:
+      min: 10
+      max: 200
+      step: 10
+      description: "Number of hippopotamus individuals in population"
+      
+    max_iterations:
+      min: 50
+      max: 1000
+      step: 50
+      description: "Maximum number of optimization iterations"
+      
+    convergence_threshold:
+      min: 0.0001
+      max: 0.01
+      step: 0.0001
+      description: "Threshold for convergence detection"
+      
+    diversity_threshold:
+      min: 0.01
+      max: 0.5
+      step: 0.01
+      description: "Minimum diversity threshold for population"
+      
+    mutation_probability:
+      min: 0.01
+      max: 0.5
+      step: 0.01
+      description: "Probability of mutation operation"
+      
+    crossover_probability:
+      min: 0.1
+      max: 1.0
+      step: 0.1
+      description: "Probability of crossover operation"
+      
+    selection_pressure:
+      min: 1.0
+      max: 5.0
+      step: 0.1
+      description: "Selection pressure for parent selection"
+      
+  optimization_objectives:
+    resource_utilization:
+      weight: 0.3
+      target: "maximize"
+      description: "Maximize overall resource utilization"
+      
+    power_consumption:
+      weight: 0.25
+      target: "minimize"
+      description: "Minimize total power consumption"
+      
+    sla_violations:
+      weight: 0.3
+      target: "minimize"
+      description: "Minimize SLA violations"
+      
+    load_balancing:
+      weight: 0.15
+      target: "maximize"
+      description: "Maximize load balancing across hosts"
+
+# Genetic Algorithm Parameters
+genetic_algorithm:
+  default_parameters:
+    population_size: 100
+    max_generations: 200
+    mutation_rate: 0.05
+    crossover_rate: 0.8
+    selection_method: "tournament"
+    tournament_size: 3
+    elitism: true
+    elite_size: 2
+    
+  parameter_ranges:
+    population_size:
+      min: 20
+      max: 500
+      step: 20
+      
+    max_generations:
+      min: 50
+      max: 1000
+      step: 50
+      
+    mutation_rate:
+      min: 0.001
+      max: 0.3
+      step: 0.001
+      
+    crossover_rate:
+      min: 0.1
+      max: 1.0
+      step: 0.1
+      
+    tournament_size:
+      min: 2
+      max: 10
+      step: 1
+      
+    elite_size:
+      min: 1
+      max: 10
+      step: 1
+      
+  genetic_operators:
+    selection_methods: ["roulette", "tournament", "rank"]
+    crossover_methods: ["single_point", "two_point", "uniform"]
+    mutation_methods: ["swap", "inversion", "scramble"]
+
+# Particle Swarm Optimization Parameters
+particle_swarm:
+  default_parameters:
+    swarm_size: 50
+    max_iterations: 200
+    inertia_weight: 0.7
+    cognitive_coefficient: 2.0
+    social_coefficient: 2.0
+    velocity_clamping: true
+    max_velocity: 10.0
+    
+  parameter_ranges:
+    swarm_size:
+      min: 10
+      max: 200
+      step: 10
+      
+    max_iterations:
+      min: 50
+      max: 1000
+      step: 50
+      
+    inertia_weight:
+      min: 0.1
+      max: 1.0
+      step: 0.1
+      
+    cognitive_coefficient:
+      min: 0.5
+      max: 4.0
+      step: 0.1
+      
+    social_coefficient:
+      min: 0.5
+      max: 4.0
+      step: 0.1
+      
+    max_velocity:
+      min: 1.0
+      max: 50.0
+      step: 1.0
+      
+  topology_types: ["global", "ring", "von_neumann"]
+  
+# Ant Colony Optimization Parameters
+ant_colony:
+  default_parameters:
+    colony_size: 50
+    max_iterations: 200
+    pheromone_evaporation: 0.3
+    alpha: 1.0
+    beta: 2.0
+    q0: 0.9
+    tau_min: 0.01
+    tau_max: 10.0
+    
+  parameter_ranges:
+    colony_size:
+      min: 10
+      max: 200
+      step: 10
+      
+    max_iterations:
+      min: 50
+      max: 1000
+      step: 50
+      
+    pheromone_evaporation:
+      min: 0.01
+      max: 0.99
+      step: 0.01
+      
+    alpha:
+      min: 0.1
+      max: 5.0
+      step: 0.1
+      
+    beta:
+      min: 0.1
+      max: 5.0
+      step: 0.1
+      
+    q0:
+      min: 0.1
+      max: 0.99
+      step: 0.01
+      
+  ant_system_variants: ["AS", "EAS", "ACS", "MMAS"]
+
+# Baseline Algorithm Parameters
+baseline_algorithms:
+  first_fit:
+    description: "First Fit Decreasing algorithm"
+    sorting_order: "decreasing"
+    resource_priority: ["cpu", "memory", "bandwidth"]
+    
+  best_fit:
+    description: "Best Fit Decreasing algorithm"
+    sorting_order: "decreasing"
+    resource_priority: ["cpu", "memory", "bandwidth"]
+    fragmentation_metric: "euclidean"
+    
+  worst_fit:
+    description: "Worst Fit Decreasing algorithm"
+    sorting_order: "decreasing"
+    resource_priority: ["cpu", "memory", "bandwidth"]
+    
+  random_fit:
+    description: "Random allocation algorithm"
+    seed: 42
+    constraint_checking: true
+
+# Multi-objective Optimization Settings
+multi_objective:
+  scalarization_methods: ["weighted_sum", "tchebycheff", "augmented_tchebycheff"]
+  pareto_front_methods: ["NSGA-II", "SPEA2", "MOEA/D"]
+  
+  objective_weights:
+    default_weights:
+      resource_utilization: 0.3
+      power_consumption: 0.25
+      sla_violations: 0.3
+      response_time: 0.15
+      
+    sensitivity_analysis_weights:
+      - [0.5, 0.2, 0.2, 0.1]
+      - [0.2, 0.5, 0.2, 0.1]
+      - [0.2, 0.2, 0.5, 0.1]
+      - [0.25, 0.25, 0.25, 0.25]
+
+# Convergence Criteria
+convergence_criteria:
+  max_iterations: 1000
+  fitness_threshold: 0.001
+  stagnation_generations: 50
+  diversity_threshold: 0.01
+  improvement_threshold: 0.0001
+  
+# Adaptive Parameter Settings
+adaptive_parameters:
+  enabled: true
+  adaptation_strategies:
+    - "linear_decrease"
+    - "exponential_decrease"
+    - "adaptive_based_on_diversity"
+    - "adaptive_based_on_convergence"
+    
+  parameter_bounds:
+    mutation_rate:
+      min: 0.001
+      max: 0.3
+      initial: 0.1
+      
+    crossover_rate:
+      min: 0.1
+      max: 1.0
+      initial: 0.8
+      
+    population_diversity:
+      min: 0.01
+      max: 0.5
+      target: 0.2
+
+# Constraint Handling
+constraint_handling:
+  methods: ["penalty", "repair", "rejection"]
+  penalty_parameters:
+    resource_violation_penalty: 1000.0
+    sla_violation_penalty: 500.0
+    capacity_violation_penalty: 2000.0
+    
+  repair_strategies:
+    - "greedy_repair"
+    - "local_search_repair"
+    - "random_repair"
+
+# Performance Tuning
+performance_tuning:
+  parallel_evaluation: true
+  thread_pool_size: 4
+  memory_management:
+    gc_strategy: "G1GC"
+    heap_size: "4G"
+    
+  caching:
+    fitness_cache: true
+    cache_size: 10000
+    
+  logging:
+    detailed_logging: false
+    performance_logging: true
+    convergence_logging: true

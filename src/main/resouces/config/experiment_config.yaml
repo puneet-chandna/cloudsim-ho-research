@@ -1,0 +1,254 @@
+# Experiment Configuration for CloudSim HO Research Framework
+# This configuration file defines all experimental parameters for comprehensive research
+
+# General experiment settings
+experiment:
+  name: "HippopotamusOptimization_VM_Placement_Research"
+  version: "1.0.0"
+  description: "Comprehensive research experiments for HO algorithm in VM placement"
+  output_directory: "results"
+  seed: 42
+  replications: 30
+  parallel_execution: true
+  max_threads: 4
+
+# Algorithm configurations
+algorithms:
+  hippopotamus_optimization:
+    name: "HippopotamusOptimization"
+    enabled: true
+    parameters:
+      population_size: [20, 50, 100]
+      max_iterations: [100, 200, 500]
+      convergence_threshold: 0.001
+      diversity_maintenance: true
+      adaptive_parameters: true
+      mutation_probability: 0.1
+      crossover_probability: 0.8
+      selection_pressure: 2.0
+      
+  genetic_algorithm:
+    name: "GeneticAlgorithm"
+    enabled: true
+    parameters:
+      population_size: [50, 100]
+      max_generations: [100, 200]
+      mutation_rate: [0.01, 0.05, 0.1]
+      crossover_rate: [0.7, 0.8, 0.9]
+      selection_method: "tournament"
+      tournament_size: 3
+      elitism: true
+      elite_size: 2
+      
+  particle_swarm:
+    name: "ParticleSwarm"
+    enabled: true
+    parameters:
+      swarm_size: [30, 50]
+      max_iterations: [100, 200]
+      inertia_weight: [0.5, 0.7, 0.9]
+      cognitive_coefficient: 2.0
+      social_coefficient: 2.0
+      velocity_clamping: true
+      
+  ant_colony:
+    name: "AntColony"
+    enabled: true
+    parameters:
+      colony_size: [30, 50]
+      max_iterations: [100, 200]
+      pheromone_evaporation: [0.1, 0.3, 0.5]
+      alpha: 1.0
+      beta: 2.0
+      q0: 0.9
+      
+  baseline_algorithms:
+    first_fit:
+      name: "FirstFit"
+      enabled: true
+    best_fit:
+      name: "BestFit"
+      enabled: true
+    random_fit:
+      name: "RandomFit"
+      enabled: true
+
+# Dataset configurations
+datasets:
+  google_traces:
+    enabled: true
+    path: "datasets/google_traces/"
+    files:
+      - "task_usage_part-00000-of-00500.csv"
+      - "task_events_part-00000-of-00500.csv"
+    preprocessing:
+      normalize: true
+      filter_incomplete: true
+      time_window: 3600  # seconds
+      
+  azure_traces:
+    enabled: true
+    path: "datasets/azure_traces/"
+    files:
+      - "vm_usage_2017.csv"
+      - "vm_meta_2017.csv"
+    preprocessing:
+      normalize: true
+      aggregate_interval: 300  # seconds
+      
+  synthetic_workloads:
+    enabled: true
+    generation_parameters:
+      vm_count_range: [50, 2000]
+      host_count_range: [10, 500]
+      resource_patterns: ["uniform", "normal", "exponential"]
+      temporal_patterns: ["constant", "periodic", "bursty"]
+      sla_types: ["response_time", "availability", "throughput"]
+
+# Performance metrics to track
+metrics:
+  resource_utilization:
+    enabled: true
+    track_cpu: true
+    track_memory: true
+    track_bandwidth: true
+    track_storage: true
+    
+  power_consumption:
+    enabled: true
+    power_models: ["linear", "cubic", "sqrt"]
+    idle_power_ratio: 0.7
+    dynamic_power_ratio: 0.3
+    
+  sla_violations:
+    enabled: true
+    violation_types: ["response_time", "availability", "throughput"]
+    penalty_weights: [1.0, 2.0, 1.5]
+    
+  response_time:
+    enabled: true
+    percentiles: [50, 90, 95, 99]
+    
+  throughput:
+    enabled: true
+    measurement_interval: 60  # seconds
+    
+  cost_metrics:
+    enabled: true
+    cost_per_cpu_hour: 0.1
+    cost_per_gb_hour: 0.05
+    migration_cost: 0.01
+
+# Scalability testing configuration
+scalability_tests:
+  enabled: true
+  vm_counts: [100, 500, 1000, 2000, 5000]
+  host_counts: [10, 50, 100, 200, 500]
+  timeout_minutes: 30
+  memory_limit_gb: 8
+  
+# Statistical analysis configuration
+statistical_analysis:
+  confidence_level: 0.95
+  significance_level: 0.05
+  multiple_comparison_correction: "bonferroni"
+  normality_tests: ["shapiro", "anderson"]
+  hypothesis_tests: ["t_test", "wilcoxon", "kruskal_wallis"]
+  effect_size_measures: ["cohen_d", "eta_squared"]
+  
+# Parameter sensitivity analysis
+sensitivity_analysis:
+  enabled: true
+  method: "sobol"
+  sample_size: 1000
+  confidence_interval: 0.95
+  parameters_to_analyze:
+    - "population_size"
+    - "max_iterations"
+    - "convergence_threshold"
+    - "mutation_probability"
+    - "crossover_probability"
+
+# Reporting configuration
+reporting:
+  formats: ["pdf", "html", "latex", "csv"]
+  include_charts: true
+  chart_formats: ["png", "svg", "pdf"]
+  chart_resolution: 300  # DPI
+  
+  sections:
+    executive_summary: true
+    methodology: true
+    results: true
+    statistical_analysis: true
+    comparison: true
+    scalability: true
+    sensitivity: true
+    conclusions: true
+    
+  publication_ready:
+    enabled: true
+    latex_tables: true
+    high_quality_figures: true
+    reproducibility_info: true
+
+# Logging configuration
+logging:
+  level: "INFO"
+  file_output: true
+  console_output: true
+  log_file: "logs/experiment.log"
+  max_file_size: "10MB"
+  max_files: 10
+  
+# Validation settings
+validation:
+  enabled: true
+  check_result_consistency: true
+  verify_statistical_assumptions: true
+  validate_convergence: true
+  minimum_replications: 10
+  
+# Resource monitoring
+resource_monitoring:
+  enabled: true
+  monitor_cpu: true
+  monitor_memory: true
+  monitor_disk: true
+  sampling_interval: 5  # seconds
+  
+# Simulation environment settings
+simulation:
+  time_zone: "UTC"
+  start_time: 0.0
+  scheduling_interval: 1.0
+  monitoring_interval: 10.0
+  
+# Cloud infrastructure settings
+infrastructure:
+  datacenter_count: 1
+  hosts_per_datacenter: 100
+  default_host_specs:
+    cpu_cores: 8
+    cpu_mips: 2000
+    ram_gb: 16
+    storage_gb: 1000
+    bandwidth_mbps: 1000
+    
+  vm_types:
+    small:
+      cpu_cores: 1
+      ram_gb: 2
+      storage_gb: 20
+    medium:
+      cpu_cores: 2
+      ram_gb: 4
+      storage_gb: 40
+    large:
+      cpu_cores: 4
+      ram_gb: 8
+      storage_gb: 80
+    xlarge:
+      cpu_cores: 8
+      ram_gb: 16
+      storage_gb: 160

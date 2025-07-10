@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Properties for dynamic configuration -->
+    <property name="LOG_HOME" value="${LOG_HOME:-./logs}" />
+    <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n" />
+    <property name="DETAILED_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} [%file:%line] - %msg%n" />
+    
+    <!-- Console Appender for real-time monitoring -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>INFO</level>
+        </filter>
+    </appender>
+    
+    <!-- Main experiment log file with rolling policy -->
+    <appender name="EXPERIMENT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_HOME}/experiment.log</file>
+        <encoder>
+            <pattern>${DETAILED_PATTERN}</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_HOME}/experiment.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>100MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>5GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+    
+    <!-- Algorithm-specific log file -->
+    <appender name="ALGORITHM_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_HOME}/algorithm.log</file>
+        <encoder>
+            <pattern>${DETAILED_PATTERN}</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_HOME}/algorithm.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>50MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+            <maxHistory>7</maxHistory>
+        </rollingPolicy>
+    </appender>
+    
+    <!-- Performance metrics log file -->
+    <appender name="METRICS_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_HOME}/metrics.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS},%msg%n</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_HOME}/metrics.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>60</maxHistory>
+        </rollingPolicy>
+    </appender>
+    
+    <!-- Error log file -->
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_HOME}/error.log</file>
+        <encoder>
+            <pattern>${DETAILED_PATTERN}</pattern>
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>ERROR</level>
+        </filter>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_HOME}/error.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+    </appender>
+    
+    <!-- Statistical analysis log file -->
+    <appender name="STATS_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_HOME}/statistical_analysis.log</file>
+        <encoder>
+            <pattern>${DETAILED_PATTERN}</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_HOME}/statistical_analysis.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+    </appender>
+    
+    <!-- Debug log file for development -->
+    <appender name="DEBUG_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_HOME}/debug.log</file>
+        <encoder>
+            <pattern>${DETAILED_PATTERN}</pattern>
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>DEBUG</level>
+        </filter>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_HOME}/debug.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>3</maxHistory>
+        </rollingPolicy>
+    </appender>
+    
+    <!-- Async appenders for better performance -->
+    <appender name="ASYNC_EXPERIMENT" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="EXPERIMENT_FILE" />
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+    </appender>
+    
+    <appender name="ASYNC_METRICS" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="METRICS_FILE" />
+        <queueSize>1024</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+    </appender>
+    
+    <!-- Logger configurations for different packages -->
+    
+    <!-- Main application logger -->
+    <logger name="org.cloudbus.cloudsim" level="INFO">
+        <appender-ref ref="ASYNC_EXPERIMENT" />
+    </logger>
+    
+    <!-- Algorithm-specific loggers -->
+    <logger name="org.cloudbus.cloudsim.algorithm" level="DEBUG">
+        <appender-ref ref="ALGORITHM_FILE" />
+    </logger>
+    
+    <logger name="org.cloudbus.cloudsim.baseline" level="INFO">
+        <appender-ref ref="ALGORITHM_FILE" />
+    </logger>
+    
+    <!-- Policy loggers -->
+    <logger name="org.cloudbus.cloudsim.policy" level="INFO">
+        <appender-ref ref="ASYNC_EXPERIMENT" />
+    </logger>
+    
+    <!-- Simulation loggers -->
+    <logger name="org.cloudbus.cloudsim.simulation" level="INFO">
+        <appender-ref ref="ASYNC_EXPERIMENT" />
+    </logger>
+    
+    <!-- Experiment execution loggers -->
+    <logger name="org.cloudbus.cloudsim.experiment" level="INFO">
+        <appender-ref ref="ASYNC_EXPERIMENT" />
+    </logger>
+    
+    <!-- Analyzer loggers -->
+    <logger name="org.cloudbus.cloudsim.analyzer" level="INFO">
+        <appender-ref ref="STATS_FILE" />
+    </logger>
+    
+    <!-- Statistical analysis logger -->
+    <logger name="org.cloudbus.cloudsim.analyzer.ComprehensiveStatisticalAnalyzer" level="DEBUG">
+        <appender-ref ref="STATS_FILE" />
+    </logger>
+    
+    <!-- Reporting loggers -->
+    <logger name="org.cloudbus.cloudsim.reporting" level="INFO">
+        <appender-ref ref="ASYNC_EXPERIMENT" />
+    </logger>
+    
+    <!-- Dataset loggers -->
+    <logger name="org.cloudbus.cloudsim.dataset" level="INFO">
+        <appender-ref ref="ASYNC_EXPERIMENT" />
+    </logger>
+    
+    <!-- Utility loggers -->
+    <logger name="org.cloudbus.cloudsim.util.MetricsCalculator" level="DEBUG">
+        <appender-ref ref="ASYNC_METRICS" />
+    </logger>
+    
+    <logger name="org.cloudbus.cloudsim.util.ResourceMonitor" level="INFO">
+        <appender-ref ref="ASYNC_METRICS" />
+    </logger>
+    
+    <logger name="org.cloudbus.cloudsim.util.ValidationUtils" level="WARN">
+        <appender-ref ref="ASYNC_EXPERIMENT" />
+    </logger>
+    
+    <!-- CloudSim Plus framework loggers -->
+    <logger name="org.cloudsimplus" level="WARN" />
+    
+    <!-- Third-party library loggers -->
+    <logger name="org.apache.commons" level="WARN" />
+    <logger name="com.fasterxml.jackson" level="WARN" />
+    <logger name="org.jfree" level="WARN" />
+    <logger name="org.apache.poi" level="WARN" />
+    
+    <!-- Root logger configuration -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="ERROR_FILE" />
+        <appender-ref ref="DEBUG_FILE" />
+    </root>
+    
+    <!-- Special configuration for production mode -->
+    <springProfile name="production">
+        <logger name="org.cloudbus.cloudsim" level="WARN" />
+        <logger name="org.cloudbus.cloudsim.algorithm" level="INFO" />
+        <root level="WARN" />
+    </springProfile>
+    
+    <!-- Special configuration for debug mode -->
+    <springProfile name="debug">
+        <logger name="org.cloudbus.cloudsim" level="TRACE" />
+        <root level="DEBUG" />
+    </springProfile>
+</configuration>

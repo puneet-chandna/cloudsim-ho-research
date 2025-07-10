@@ -1,0 +1,282 @@
+% LaTeX Table Template for Hippopotamus Optimization Research Results
+% This template is used by LatexTableGenerator.java to create publication-ready tables
+
+% ============================================================================
+% Basic Table Template
+% ============================================================================
+\begin{table}[!htbp]
+\centering
+\caption{${caption}}
+\label{tab:${label}}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{${columns}}
+\toprule
+${header}
+\midrule
+${content}
+\bottomrule
+\end{tabular}%
+}
+${footnotes}
+\end{table}
+
+% ============================================================================
+% Algorithm Comparison Table Template
+% ============================================================================
+\begin{table}[!htbp]
+\centering
+\caption{Performance comparison of VM placement algorithms across different metrics}
+\label{tab:algorithm_comparison}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccc}
+\toprule
+\multirow{2}{*}{\textbf{Algorithm}} & \multicolumn{3}{c}{\textbf{Resource Utilization (\%)}} & \multirow{2}{*}{\textbf{Power (kWh)}} & \multirow{2}{*}{\textbf{SLA Violations}} & \multirow{2}{*}{\textbf{Execution Time (s)}} \\
+\cmidrule(lr){2-4}
+ & \textbf{CPU} & \textbf{Memory} & \textbf{Bandwidth} & & & \\
+\midrule
+${algorithm_rows}
+\bottomrule
+\end{tabular}%
+}
+\begin{tablenotes}
+\small
+\item Values represent mean ± standard deviation over ${num_runs} independent runs
+\item Best values are highlighted in \textbf{bold}
+\item ${significance_note}
+\end{tablenotes}
+\end{table}
+
+% ============================================================================
+% Statistical Test Results Table Template
+% ============================================================================
+\begin{table}[!htbp]
+\centering
+\caption{Statistical significance test results (p-values) for pairwise algorithm comparisons}
+\label{tab:statistical_tests}
+\begin{tabular}{lccccccc}
+\toprule
+\textbf{Metric} & \textbf{HO vs FF} & \textbf{HO vs BF} & \textbf{HO vs GA} & \textbf{HO vs PSO} & \textbf{HO vs ACO} & \textbf{HO vs Random} & \textbf{Test Used} \\
+\midrule
+${statistical_rows}
+\bottomrule
+\end{tabular}
+\begin{tablenotes}
+\small
+\item Significance level: $\alpha = ${alpha_level}$
+\item p-values < 0.05 are marked with *, p < 0.01 with **, p < 0.001 with ***
+\item HO: Hippopotamus Optimization, FF: First Fit, BF: Best Fit, GA: Genetic Algorithm
+\item PSO: Particle Swarm Optimization, ACO: Ant Colony Optimization
+\end{tablenotes}
+\end{table}
+
+% ============================================================================
+% Scalability Analysis Table Template
+% ============================================================================
+\begin{table}[!htbp]
+\centering
+\caption{Scalability analysis: Algorithm performance with increasing problem size}
+\label{tab:scalability_analysis}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrr}
+\toprule
+\multirow{2}{*}{\textbf{Algorithm}} & \multicolumn{6}{c}{\textbf{Number of VMs / Execution Time (seconds)}} \\
+\cmidrule(lr){2-7}
+ & \textbf{100} & \textbf{500} & \textbf{1000} & \textbf{2000} & \textbf{5000} & \textbf{Time Complexity} \\
+\midrule
+${scalability_rows}
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+% ============================================================================
+% Parameter Sensitivity Table Template
+% ============================================================================
+\begin{table}[!htbp]
+\centering
+\caption{Parameter sensitivity analysis for Hippopotamus Optimization algorithm}
+\label{tab:parameter_sensitivity}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Parameter} & \textbf{Range Tested} & \textbf{Optimal Value} & \textbf{Impact on Performance} & \textbf{Sensitivity Index} & \textbf{p-value} \\
+\midrule
+${parameter_rows}
+\bottomrule
+\end{tabular}
+\begin{tablenotes}
+\small
+\item Impact scale: Low (< 5\%), Medium (5-15\%), High (> 15\%)
+\item Sensitivity index calculated using Sobol's method
+\end{tablenotes}
+\end{table}
+
+% ============================================================================
+% Dataset Comparison Table Template
+% ============================================================================
+\begin{table}[!htbp]
+\centering
+\caption{Algorithm performance across different real-world datasets}
+\label{tab:dataset_comparison}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llccccr}
+\toprule
+\textbf{Dataset} & \textbf{Algorithm} & \textbf{Resource Util. (\%)} & \textbf{Power (kWh)} & \textbf{SLA Viol. (\%)} & \textbf{Migrations} & \textbf{Total Cost (\$)} \\
+\midrule
+${dataset_rows}
+\bottomrule
+\end{tabular}%
+}
+\begin{tablenotes}
+\small
+\item Google: Google cluster traces, Azure: Azure VM traces, Synthetic: Generated workloads
+\item All values averaged over entire trace duration
+\end{tablenotes}
+\end{table}
+
+% ============================================================================
+% Convergence Analysis Table Template
+% ============================================================================
+\begin{table}[!htbp]
+\centering
+\caption{Convergence characteristics of optimization algorithms}
+\label{tab:convergence_analysis}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Algorithm} & \textbf{Iterations to 90\%} & \textbf{Iterations to 95\%} & \textbf{Final Fitness} & \textbf{Std. Dev.} & \textbf{Success Rate (\%)} \\
+\midrule
+${convergence_rows}
+\bottomrule
+\end{tabular}
+\begin{tablenotes}
+\small
+\item Convergence measured as percentage of final fitness value achieved
+\item Success rate: percentage of runs achieving target fitness threshold
+\end{tablenotes}
+\end{table}
+
+% ============================================================================
+% Multi-objective Results Table Template
+% ============================================================================
+\begin{table}[!htbp]
+\centering
+\caption{Multi-objective optimization results: Pareto front solutions}
+\label{tab:multiobjective_results}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Solution} & \textbf{Resource Util.} & \textbf{Power} & \textbf{SLA Viol.} & \textbf{Load Balance} & \textbf{Migrations} & \textbf{Hypervolume} \\
+\midrule
+${pareto_rows}
+\bottomrule
+\end{tabular}
+\begin{tablenotes}
+\small
+\item All objectives normalized to [0, 1] range
+\item Hypervolume indicator calculated with reference point (1.1, 1.1, 1.1, 1.1, 1.1)
+\end{tablenotes}
+\end{table}
+
+% ============================================================================
+% Summary Statistics Table Template
+% ============================================================================
+\begin{table}[!htbp]
+\centering
+\caption{Summary statistics for ${metric_name} across all experiments}
+\label{tab:summary_stats_${metric_label}}
+\begin{tabular}{lrrrrrrr}
+\toprule
+\textbf{Algorithm} & \textbf{Mean} & \textbf{Median} & \textbf{Std. Dev.} & \textbf{Min} & \textbf{Max} & \textbf{CI (95\%)} & \textbf{CV (\%)} \\
+\midrule
+${summary_rows}
+\bottomrule
+\end{tabular}
+\begin{tablenotes}
+\small
+\item CI: Confidence Interval, CV: Coefficient of Variation
+\item Based on ${num_experiments} experiments with ${num_replications} replications each
+\end{tablenotes}
+\end{table}
+
+% ============================================================================
+% Resource Utilization Breakdown Table Template
+% ============================================================================
+\begin{table}[!htbp]
+\centering
+\caption{Detailed resource utilization breakdown by algorithm}
+\label{tab:resource_breakdown}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccc}
+\toprule
+\multirow{2}{*}{\textbf{Algorithm}} & \multicolumn{4}{c}{\textbf{Average Utilization (\%)}} & \multicolumn{4}{c}{\textbf{Peak Utilization (\%)}} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-9}
+ & \textbf{CPU} & \textbf{Memory} & \textbf{Storage} & \textbf{Network} & \textbf{CPU} & \textbf{Memory} & \textbf{Storage} & \textbf{Network} \\
+\midrule
+${utilization_rows}
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+% ============================================================================
+% Time Complexity Analysis Table Template
+% ============================================================================
+\begin{table}[!htbp]
+\centering
+\caption{Time and space complexity analysis of VM placement algorithms}
+\label{tab:complexity_analysis}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Algorithm} & \textbf{Time Complexity} & \textbf{Space Complexity} & \textbf{Empirical Growth Rate} \\
+\midrule
+Hippopotamus Optimization & $O(n \cdot p \cdot i)$ & $O(n \cdot p)$ & ${ho_growth} \\
+First Fit & $O(n \cdot m)$ & $O(1)$ & ${ff_growth} \\
+Best Fit & $O(n \cdot m)$ & $O(1)$ & ${bf_growth} \\
+Genetic Algorithm & $O(n \cdot p \cdot g)$ & $O(n \cdot p)$ & ${ga_growth} \\
+Particle Swarm & $O(n \cdot s \cdot i)$ & $O(n \cdot s)$ & ${pso_growth} \\
+Ant Colony & $O(n^2 \cdot a \cdot i)$ & $O(n^2)$ & ${aco_growth} \\
+\bottomrule
+\end{tabular}
+\begin{tablenotes}
+\small
+\item $n$: number of VMs, $m$: number of hosts, $p$: population size
+\item $i$: iterations, $g$: generations, $s$: swarm size, $a$: number of ants
+\item Empirical growth rate determined by regression analysis
+\end{tablenotes}
+\end{table}
+
+% ============================================================================
+% Custom Table Builder Macros
+% ============================================================================
+
+% Macro for creating simple comparison tables
+\newcommand{\simplecomparisontable}[4]{%
+\begin{table}[!htbp]
+\centering
+\caption{#1}
+\label{tab:#2}
+\begin{tabular}{#3}
+\toprule
+#4
+\bottomrule
+\end{tabular}
+\end{table}
+}
+
+% Macro for highlighted best values
+\newcommand{\best}[1]{\textbf{#1}}
+
+% Macro for statistical significance markers
+\newcommand{\sig}[1]{#1$^{*}$}
+\newcommand{\sigsig}[1]{#1$^{**}$}
+\newcommand{\sigsigsig}[1]{#1$^{***}$}
+
+% Macro for confidence intervals
+\newcommand{\ci}[2]{#1 $\pm$ #2}
+
+% ============================================================================
+% Notes on Template Usage
+% ============================================================================
+% This template file is used by LatexTableGenerator.java
+% Variables in ${} format are replaced with actual values
+% Tables are designed to be publication-ready with proper formatting
+% All tables follow standard academic formatting conventions
+% Tables can be customized by modifying the template or using custom builders
