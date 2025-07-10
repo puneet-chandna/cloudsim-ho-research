@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  * - Progress tracking and resource optimization
  * - Result aggregation and validation
  * 
- * @author Research Team
+ * @author Puneet Chandna
  * @since 1.0
  */
 public class ResearchOrchestrator {

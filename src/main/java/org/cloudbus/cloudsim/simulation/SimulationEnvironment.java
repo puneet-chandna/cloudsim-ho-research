@@ -35,6 +35,7 @@ import java.util.stream.IntStream;
  * 
  * This class is responsible for creating realistic datacenter environments
  * for VM placement optimization research.
+ * @author Puneet Chandna
  */
 public class SimulationEnvironment {
     

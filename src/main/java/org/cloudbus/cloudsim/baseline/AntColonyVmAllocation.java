@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
  * Statistical Methods: Population-based optimization metrics, diversity measures
  * Publication Format: ACO performance benchmarks and comparison tables
  * 
- * @author CloudSim Research Framework
+ * @author Puneet Chandna
  * @version 1.0
  */
 public class AntColonyVmAllocation extends VmAllocationPolicy {

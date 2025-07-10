@@ -11,6 +11,7 @@ import java.util.*;
 /**
  * Configuration for experiments with comprehensive parameter management
  * Supporting research objectives: parameter sensitivity analysis and reproducibility
+ * @author Puneet Chandna
  */
 public class ExperimentConfig {
     

@@ -13,7 +13,7 @@ import java.util.Arrays;
  * This class manages all algorithm parameters including their valid ranges,
  * default values, and validation rules for extensive research analysis.
  * 
- * @author CloudSim Research Team
+ * @author Puneet Chandna
  * @since CloudSim Plus 7.0.1
  */
 public class HippopotamusParameters {

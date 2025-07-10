@@ -5,7 +5,7 @@ import org.cloudbus.cloudsim.experiment.ExperimentalResult;
 import org.cloudbus.cloudsim.experiment.ExperimentConfig;
 import org.cloudbus.cloudsim.util.LoggingManager;
 import org.cloudbus.cloudsim.util.ValidationUtils;
-import org.cloudbus.cloudsim.core.ExperimentException;
+import org.cloudbus.cloudsim.util.ExperimentException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  * Generates comprehensive final reports consolidating all experimental results,
  * analyses, and findings into publication-ready documents.
  * 
- * @author Research Team
+ * @author Puneet Chandna
  * @since CloudSim Toolkit 1.0
  */
 public class FinalReportGenerator {

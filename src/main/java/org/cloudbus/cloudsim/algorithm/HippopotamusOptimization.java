@@ -24,7 +24,7 @@ import org.apache.commons.math3.random.MersenneTwister;
  * - SLA violation minimization
  * - Load balancing effectiveness
  * 
- * @author Research Framework
+ * @author Puneet Chandna
  * @version 2.0 - Enhanced for comprehensive research analysis
  */
 public class HippopotamusOptimization {

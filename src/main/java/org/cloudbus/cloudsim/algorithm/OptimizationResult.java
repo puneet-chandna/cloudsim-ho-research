@@ -15,7 +15,7 @@ import java.time.Duration;
  * convergence history, diversity metrics, execution statistics, and detailed
  * performance analysis data required for research publications.
  *
- * @author CloudSim Research Team
+ * @author Puneet Chandna
  * @since CloudSim Plus 7.0.1
  */
 public class OptimizationResult {

@@ -6,6 +6,8 @@ import java.util.stream.Collectors;
 /**
  * Define parameter space for sensitivity analysis
  * Supporting research objectives: comprehensive parameter exploration and optimization
+ * @author Puneet chandna
+ * @version 1.0.0
  */
 public class ParameterSpace {
     

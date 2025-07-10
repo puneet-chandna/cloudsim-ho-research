@@ -2,7 +2,7 @@ package org.cloudbus.cloudsim.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import org.cloudbus.cloudsim.ExperimentException;
+import org.cloudbus.cloudsim.util.ExperimentException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Handles loading, validation, saving, and generation of configuration sets
  * for reproducible experiments.
  *
- * @author Research Team
+ * @author Puneet Chandna
  * @since 1.0
  */
 public class ConfigurationManager {

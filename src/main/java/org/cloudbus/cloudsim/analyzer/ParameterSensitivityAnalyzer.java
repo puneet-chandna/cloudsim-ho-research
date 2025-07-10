@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
  * Implements multiple sensitivity analysis methods including Sobol indices, Morris method,
  * bootstrap confidence intervals, and correlation-based analyses for comprehensive
  * parameter impact assessment.
+ * @author Puneet Chandna
  */
 public class ParameterSensitivityAnalyzer {
 

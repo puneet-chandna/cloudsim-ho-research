@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
  * Main simulation engine with comprehensive monitoring for Hippopotamus Optimization research.
  * This class orchestrates the entire CloudSim simulation with detailed performance tracking
  * and validation for research purposes.
+ * @author Puneet Chandna
  */
 public class HippopotamusVmPlacementSimulation {
     

@@ -13,6 +13,7 @@ import java.util.*;
  * Statistical Methods: Provides scenario diversity metrics for experimental design validation
  * Publication Format: Generates scenario descriptions suitable for methodology sections
  * Dataset Integration: Supports both real-world and synthetic scenario configurations
+ * @author Puneet Chandna
  */
 public class ExperimentalScenario {
     

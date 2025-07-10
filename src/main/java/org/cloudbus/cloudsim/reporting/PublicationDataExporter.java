@@ -4,7 +4,7 @@ import org.cloudbus.cloudsim.experiment.ExperimentalResult;
 import org.cloudbus.cloudsim.experiment.ExperimentConfig;
 import org.cloudbus.cloudsim.util.LoggingManager;
 import org.cloudbus.cloudsim.util.ValidationUtils;
-import org.cloudbus.cloudsim.core.ExperimentException;
+import org.cloudbus.cloudsim.util.ExperimentException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  * Exports experimental data in various formats suitable for external analysis
  * tools such as R, MATLAB, SPSS, and Python.
  * 
- * @author Research Team
+ * @author Puneet Chandna
  * @since CloudSim Toolkit 1.0
  */
 public class PublicationDataExporter {

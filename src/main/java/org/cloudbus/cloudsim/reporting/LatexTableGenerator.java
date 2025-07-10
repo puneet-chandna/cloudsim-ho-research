@@ -4,7 +4,7 @@ import org.cloudbus.cloudsim.experiment.ExperimentalResult;
 import org.cloudbus.cloudsim.analyzer.ScalabilityResults;
 import org.cloudbus.cloudsim.util.LoggingManager;
 import org.cloudbus.cloudsim.util.ValidationUtils;
-import org.cloudbus.cloudsim.core.ExperimentException;
+import org.cloudbus.cloudsim.util.ExperimentException;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
  * Generates LaTeX tables for research publication, including results tables,
  * comparison tables, and statistical test tables with proper formatting.
  * 
- * @author Research Team
+ * @author Puneet Chandna
  * @since CloudSim Toolkit 1.0
  */
 public class LatexTableGenerator {

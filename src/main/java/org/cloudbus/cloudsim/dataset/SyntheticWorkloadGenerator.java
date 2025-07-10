@@ -30,7 +30,7 @@ import java.util.stream.IntStream;
  * Publication: Enables reproducible synthetic workload generation for research
  * Datasets: Creates synthetic datasets with controllable parameters
  * 
- * @author CloudSim HO Research Framework
+ * @author Puneet Chandna
  * @version 1.0
  */
 public class SyntheticWorkloadGenerator {

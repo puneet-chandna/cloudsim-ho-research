@@ -25,7 +25,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * - Convergence behavior analysis
  * - Solution diversity metrics
  * 
- * @author Research Framework Generator
+ * @author Puneet Chandna
  * @version 1.0
  */
 public class ParticleSwarmVmAllocation extends VmAllocationPolicy {

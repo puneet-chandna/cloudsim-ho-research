@@ -33,6 +33,8 @@ import java.util.stream.Collectors;
  * - Fragmentation metrics
  * - Optimization convergence data
  * - Solution quality measures
+ *  @author Puneet Chandna
+ *  @version 1.0.0
  */
 public class HippopotamusVmAllocationPolicy extends VmAllocationPolicyAbstract {
     

@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 /**
  * Execute batch experiments with parallel processing and failure handling
  * Supporting research objectives: large-scale experimentation and statistical validity
+ * @author Puneet Chandna
  */
 public class BatchExperimentExecutor {
     

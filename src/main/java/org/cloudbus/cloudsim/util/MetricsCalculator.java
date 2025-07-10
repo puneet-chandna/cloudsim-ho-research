@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
  * MetricsCalculator provides comprehensive performance metrics calculation
  * for CloudSim research experiments. This class ensures consistent metric
  * calculation across all components in the research framework.
+ * @author Puneet Chandna
  */
 public class MetricsCalculator {
     private static final Logger logger = LoggerFactory.getLogger(MetricsCalculator.class);

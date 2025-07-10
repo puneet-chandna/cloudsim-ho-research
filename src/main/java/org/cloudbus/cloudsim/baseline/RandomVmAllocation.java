@@ -31,7 +31,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * - SLA violation rates
  * - Power consumption (basic)
  * 
- * @author Research Framework
+ * @author Puneet Chandna
  * @version 1.0
  */
 public class RandomVmAllocation extends VmAllocationPolicyAbstract {

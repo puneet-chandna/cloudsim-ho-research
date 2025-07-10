@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
  * Publication Output: Workload description tables, statistical workload summaries
  * Dataset Compatibility: Google traces, Azure traces, synthetic workloads
  * 
- * @author CloudSim Research Framework
+ * @author Puneet Chandna
  * @version 1.0
  */
 public class WorkloadCharacteristics {

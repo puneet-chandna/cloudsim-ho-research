@@ -5,7 +5,7 @@ import org.cloudbus.cloudsim.experiment.ExperimentalResult;
 import org.cloudbus.cloudsim.experiment.ExperimentConfig;
 import org.cloudbus.cloudsim.util.LoggingManager;
 import org.cloudbus.cloudsim.util.ValidationUtils;
-import org.cloudbus.cloudsim.core.ExperimentException;
+import org.cloudbus.cloudsim.util.ExperimentException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
  * Generates concise research summaries suitable for presentations, posters,
  * and quick reference. Provides key findings and highlights in various formats.
  * 
- * @author Research Team
+ * @author Puneet Chandna
  * @since CloudSim Toolkit 1.0
  */
 public class ResearchSummary {

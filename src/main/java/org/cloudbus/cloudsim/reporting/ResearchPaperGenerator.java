@@ -4,7 +4,7 @@ import org.cloudbus.cloudsim.analyzer.*;
 import org.cloudbus.cloudsim.experiment.ExperimentalResult;
 import org.cloudbus.cloudsim.util.LoggingManager;
 import org.cloudbus.cloudsim.util.ValidationUtils;
-import org.cloudbus.cloudsim.core.ExperimentException;
+import org.cloudbus.cloudsim.util.ExperimentException;
 
 import java.io.*;
 import java.nio.file.*;
@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
  * Generates research paper components including abstract, methodology, results,
  * and conclusions in formats suitable for academic publication.
  * 
- * @author Research Team
+ * @author Puneet Chandna
  * @since CloudSim Toolkit 1.0
  */
 public class ResearchPaperGenerator {

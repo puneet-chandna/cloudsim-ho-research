@@ -51,7 +51,7 @@ import java.util.stream.IntStream;
  * - Handles Azure trace workload patterns
  * - Supports synthetic workload generation
  * 
- * @author CloudSim HO Research Framework
+ * @author Puneet Chandna
  * @version 1.0
  */
 public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {

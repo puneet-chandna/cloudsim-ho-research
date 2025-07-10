@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 /**
  * Comprehensive statistical analyzer for research experiments.
  * Provides descriptive and inferential statistical analysis capabilities.
+ * @author Puneet Chandna
  */
 public class ComprehensiveStatisticalAnalyzer {
     private static final Logger logger = LoggerFactory.getLogger(ComprehensiveStatisticalAnalyzer.class);

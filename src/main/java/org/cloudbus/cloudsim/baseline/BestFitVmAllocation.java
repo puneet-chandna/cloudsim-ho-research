@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
  * - Allocation success rate
  * - Resource wastage reduction
  * 
- * @author Research Framework
+ * @author Puneet Chandna
  * @version 1.0
  */
 public class BestFitVmAllocation extends VmAllocationPolicyAbstract {

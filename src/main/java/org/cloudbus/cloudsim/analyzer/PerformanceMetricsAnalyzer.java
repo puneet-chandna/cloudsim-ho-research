@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
  * - Evaluate power consumption and energy efficiency
  * - Measure throughput and response time characteristics
  * - Identify performance bottlenecks and optimization opportunities
+ *  @author Puneet Chandna
  */
 public class PerformanceMetricsAnalyzer {
     

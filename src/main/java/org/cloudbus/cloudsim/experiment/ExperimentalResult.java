@@ -11,6 +11,7 @@ import java.util.*;
 /**
  * Store comprehensive experimental results for research analysis
  * Supporting research objectives: comprehensive metrics collection and statistical analysis
+ * @author Puneet Chandna
  */
 public class ExperimentalResult {
     

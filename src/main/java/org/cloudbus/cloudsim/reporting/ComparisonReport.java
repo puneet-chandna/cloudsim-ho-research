@@ -37,8 +37,8 @@ import java.util.stream.Collectors;
  * This class is responsible for creating comparative analysis tables, performance charts,
  * and statistical comparison reports suitable for research publication.
  * 
- * @author Research Team
- * @since CloudSim Toolkit 1.0
+ * @author Puneet Chandna
+ * @since 1.0
  */
 public class ComparisonReport {
     

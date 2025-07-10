@@ -4,7 +4,7 @@ import org.cloudbus.cloudsim.experiment.ExperimentalResult;
 import org.cloudbus.cloudsim.analyzer.ScalabilityResults;
 import org.cloudbus.cloudsim.util.LoggingManager;
 import org.cloudbus.cloudsim.util.ValidationUtils;
-import org.cloudbus.cloudsim.core.ExperimentException;
+import org.cloudbus.cloudsim.util.ExperimentException;
 
 import org.jfree.chart.*;
 import org.jfree.chart.axis.*;
@@ -31,8 +31,8 @@ import java.util.stream.Collectors;
  * Generates high-quality visualizations for research publication including
  * performance charts, convergence analysis, scalability plots, and heatmaps.
  * 
- * @author Research Team
- * @since CloudSim Toolkit 1.0
+ * @author Puneet Chandna
+ * @since  1.0
  */
 public class VisualizationGenerator {
     

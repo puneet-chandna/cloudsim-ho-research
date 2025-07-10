@@ -20,6 +20,7 @@ import java.util.concurrent.*;
 /**
  * Execute individual experiments with comprehensive monitoring
  * Supporting research objectives: reliable experiment execution and data collection
+ * @author Puneet Chandna
  */
 public class ExperimentRunner {
     

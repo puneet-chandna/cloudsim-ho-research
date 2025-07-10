@@ -35,7 +35,7 @@ import java.util.List;
  * 
  * @author Puneet Chandna
  * @version 2.0
- * @since CloudSim Plus 7.0.1
+ * 
  */
 public class App {
     private static final Logger logger = LoggerFactory.getLogger(App.class);

@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
  * - Predictive SLA modeling
  * - Multi-objective SLA optimization
  * 
- * @author Research Framework Generator
+ * @author Puneet Chandna
  * @version 1.0
  */
 public class SLAAwareHippopotamusPolicy extends VmAllocationPolicy {

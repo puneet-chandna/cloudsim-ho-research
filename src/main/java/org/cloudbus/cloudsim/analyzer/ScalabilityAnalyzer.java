@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
  * - Determine computational complexity empirically
  * - Identify scalability bottlenecks
  * - Predict performance for larger problem instances
+ * @author Puneet Chandna
  */
 public class ScalabilityAnalyzer {
     

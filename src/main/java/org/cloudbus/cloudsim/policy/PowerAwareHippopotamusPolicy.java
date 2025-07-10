@@ -39,6 +39,7 @@ import java.util.stream.Collectors;
  * - Power consumption trend analysis
  * - Energy efficiency statistical testing
  * - Power optimization convergence analysis
+ *  @author Puneet Chandna
  */
 public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy {
     

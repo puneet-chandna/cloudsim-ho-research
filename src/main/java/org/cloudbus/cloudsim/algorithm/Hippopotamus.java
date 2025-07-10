@@ -17,7 +17,7 @@ import java.util.stream.IntStream;
  * - Diversity measurement support
  * - Constraint validation and repair
  * 
- * @author Research Framework
+ * @author Puneet Chandna
  * @version 2.0 - Enhanced for research analysis
  */
 public class Hippopotamus {

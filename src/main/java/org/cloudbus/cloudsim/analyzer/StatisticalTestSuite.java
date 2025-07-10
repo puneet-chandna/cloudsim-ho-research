@@ -1,682 +1,654 @@
 package org.cloudbus.cloudsim.analyzer;
 
-import org.cloudbus.cloudsim.experiment.ExperimentalResult;
-import org.cloudbus.cloudsim.util.LoggingManager;
-import org.cloudbus.cloudsim.util.MetricsCalculator;
-import org.cloudbus.cloudsim.core.CloudSim;
-import org.cloudbus.cloudsim.vms.Vm;
-import org.cloudbus.cloudsim.hosts.Host;
-import org.cloudbus.cloudsim.datacenters.Datacenter;
+import org.apache.commons.math3.stat.StatUtils;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+import org.apache.commons.math3.stat.inference.*;
+import org.apache.commons.math3.distribution.NormalDistribution;
+import org.apache.commons.math3.distribution.TDistribution;
+import org.apache.commons.math3.stat.correlation.PearsonsCorrelation;
+import org.apache.commons.math3.stat.correlation.SpearmansCorrelation;
+import org.apache.commons.math3.stat.ranking.NaNStrategy;
+import org.apache.commons.math3.stat.ranking.TiesStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.stream.Collectors;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 /**
- * Comprehensive SLA violation analysis for VM placement research.
- * Analyzes various types of SLA violations including availability,
- * performance, and resource-related violations.
+ * Comprehensive statistical test suite for research validation.
+ * Implements various parametric and non-parametric tests for
+ * algorithm comparison and result validation.
  * 
- * Research focus: Detailed SLA violation patterns and their impact
- * on cloud service quality for publication analysis.
+ * Research focus: Provides rigorous statistical testing required
+ * for publication-quality research results.
+ * @author Puneet Chandna
  */
-public class SLAViolationAnalyzer {
-    private static final Logger logger = LoggerFactory.getLogger(SLAViolationAnalyzer.class);
+public class StatisticalTestSuite {
+    private static final Logger logger = LoggerFactory.getLogger(StatisticalTestSuite.class);
     
-    // SLA violation thresholds
-    private static final double CPU_OVERUTILIZATION_THRESHOLD = 0.9;
-    private static final double MEMORY_OVERUTILIZATION_THRESHOLD = 0.9;
-    private static final double AVAILABILITY_THRESHOLD = 0.999; // 99.9% availability
-    private static final double RESPONSE_TIME_THRESHOLD = 1000; // ms
-    private static final double MIGRATION_TIME_THRESHOLD = 30000; // ms
+    // Statistical test parameters
+    private static final double DEFAULT_SIGNIFICANCE_LEVEL = 0.05;
+    private static final double NORMALITY_TEST_ALPHA = 0.05;
+    private static final int MIN_SAMPLE_SIZE = 5;
+    private static final int BOOTSTRAP_ITERATIONS = 10000;
     
-    private final MetricsCalculator metricsCalculator;
-    private final Map<String, List<SLAViolation>> violationsByType;
-    private final Map<String, DescriptiveStatistics> violationStatistics;
+    private final TTest tTest;
+    private final MannWhitneyUTest mannWhitneyUTest;
+    private final WilcoxonSignedRankTest wilcoxonTest;
+    private final OneWayAnova anovaTest;
+    private final KolmogorovSmirnovTest ksTest;
     
-    public SLAViolationAnalyzer() {
-        this.metricsCalculator = new MetricsCalculator();
-        this.violationsByType = new HashMap<>();
-        this.violationStatistics = new HashMap<>();
+    public StatisticalTestSuite() {
+        this.tTest = new TTest();
+        this.mannWhitneyUTest = new MannWhitneyUTest();
+        this.wilcoxonTest = new WilcoxonSignedRankTest();
+        this.anovaTest = new OneWayAnova();
+        this.ksTest = new KolmogorovSmirnovTest();
     }
     
     /**
-     * Detect all types of SLA violations in experimental results
+     * Perform Student's t-test for comparing two algorithms
      */
-    public Map<String, List<SLAViolation>> detectSLAViolations(
-            List<ExperimentalResult> results, 
-            Map<String, Object> simulationData) {
+    public TTestResult performTTest(double[] sample1, double[] sample2, 
+                                   boolean pairedSamples) {
+        logger.info("Performing {} t-test", pairedSamples ? "paired" : "independent");
         
-        logger.info("Starting comprehensive SLA violation detection");
-        violationsByType.clear();
+        validateSampleSize(sample1, sample2);
         
-        // Initialize violation categories
-        initializeViolationCategories();
+        TTestResult result = new TTestResult();
+        result.sampleSize1 = sample1.length;
+        result.sampleSize2 = sample2.length;
+        result.mean1 = StatUtils.mean(sample1);
+        result.mean2 = StatUtils.mean(sample2);
+        result.stdDev1 = Math.sqrt(StatUtils.variance(sample1));
+        result.stdDev2 = Math.sqrt(StatUtils.variance(sample2));
         
-        // Detect different types of violations
-        detectPerformanceViolations(results, simulationData);
-        detectAvailabilityViolations(results, simulationData);
-        detectResourceViolations(results, simulationData);
-        detectMigrationViolations(results, simulationData);
-        detectQoSViolations(results, simulationData);
-        
-        // Log summary
-        logViolationSummary();
-        
-        return new HashMap<>(violationsByType);
-    }
-    
-    /**
-     * Categorize violations by type and severity
-     */
-    public Map<String, Map<String, List<SLAViolation>>> categorizeViolations(
-            Map<String, List<SLAViolation>> violations) {
-        
-        logger.info("Categorizing SLA violations by type and severity");
-        
-        Map<String, Map<String, List<SLAViolation>>> categorized = new HashMap<>();
-        
-        for (Map.Entry<String, List<SLAViolation>> entry : violations.entrySet()) {
-            String violationType = entry.getKey();
-            List<SLAViolation> violationList = entry.getValue();
+        try {
+            if (pairedSamples) {
+                result.tStatistic = tTest.pairedT(sample1, sample2);
+                result.pValue = tTest.pairedTTest(sample1, sample2);
+                result.degreesOfFreedom = sample1.length - 1;
+            } else {
+                result.tStatistic = tTest.t(sample1, sample2);
+                result.pValue = tTest.tTest(sample1, sample2);
+                result.degreesOfFreedom = sample1.length + sample2.length - 2;
+            }
             
-            Map<String, List<SLAViolation>> severityMap = violationList.stream()
-                .collect(Collectors.groupingBy(v -> v.severity.toString()));
+            result.significant = result.pValue < DEFAULT_SIGNIFICANCE_LEVEL;
+            result.effectSize = calculateCohenD(sample1, sample2);
+            result.confidenceInterval = calculateConfidenceInterval(
+                result.mean1 - result.mean2, 
+                result.stdDev1, 
+                result.stdDev2, 
+                sample1.length, 
+                sample2.length
+            );
             
-            categorized.put(violationType, severityMap);
+            // Check assumptions
+            result.normalityAssumptionMet = checkNormality(sample1) && checkNormality(sample2);
+            result.equalVarianceAssumptionMet = checkEqualVariance(sample1, sample2);
+            
+        } catch (Exception e) {
+            logger.error("Error performing t-test: {}", e.getMessage());
+            result.valid = false;
         }
         
-        return categorized;
+        return result;
     }
     
     /**
-     * Calculate comprehensive violation metrics
+     * Perform Wilcoxon signed-rank test for paired samples
      */
-    public SLAViolationMetrics calculateViolationMetrics(
-            Map<String, List<SLAViolation>> violations,
-            List<ExperimentalResult> results) {
+    public WilcoxonTestResult performWilcoxonTest(double[] sample1, double[] sample2) {
+        logger.info("Performing Wilcoxon signed-rank test");
         
-        logger.info("Calculating comprehensive SLA violation metrics");
+        validateSampleSize(sample1, sample2);
         
-        SLAViolationMetrics metrics = new SLAViolationMetrics();
+        WilcoxonTestResult result = new WilcoxonTestResult();
+        result.sampleSize = sample1.length;
+        result.median1 = calculateMedian(sample1);
+        result.median2 = calculateMedian(sample2);
         
-        // Overall violation rate
-        int totalViolations = violations.values().stream()
-            .mapToInt(List::size)
-            .sum();
-        int totalOperations = calculateTotalOperations(results);
-        metrics.overallViolationRate = (double) totalViolations / totalOperations;
-        
-        // Per-type violation metrics
-        for (Map.Entry<String, List<SLAViolation>> entry : violations.entrySet()) {
-            String type = entry.getKey();
-            List<SLAViolation> typeViolations = entry.getValue();
+        try {
+            result.wStatistic = wilcoxonTest.wilcoxonSignedRank(sample1, sample2);
+            result.pValue = wilcoxonTest.wilcoxonSignedRankTest(sample1, sample2, true);
+            result.significant = result.pValue < DEFAULT_SIGNIFICANCE_LEVEL;
             
-            ViolationTypeMetrics typeMetrics = new ViolationTypeMetrics();
-            typeMetrics.count = typeViolations.size();
-            typeMetrics.rate = (double) typeViolations.size() / totalOperations;
+            // Calculate effect size (r = Z / sqrt(N))
+            double z = calculateZScore(result.wStatistic, sample1.length);
+            result.effectSize = Math.abs(z) / Math.sqrt(sample1.length);
             
-            // Calculate severity distribution
-            Map<Severity, Long> severityCount = typeViolations.stream()
-                .collect(Collectors.groupingBy(
-                    v -> v.severity,
-                    Collectors.counting()
-                ));
-            typeMetrics.severityDistribution = severityCount;
+            // Calculate confidence interval for median difference
+            result.confidenceInterval = calculateWilcoxonConfidenceInterval(sample1, sample2);
             
-            // Calculate temporal patterns
-            typeMetrics.temporalPattern = analyzeTemporalPattern(typeViolations);
-            
-            // Calculate impact metrics
-            typeMetrics.averageImpact = calculateAverageImpact(typeViolations);
-            typeMetrics.maxImpact = calculateMaxImpact(typeViolations);
-            
-            metrics.perTypeMetrics.put(type, typeMetrics);
+        } catch (Exception e) {
+            logger.error("Error performing Wilcoxon test: {}", e.getMessage());
+            result.valid = false;
         }
         
-        // Calculate cost impact
-        metrics.totalCostImpact = calculateCostImpact(violations);
-        
-        // Calculate availability impact
-        metrics.availabilityImpact = calculateAvailabilityImpact(violations);
-        
-        return metrics;
+        return result;
     }
     
     /**
-     * Analyze violation patterns over time
+     * Perform Kruskal-Wallis test for multiple groups
      */
-    public ViolationPatternAnalysis analyzeViolationPatterns(
-            Map<String, List<SLAViolation>> violations,
-            double simulationTime) {
+    public KruskalWallisResult performKruskalWallisTest(List<double[]> samples, 
+                                                       List<String> groupNames) {
+        logger.info("Performing Kruskal-Wallis test for {} groups", samples.size());
         
-        logger.info("Analyzing SLA violation patterns");
+        if (samples.size() < 3) {
+            throw new IllegalArgumentException("Kruskal-Wallis test requires at least 3 groups");
+        }
         
-        ViolationPatternAnalysis analysis = new ViolationPatternAnalysis();
+        KruskalWallisResult result = new KruskalWallisResult();
+        result.numberOfGroups = samples.size();
+        result.groupNames = new ArrayList<>(groupNames);
         
-        // Temporal clustering
-        analysis.temporalClusters = identifyTemporalClusters(violations, simulationTime);
+        try {
+            // Prepare data for Kruskal-Wallis test
+            List<Double> allData = new ArrayList<>();
+            List<Integer> groups = new ArrayList<>();
+            
+            for (int i = 0; i < samples.size(); i++) {
+                double[] sample = samples.get(i);
+                for (double value : sample) {
+                    allData.add(value);
+                    groups.add(i);
+                }
+                
+                result.groupSizes.add(sample.length);
+                result.groupMedians.add(calculateMedian(sample));
+            }
+            
+            // Perform test using custom implementation
+            result.hStatistic = calculateKruskalWallisH(samples);
+            result.degreesOfFreedom = samples.size() - 1;
+            result.pValue = calculateKruskalWallisPValue(result.hStatistic, result.degreesOfFreedom);
+            result.significant = result.pValue < DEFAULT_SIGNIFICANCE_LEVEL;
+            
+            // Post-hoc analysis if significant
+            if (result.significant) {
+                result.postHocResults = performDunnPostHoc(samples, groupNames);
+            }
+            
+        } catch (Exception e) {
+            logger.error("Error performing Kruskal-Wallis test: {}", e.getMessage());
+            result.valid = false;
+        }
         
-        // Spatial patterns (host/datacenter correlation)
-        analysis.spatialPatterns = identifySpatialPatterns(violations);
+        return result;
+    }
+    
+    /**
+     * Adjust p-values for multiple comparisons
+     */
+    public MultipleComparisonResult adjustPValues(List<Double> pValues, 
+                                                 List<String> comparisonNames,
+                                                 String method) {
+        logger.info("Adjusting p-values using {} method", method);
         
-        // Workload correlation
-        analysis.workloadCorrelation = analyzeWorkloadCorrelation(violations);
+        MultipleComparisonResult result = new MultipleComparisonResult();
+        result.method = method;
+        result.originalPValues = new ArrayList<>(pValues);
+        result.comparisonNames = new ArrayList<>(comparisonNames);
         
-        // Cascading violations
-        analysis.cascadingPatterns = identifyCascadingViolations(violations);
+        switch (method.toUpperCase()) {
+            case "BONFERRONI":
+                result.adjustedPValues = bonferroniCorrection(pValues);
+                break;
+            case "HOLM":
+                result.adjustedPValues = holmCorrection(pValues);
+                break;
+            case "BENJAMINI-HOCHBERG":
+            case "FDR":
+                result.adjustedPValues = benjaminiHochbergCorrection(pValues);
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown correction method: " + method);
+        }
         
-        // Periodic patterns
-        analysis.periodicPatterns = identifyPeriodicPatterns(violations, simulationTime);
+        // Determine which comparisons remain significant
+        for (int i = 0; i < result.adjustedPValues.size(); i++) {
+            result.significantAfterCorrection.add(
+                result.adjustedPValues.get(i) < DEFAULT_SIGNIFICANCE_LEVEL
+            );
+        }
         
-        return analysis;
+        return result;
+    }
+    
+    /**
+     * Calculate statistical power for a given effect size
+     */
+    public PowerAnalysisResult calculatePowerAnalysis(int sampleSize, 
+                                                     double effectSize, 
+                                                     double alpha,
+                                                     String testType) {
+        logger.info("Calculating statistical power for {} test", testType);
+        
+        PowerAnalysisResult result = new PowerAnalysisResult();
+        result.sampleSize = sampleSize;
+        result.effectSize = effectSize;
+        result.alpha = alpha;
+        result.testType = testType;
+        
+        try {
+            // Calculate power based on test type
+            switch (testType.toUpperCase()) {
+                case "T-TEST":
+                    result.power = calculateTTestPower(sampleSize, effectSize, alpha);
+                    break;
+                case "ANOVA":
+                    result.power = calculateAnovaPower(sampleSize, effectSize, alpha);
+                    break;
+                case "CORRELATION":
+                    result.power = calculateCorrelationPower(sampleSize, effectSize, alpha);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unknown test type: " + testType);
+            }
+            
+            // Calculate required sample size for target power
+            result.requiredSampleSizeFor80Power = calculateRequiredSampleSize(
+                effectSize, alpha, 0.80, testType
+            );
+            result.requiredSampleSizeFor90Power = calculateRequiredSampleSize(
+                effectSize, alpha, 0.90, testType
+            );
+            
+        } catch (Exception e) {
+            logger.error("Error calculating power: {}", e.getMessage());
+            result.valid = false;
+        }
+        
+        return result;
     }
     
     // Private helper methods
     
-    private void initializeViolationCategories() {
-        violationsByType.put("PERFORMANCE", new ArrayList<>());
-        violationsByType.put("AVAILABILITY", new ArrayList<>());
-        violationsByType.put("RESOURCE", new ArrayList<>());
-        violationsByType.put("MIGRATION", new ArrayList<>());
-        violationsByType.put("QOS", new ArrayList<>());
-    }
-    
-    private void detectPerformanceViolations(
-            List<ExperimentalResult> results,
-            Map<String, Object> simulationData) {
-        
-        List<SLAViolation> violations = new ArrayList<>();
-        
-        for (ExperimentalResult result : results) {
-            // Response time violations
-            if (result.getAverageResponseTime() > RESPONSE_TIME_THRESHOLD) {
-                SLAViolation violation = new SLAViolation();
-                violation.type = "PERFORMANCE";
-                violation.subType = "RESPONSE_TIME";
-                violation.timestamp = result.getTimestamp();
-                violation.actualValue = result.getAverageResponseTime();
-                violation.thresholdValue = RESPONSE_TIME_THRESHOLD;
-                violation.severity = calculateSeverity(
-                    result.getAverageResponseTime(), 
-                    RESPONSE_TIME_THRESHOLD
+    private void validateSampleSize(double[]... samples) {
+        for (double[] sample : samples) {
+            if (sample.length < MIN_SAMPLE_SIZE) {
+                throw new IllegalArgumentException(
+                    "Sample size must be at least " + MIN_SAMPLE_SIZE
                 );
-                violation.affectedEntities = extractAffectedVMs(result);
-                violations.add(violation);
-            }
-            
-            // Throughput violations
-            double expectedThroughput = (double) simulationData.getOrDefault("expectedThroughput", 1000.0);
-            if (result.getThroughput() < expectedThroughput * 0.95) {
-                SLAViolation violation = new SLAViolation();
-                violation.type = "PERFORMANCE";
-                violation.subType = "THROUGHPUT";
-                violation.timestamp = result.getTimestamp();
-                violation.actualValue = result.getThroughput();
-                violation.thresholdValue = expectedThroughput;
-                violation.severity = calculateSeverity(
-                    expectedThroughput - result.getThroughput(),
-                    expectedThroughput * 0.05
-                );
-                violations.add(violation);
             }
         }
-        
-        violationsByType.get("PERFORMANCE").addAll(violations);
     }
     
-    private void detectAvailabilityViolations(
-            List<ExperimentalResult> results,
-            Map<String, Object> simulationData) {
-        
-        List<SLAViolation> violations = new ArrayList<>();
-        
-        // Calculate availability from uptime/downtime data
-        double totalTime = (double) simulationData.getOrDefault("totalSimulationTime", 86400.0);
-        
-        for (ExperimentalResult result : results) {
-            double availability = calculateAvailability(result, totalTime);
-            
-            if (availability < AVAILABILITY_THRESHOLD) {
-                SLAViolation violation = new SLAViolation();
-                violation.type = "AVAILABILITY";
-                violation.subType = "UPTIME";
-                violation.timestamp = result.getTimestamp();
-                violation.actualValue = availability;
-                violation.thresholdValue = AVAILABILITY_THRESHOLD;
-                violation.severity = Severity.HIGH; // Availability violations are always high severity
-                violation.duration = calculateDowntime(result, totalTime);
-                violations.add(violation);
-            }
-        }
-        
-        violationsByType.get("AVAILABILITY").addAll(violations);
-    }
-    
-    private void detectResourceViolations(
-            List<ExperimentalResult> results,
-            Map<String, Object> simulationData) {
-        
-        List<SLAViolation> violations = new ArrayList<>();
-        
-        for (ExperimentalResult result : results) {
-            // CPU overutilization
-            if (result.getAverageCpuUtilization() > CPU_OVERUTILIZATION_THRESHOLD) {
-                SLAViolation violation = new SLAViolation();
-                violation.type = "RESOURCE";
-                violation.subType = "CPU_OVERUTILIZATION";
-                violation.timestamp = result.getTimestamp();
-                violation.actualValue = result.getAverageCpuUtilization();
-                violation.thresholdValue = CPU_OVERUTILIZATION_THRESHOLD;
-                violation.severity = calculateResourceSeverity(
-                    result.getAverageCpuUtilization(),
-                    CPU_OVERUTILIZATION_THRESHOLD
-                );
-                violations.add(violation);
-            }
-            
-            // Memory overutilization
-            if (result.getAverageMemoryUtilization() > MEMORY_OVERUTILIZATION_THRESHOLD) {
-                SLAViolation violation = new SLAViolation();
-                violation.type = "RESOURCE";
-                violation.subType = "MEMORY_OVERUTILIZATION";
-                violation.timestamp = result.getTimestamp();
-                violation.actualValue = result.getAverageMemoryUtilization();
-                violation.thresholdValue = MEMORY_OVERUTILIZATION_THRESHOLD;
-                violation.severity = calculateResourceSeverity(
-                    result.getAverageMemoryUtilization(),
-                    MEMORY_OVERUTILIZATION_THRESHOLD
-                );
-                violations.add(violation);
-            }
-        }
-        
-        violationsByType.get("RESOURCE").addAll(violations);
-    }
-    
-    private void detectMigrationViolations(
-            List<ExperimentalResult> results,
-            Map<String, Object> simulationData) {
-        
-        List<SLAViolation> violations = new ArrayList<>();
-        
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> migrations = (List<Map<String, Object>>) 
-            simulationData.getOrDefault("migrations", new ArrayList<>());
-        
-        for (Map<String, Object> migration : migrations) {
-            double migrationTime = (double) migration.getOrDefault("duration", 0.0);
-            
-            if (migrationTime > MIGRATION_TIME_THRESHOLD) {
-                SLAViolation violation = new SLAViolation();
-                violation.type = "MIGRATION";
-                violation.subType = "EXCESSIVE_MIGRATION_TIME";
-                violation.timestamp = (double) migration.getOrDefault("startTime", 0.0);
-                violation.actualValue = migrationTime;
-                violation.thresholdValue = MIGRATION_TIME_THRESHOLD;
-                violation.severity = Severity.MEDIUM;
-                violation.affectedEntities = Arrays.asList(
-                    (String) migration.getOrDefault("vmId", "unknown")
-                );
-                violations.add(violation);
-            }
-        }
-        
-        violationsByType.get("MIGRATION").addAll(violations);
-    }
-    
-    private void detectQoSViolations(
-            List<ExperimentalResult> results,
-            Map<String, Object> simulationData) {
-        
-        List<SLAViolation> violations = new ArrayList<>();
-        
-        // Detect composite QoS violations
-        for (ExperimentalResult result : results) {
-            double qosScore = calculateQoSScore(result);
-            double qosThreshold = 0.95; // 95% QoS requirement
-            
-            if (qosScore < qosThreshold) {
-                SLAViolation violation = new SLAViolation();
-                violation.type = "QOS";
-                violation.subType = "COMPOSITE_QOS";
-                violation.timestamp = result.getTimestamp();
-                violation.actualValue = qosScore;
-                violation.thresholdValue = qosThreshold;
-                violation.severity = calculateQoSSeverity(qosScore, qosThreshold);
-                violations.add(violation);
-            }
-        }
-        
-        violationsByType.get("QOS").addAll(violations);
-    }
-    
-    private Severity calculateSeverity(double actual, double threshold) {
-        double deviation = Math.abs(actual - threshold) / threshold;
-        if (deviation > 0.5) return Severity.HIGH;
-        if (deviation > 0.2) return Severity.MEDIUM;
-        return Severity.LOW;
-    }
-    
-    private Severity calculateResourceSeverity(double utilization, double threshold) {
-        if (utilization > 0.95) return Severity.HIGH;
-        if (utilization > threshold) return Severity.MEDIUM;
-        return Severity.LOW;
-    }
-    
-    private Severity calculateQoSSeverity(double score, double threshold) {
-        double gap = threshold - score;
-        if (gap > 0.1) return Severity.HIGH;
-        if (gap > 0.05) return Severity.MEDIUM;
-        return Severity.LOW;
-    }
-    
-    private List<String> extractAffectedVMs(ExperimentalResult result) {
-        // Extract affected VM IDs from result metadata
-        return new ArrayList<>(); // Placeholder
-    }
-    
-    private double calculateAvailability(ExperimentalResult result, double totalTime) {
-        double downtime = result.getTotalDowntime();
-        return (totalTime - downtime) / totalTime;
-    }
-    
-    private double calculateDowntime(ExperimentalResult result, double totalTime) {
-        return result.getTotalDowntime();
-    }
-    
-    private double calculateQoSScore(ExperimentalResult result) {
-        // Composite QoS score based on multiple metrics
-        double performanceScore = 1.0 - (result.getAverageResponseTime() / RESPONSE_TIME_THRESHOLD);
-        double resourceScore = 1.0 - Math.max(
-            result.getAverageCpuUtilization() - 0.8,
-            result.getAverageMemoryUtilization() - 0.8
-        ) / 0.2;
-        
-        return (performanceScore + resourceScore) / 2.0;
-    }
-    
-    private int calculateTotalOperations(List<ExperimentalResult> results) {
-        return results.stream()
-            .mapToInt(r -> r.getTotalVmRequests())
-            .sum();
-    }
-    
-    private String analyzeTemporalPattern(List<SLAViolation> violations) {
-        // Analyze temporal clustering of violations
-        if (violations.isEmpty()) return "NONE";
-        
-        // Sort by timestamp
-        violations.sort(Comparator.comparing(v -> v.timestamp));
-        
-        // Calculate inter-arrival times
-        List<Double> interArrivalTimes = new ArrayList<>();
-        for (int i = 1; i < violations.size(); i++) {
-            interArrivalTimes.add(
-                violations.get(i).timestamp - violations.get(i-1).timestamp
-            );
-        }
-        
-        if (interArrivalTimes.isEmpty()) return "ISOLATED";
-        
-        // Calculate coefficient of variation
-        DescriptiveStatistics stats = new DescriptiveStatistics();
-        interArrivalTimes.forEach(stats::addValue);
-        
-        double cv = stats.getStandardDeviation() / stats.getMean();
-        
-        if (cv < 0.5) return "REGULAR";
-        if (cv < 1.0) return "CLUSTERED";
-        return "RANDOM";
-    }
-    
-    private double calculateAverageImpact(List<SLAViolation> violations) {
-        return violations.stream()
-            .mapToDouble(v -> v.impactScore)
-            .average()
-            .orElse(0.0);
-    }
-    
-    private double calculateMaxImpact(List<SLAViolation> violations) {
-        return violations.stream()
-            .mapToDouble(v -> v.impactScore)
-            .max()
-            .orElse(0.0);
-    }
-    
-    private double calculateCostImpact(Map<String, List<SLAViolation>> violations) {
-        double totalCost = 0.0;
-        
-        // Cost per violation type (example values)
-        Map<String, Double> costPerViolation = Map.of(
-            "PERFORMANCE", 10.0,
-            "AVAILABILITY", 100.0,
-            "RESOURCE", 5.0,
-            "MIGRATION", 2.0,
-            "QOS", 20.0
+    private double calculateCohenD(double[] sample1, double[] sample2) {
+        double mean1 = StatUtils.mean(sample1);
+        double mean2 = StatUtils.mean(sample2);
+        double pooledStdDev = Math.sqrt(
+            ((sample1.length - 1) * StatUtils.variance(sample1) + 
+             (sample2.length - 1) * StatUtils.variance(sample2)) /
+            (sample1.length + sample2.length - 2)
         );
         
-        for (Map.Entry<String, List<SLAViolation>> entry : violations.entrySet()) {
-            String type = entry.getKey();
-            int count = entry.getValue().size();
-            totalCost += count * costPerViolation.getOrDefault(type, 1.0);
-        }
-        
-        return totalCost;
+        return (mean1 - mean2) / pooledStdDev;
     }
     
-    private double calculateAvailabilityImpact(Map<String, List<SLAViolation>> violations) {
-        List<SLAViolation> availabilityViolations = violations.get("AVAILABILITY");
-        if (availabilityViolations == null || availabilityViolations.isEmpty()) {
-            return 1.0; // No impact
-        }
+    private double[] calculateConfidenceInterval(double meanDiff, double std1, double std2,
+                                               int n1, int n2) {
+        double standardError = Math.sqrt((std1 * std1) / n1 + (std2 * std2) / n2);
+        double degreesOfFreedom = n1 + n2 - 2;
+        TDistribution tDist = new TDistribution(degreesOfFreedom);
+        double tCritical = tDist.inverseCumulativeProbability(1 - DEFAULT_SIGNIFICANCE_LEVEL / 2);
         
-        double totalDowntime = availabilityViolations.stream()
-            .mapToDouble(v -> v.duration)
-            .sum();
-        
-        // Assuming 24-hour period
-        return 1.0 - (totalDowntime / 86400.0);
+        double marginOfError = tCritical * standardError;
+        return new double[]{meanDiff - marginOfError, meanDiff + marginOfError};
     }
     
-    private List<TemporalCluster> identifyTemporalClusters(
-            Map<String, List<SLAViolation>> violations,
-            double simulationTime) {
-        
-        List<TemporalCluster> clusters = new ArrayList<>();
-        
-        // Merge all violations and sort by timestamp
-        List<SLAViolation> allViolations = violations.values().stream()
-            .flatMap(List::stream)
-            .sorted(Comparator.comparing(v -> v.timestamp))
-            .collect(Collectors.toList());
-        
-        if (allViolations.isEmpty()) return clusters;
-        
-        // Simple clustering based on time proximity
-        double clusterThreshold = simulationTime * 0.01; // 1% of simulation time
-        
-        TemporalCluster currentCluster = new TemporalCluster();
-        currentCluster.startTime = allViolations.get(0).timestamp;
-        currentCluster.violations.add(allViolations.get(0));
-        
-        for (int i = 1; i < allViolations.size(); i++) {
-            SLAViolation violation = allViolations.get(i);
+    private boolean checkNormality(double[] sample) {
+        try {
+            // Use Kolmogorov-Smirnov test for normality
+            NormalDistribution normalDist = new NormalDistribution(
+                StatUtils.mean(sample),
+                Math.sqrt(StatUtils.variance(sample))
+            );
             
-            if (violation.timestamp - currentCluster.endTime > clusterThreshold) {
-                // Start new cluster
-                clusters.add(currentCluster);
-                currentCluster = new TemporalCluster();
-                currentCluster.startTime = violation.timestamp;
+            double pValue = ksTest.kolmogorovSmirnovTest(normalDist, sample);
+            return pValue > NORMALITY_TEST_ALPHA;
+        } catch (Exception e) {
+            logger.warn("Error checking normality: {}", e.getMessage());
+            return false;
+        }
+    }
+    
+    private boolean checkEqualVariance(double[] sample1, double[] sample2) {
+        double var1 = StatUtils.variance(sample1);
+        double var2 = StatUtils.variance(sample2);
+        double fStatistic = Math.max(var1, var2) / Math.min(var1, var2);
+        
+        // Simple F-test approximation
+        return fStatistic < 3.0; // Rule of thumb
+    }
+    
+    private double calculateMedian(double[] values) {
+        double[] sorted = values.clone();
+        Arrays.sort(sorted);
+        int n = sorted.length;
+        
+        if (n % 2 == 0) {
+            return (sorted[n/2 - 1] + sorted[n/2]) / 2.0;
+        } else {
+            return sorted[n/2];
+        }
+    }
+    
+    private double calculateZScore(double wStatistic, int n) {
+        // Approximation for large samples
+        double mean = n * (n + 1) / 4.0;
+        double stdDev = Math.sqrt(n * (n + 1) * (2 * n + 1) / 24.0);
+        return (wStatistic - mean) / stdDev;
+    }
+    
+    private double[] calculateWilcoxonConfidenceInterval(double[] sample1, double[] sample2) {
+        // Simplified confidence interval calculation
+        double[] differences = new double[sample1.length];
+        for (int i = 0; i < sample1.length; i++) {
+            differences[i] = sample1[i] - sample2[i];
+        }
+        
+        Arrays.sort(differences);
+        int n = differences.length;
+        int lowerIndex = (int) Math.ceil(n * DEFAULT_SIGNIFICANCE_LEVEL / 2) - 1;
+        int upperIndex = n - lowerIndex - 1;
+        
+        return new double[]{differences[lowerIndex], differences[upperIndex]};
+    }
+    
+    private double calculateKruskalWallisH(List<double[]> samples) {
+        // Combine all samples and rank them
+        List<Double> allValues = new ArrayList<>();
+        List<Integer> groupLabels = new ArrayList<>();
+        
+        for (int i = 0; i < samples.size(); i++) {
+            for (double value : samples.get(i)) {
+                allValues.add(value);
+                groupLabels.add(i);
+            }
+        }
+        
+        // Rank the combined data
+        double[] ranks = rankData(allValues);
+        
+        // Calculate H statistic
+        int n = allValues.size();
+        double sumOfRankSums = 0.0;
+        
+        for (int i = 0; i < samples.size(); i++) {
+            double rankSum = 0.0;
+            int groupSize = 0;
+            
+            for (int j = 0; j < n; j++) {
+                if (groupLabels.get(j) == i) {
+                    rankSum += ranks[j];
+                    groupSize++;
+                }
             }
             
-            currentCluster.violations.add(violation);
-            currentCluster.endTime = violation.timestamp;
+            sumOfRankSums += (rankSum * rankSum) / groupSize;
         }
         
-        clusters.add(currentCluster);
+        double h = (12.0 / (n * (n + 1))) * sumOfRankSums - 3 * (n + 1);
         
-        return clusters;
+        return h;
     }
     
-    private Map<String, SpatialPattern> identifySpatialPatterns(
-            Map<String, List<SLAViolation>> violations) {
+    private double[] rankData(List<Double> data) {
+        int n = data.size();
+        double[] ranks = new double[n];
         
-        Map<String, SpatialPattern> patterns = new HashMap<>();
+        // Create index array
+        Integer[] indices = new Integer[n];
+        for (int i = 0; i < n; i++) {
+            indices[i] = i;
+        }
         
-        for (Map.Entry<String, List<SLAViolation>> entry : violations.entrySet()) {
-            String type = entry.getKey();
-            List<SLAViolation> typeViolations = entry.getValue();
+        // Sort indices by data values
+        Arrays.sort(indices, Comparator.comparing(data::get));
+        
+        // Assign ranks, handling ties
+        for (int i = 0; i < n; ) {
+            int j = i;
+            while (j < n && data.get(indices[j]).equals(data.get(indices[i]))) {
+                j++;
+            }
             
-            SpatialPattern pattern = new SpatialPattern();
+            double avgRank = (i + j + 1) / 2.0;
+            for (int k = i; k < j; k++) {
+                ranks[indices[k]] = avgRank;
+            }
             
-            // Group by host/datacenter
-            Map<String, Long> hostDistribution = typeViolations.stream()
-                .filter(v -> v.hostId != null)
-                .collect(Collectors.groupingBy(
-                    v -> v.hostId,
-                    Collectors.counting()
-                ));
+            i = j;
+        }
+        
+        return ranks;
+    }
+    
+    private double calculateKruskalWallisPValue(double hStatistic, int degreesOfFreedom) {
+        // Chi-square approximation
+        org.apache.commons.math3.distribution.ChiSquaredDistribution chiSquared = 
+            new org.apache.commons.math3.distribution.ChiSquaredDistribution(degreesOfFreedom);
+        
+        return 1 - chiSquared.cumulativeProbability(hStatistic);
+    }
+    
+    private Map<String, Double> performDunnPostHoc(List<double[]> samples, 
+                                                   List<String> groupNames) {
+        Map<String, Double> postHocPValues = new HashMap<>();
+        
+        // Perform pairwise comparisons
+        for (int i = 0; i < samples.size() - 1; i++) {
+            for (int j = i + 1; j < samples.size(); j++) {
+                String comparison = groupNames.get(i) + " vs " + groupNames.get(j);
+                
+                // Use Mann-Whitney U test for pairwise comparison
+                double pValue = mannWhitneyUTest.mannWhitneyUTest(
+                    samples.get(i), samples.get(j)
+                );
+                
+                postHocPValues.put(comparison, pValue);
+            }
+        }
+        
+        return postHocPValues;
+    }
+    
+    private List<Double> bonferroniCorrection(List<Double> pValues) {
+        int m = pValues.size();
+        return pValues.stream()
+            .map(p -> Math.min(p * m, 1.0))
+            .collect(Collectors.toList());
+    }
+    
+    private List<Double> holmCorrection(List<Double> pValues) {
+        int m = pValues.size();
+        
+        // Create index array and sort by p-values
+        Integer[] indices = new Integer[m];
+        for (int i = 0; i < m; i++) {
+            indices[i] = i;
+        }
+        Arrays.sort(indices, Comparator.comparing(pValues::get));
+        
+        // Apply Holm correction
+        List<Double> adjusted = new ArrayList<>(Collections.nCopies(m, 0.0));
+        for (int i = 0; i < m; i++) {
+            double adjustedP = pValues.get(indices[i]) * (m - i);
+            adjustedP = Math.min(adjustedP, 1.0);
             
-            pattern.hostConcentration = calculateConcentration(hostDistribution);
-            pattern.affectedHosts = hostDistribution.keySet();
+            if (i > 0) {
+                adjustedP = Math.max(adjustedP, adjusted.get(indices[i-1]));
+            }
             
-            patterns.put(type, pattern);
+            adjusted.set(indices[i], adjustedP);
         }
         
-        return patterns;
+        return adjusted;
     }
     
-    private double calculateConcentration(Map<String, Long> distribution) {
-        if (distribution.isEmpty()) return 0.0;
+    private List<Double> benjaminiHochbergCorrection(List<Double> pValues) {
+        int m = pValues.size();
         
-        long total = distribution.values().stream().mapToLong(Long::longValue).sum();
+        // Create index array and sort by p-values
+        Integer[] indices = new Integer[m];
+        for (int i = 0; i < m; i++) {
+            indices[i] = i;
+        }
+        Arrays.sort(indices, Comparator.comparing(pValues::get));
         
-        // Calculate Gini coefficient for concentration
-        List<Long> values = new ArrayList<>(distribution.values());
-        values.sort(Long::compare);
-        
-        double sum = 0.0;
-        for (int i = 0; i < values.size(); i++) {
-            sum += (2 * (i + 1) - values.size() - 1) * values.get(i);
+        // Apply Benjamini-Hochberg correction
+        List<Double> adjusted = new ArrayList<>(Collections.nCopies(m, 0.0));
+        for (int i = m - 1; i >= 0; i--) {
+            double adjustedP = pValues.get(indices[i]) * m / (i + 1);
+            adjustedP = Math.min(adjustedP, 1.0);
+            
+            if (i < m - 1) {
+                adjustedP = Math.min(adjustedP, adjusted.get(indices[i+1]));
+            }
+            
+            adjusted.set(indices[i], adjustedP);
         }
         
-        return sum / (values.size() * total);
+        return adjusted;
     }
     
-    private Map<String, Double> analyzeWorkloadCorrelation(
-            Map<String, List<SLAViolation>> violations) {
+    private double calculateTTestPower(int n, double effectSize, double alpha) {
+        // Non-central t-distribution approach
+        double ncp = effectSize * Math.sqrt(n / 2.0); // Non-centrality parameter
+        TDistribution centralT = new TDistribution(2 * n - 2);
+        double criticalValue = centralT.inverseCumulativeProbability(1 - alpha / 2);
         
-        Map<String, Double> correlations = new HashMap<>();
-        
-        // Placeholder for workload correlation analysis
-        // In practice, this would correlate violations with workload intensity
-        
-        return correlations;
+        // Approximation using normal distribution
+        NormalDistribution normal = new NormalDistribution(ncp, 1.0);
+        return 1 - normal.cumulativeProbability(criticalValue) + 
+               normal.cumulativeProbability(-criticalValue);
     }
     
-    private List<CascadingPattern> identifyCascadingViolations(
-            Map<String, List<SLAViolation>> violations) {
+    private double calculateAnovaPower(int n, double effectSize, double alpha) {
+        // Simplified power calculation for one-way ANOVA
+        double ncp = n * effectSize * effectSize; // Non-centrality parameter
         
-        List<CascadingPattern> patterns = new ArrayList<>();
+        // Use chi-square approximation
+        org.apache.commons.math3.distribution.ChiSquaredDistribution chiSquared = 
+            new org.apache.commons.math3.distribution.ChiSquaredDistribution(2); // df = k-1
         
-        // Identify violations that occur in sequence
-        // Placeholder implementation
+        double criticalValue = chiSquared.inverseCumulativeProbability(1 - alpha);
         
-        return patterns;
+        // Non-central chi-square approximation
+        return 1 - new NormalDistribution(ncp, Math.sqrt(2 * ncp)).cumulativeProbability(criticalValue);
     }
     
-    private Map<String, PeriodicPattern> identifyPeriodicPatterns(
-            Map<String, List<SLAViolation>> violations,
-            double simulationTime) {
+    private double calculateCorrelationPower(int n, double effectSize, double alpha) {
+        // Fisher's z transformation
+        double z = 0.5 * Math.log((1 + effectSize) / (1 - effectSize));
+        double se = 1.0 / Math.sqrt(n - 3);
         
-        Map<String, PeriodicPattern> patterns = new HashMap<>();
+        NormalDistribution normal = new NormalDistribution();
+        double criticalZ = normal.inverseCumulativeProbability(1 - alpha / 2);
         
-        // Placeholder for periodic pattern detection
-        // Would use FFT or autocorrelation in practice
+        double power = 1 - normal.cumulativeProbability((criticalZ - z) / se) +
+                      normal.cumulativeProbability((-criticalZ - z) / se);
         
-        return patterns;
+        return power;
     }
     
-    private void logViolationSummary() {
-        logger.info("SLA Violation Detection Summary:");
-        for (Map.Entry<String, List<SLAViolation>> entry : violationsByType.entrySet()) {
-            logger.info("  {} violations: {}", entry.getKey(), entry.getValue().size());
+    private int calculateRequiredSampleSize(double effectSize, double alpha, 
+                                          double targetPower, String testType) {
+        // Binary search for required sample size
+        int minN = 5;
+        int maxN = 10000;
+        
+        while (minN < maxN) {
+            int midN = (minN + maxN) / 2;
+            double power = 0.0;
+            
+            switch (testType.toUpperCase()) {
+                case "T-TEST":
+                    power = calculateTTestPower(midN, effectSize, alpha);
+                    break;
+                case "ANOVA":
+                    power = calculateAnovaPower(midN, effectSize, alpha);
+                    break;
+                case "CORRELATION":
+                    power = calculateCorrelationPower(midN, effectSize, alpha);
+                    break;
+            }
+            
+            if (power < targetPower) {
+                minN = midN + 1;
+            } else {
+                maxN = midN;
+            }
         }
-    }
-    
-    // Inner classes for structured results
-    
-    public static class SLAViolation {
-        public String type;
-        public String subType;
-        public double timestamp;
-        public double actualValue;
-        public double thresholdValue;
-        public Severity severity;
-        public List<String> affectedEntities;
-        public String hostId;
-        public double duration;
-        public double impactScore;
         
-        public SLAViolation() {
-            this.affectedEntities = new ArrayList<>();
-            this.impactScore = 1.0;
-        }
+        return minN;
     }
     
-    public enum Severity {
-        LOW, MEDIUM, HIGH, CRITICAL
+    // Result classes
+    
+    public static class TTestResult {
+        public int sampleSize1;
+        public int sampleSize2;
+        public double mean1;
+        public double mean2;
+        public double stdDev1;
+        public double stdDev2;
+        public double tStatistic;
+        public double pValue;
+        public double degreesOfFreedom;
+        public boolean significant;
+        public double effectSize;
+        public double[] confidenceInterval;
+        public boolean normalityAssumptionMet;
+        public boolean equalVarianceAssumptionMet;
+        public boolean valid = true;
     }
     
-    public static class SLAViolationMetrics {
-        public double overallViolationRate;
-        public Map<String, ViolationTypeMetrics> perTypeMetrics = new HashMap<>();
-        public double totalCostImpact;
-        public double availabilityImpact;
+    public static class WilcoxonTestResult {
+        public int sampleSize;
+        public double median1;
+        public double median2;
+        public double wStatistic;
+        public double pValue;
+        public boolean significant;
+        public double effectSize;
+        public double[] confidenceInterval;
+        public boolean valid = true;
     }
     
-    public static class ViolationTypeMetrics {
-        public int count;
-        public double rate;
-        public Map<Severity, Long> severityDistribution;
-        public String temporalPattern;
-        public double averageImpact;
-        public double maxImpact;
+    public static class KruskalWallisResult {
+        public int numberOfGroups;
+        public List<String> groupNames;
+        public List<Integer> groupSizes = new ArrayList<>();
+        public List<Double> groupMedians = new ArrayList<>();
+        public double hStatistic;
+        public double degreesOfFreedom;
+        public double pValue;
+        public boolean significant;
+        public Map<String, Double> postHocResults;
+        public boolean valid = true;
     }
     
-    public static class ViolationPatternAnalysis {
-        public List<TemporalCluster> temporalClusters;
-        public Map<String, SpatialPattern> spatialPatterns;
-        public Map<String, Double> workloadCorrelation;
-        public List<CascadingPattern> cascadingPatterns;
-        public Map<String, PeriodicPattern> periodicPatterns;
+    public static class MultipleComparisonResult {
+        public String method;
+        public List<String> comparisonNames;
+        public List<Double> originalPValues;
+        public List<Double> adjustedPValues;
+        public List<Boolean> significantAfterCorrection = new ArrayList<>();
     }
     
-    public static class TemporalCluster {
-        public double startTime;
-        public double endTime;
-        public List<SLAViolation> violations = new ArrayList<>();
-    }
-    
-    public static class SpatialPattern {
-        public double hostConcentration;
-        public Set<String> affectedHosts;
-    }
-    
-    public static class CascadingPattern {
-        public List<SLAViolation> sequence;
-        public double probability;
-        public double averageDelay;
-    }
-    
-    public static class PeriodicPattern {
-        public double period;
-        public double amplitude;
-        public double confidence;
+    public static class PowerAnalysisResult {
+        public int sampleSize;
+        public double effectSize;
+        public double alpha;
+        public String testType;
+        public double power;
+        public int requiredSampleSizeFor80Power;
+        public int requiredSampleSizeFor90Power;
+        public boolean valid = true;
     }
 }

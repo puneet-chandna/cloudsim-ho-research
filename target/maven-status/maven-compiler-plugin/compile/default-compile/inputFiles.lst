@@ -1,4 +1,5 @@
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/dataset/AzureTraceParser.java
+/home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/MainResearchController.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/baseline/FirstFitVmAllocation.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/App.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/reporting/ResearchPaperGenerator.java
@@ -20,6 +21,7 @@
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/baseline/AntColonyVmAllocation.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/policy/SLAAwareHippopotamusPolicy.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/analyzer/ComprehensiveStatisticalAnalyzer.java
+/home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/ResearchOrchestrator.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/analyzer/ScalabilityAnalyzer.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/util/ValidationUtils.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/analyzer/ScalabilityResults.java
