@@ -736,4 +736,46 @@ public class ExperimentalResult {
         }
         return config;
     }
+    
+    // Additional methods needed by the framework
+    public String getExperimentType() {
+        return experimentConfig != null ? experimentConfig.getAlgorithmType() : "unknown";
+    }
+    
+    public boolean isSuccessful() {
+        return validationStatus != null && validationStatus.isValid();
+    }
+    
+    public Map<String, Object> getMetrics() {
+        Map<String, Object> metrics = new HashMap<>();
+        if (performanceMetrics != null) {
+            metrics.put("resource_utilization", performanceMetrics.getResourceUtilization());
+            metrics.put("power_consumption", performanceMetrics.getPowerConsumption());
+            metrics.put("sla_violations", performanceMetrics.getSlaViolations());
+            metrics.put("response_time", performanceMetrics.getResponseTime());
+            metrics.put("throughput", performanceMetrics.getThroughput());
+            metrics.put("cost_metrics", performanceMetrics.getCostMetrics());
+            metrics.put("migration_metrics", performanceMetrics.getMigrationMetrics());
+        }
+        return metrics;
+    }
+    
+    public void setMetrics(Map<String, Object> metrics) {
+        // This method is called by the framework but we don't need to implement it
+        // as metrics are set through the nested objects
+    }
+    
+    public String getScenarioName() {
+        return experimentConfig != null ? experimentConfig.getExperimentName() : "unknown";
+    }
+    
+    public void setScenarioName(String scenarioName) {
+        if (experimentConfig != null) {
+            experimentConfig.setExperimentName(scenarioName);
+        }
+    }
+    
+    public double getTimestamp() {
+        return startTime != null ? startTime.toEpochSecond(java.time.ZoneOffset.UTC) : 0.0;
+    }
 }

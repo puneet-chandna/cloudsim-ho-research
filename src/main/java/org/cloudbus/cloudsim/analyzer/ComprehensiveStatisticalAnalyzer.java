@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Comprehensive statistical analyzer for research experiments.
@@ -29,6 +30,40 @@ public class ComprehensiveStatisticalAnalyzer {
     public ComprehensiveStatisticalAnalyzer() {
         this.metricStatistics = new HashMap<>();
         this.rawData = new HashMap<>();
+    }
+    
+    /**
+     * Main analysis method for statistical analysis
+     */
+    public Map<String, Object> analyzeResults(Map<String, List<ExperimentalResult>> results) {
+        logger.info("Starting comprehensive statistical analysis");
+        
+        Map<String, Object> analysis = new HashMap<>();
+        
+        try {
+            // Flatten results for analysis
+            List<ExperimentalResult> allResults = results.values().stream()
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+            
+            // Perform descriptive analysis
+            analysis.put("descriptive_analysis", performDescriptiveAnalysis(allResults));
+            
+            // Perform inferential analysis if we have multiple algorithms
+            if (results.size() > 1) {
+                String baselineAlgorithm = results.keySet().iterator().next();
+                analysis.put("inferential_analysis", performInferentialAnalysis(results, baselineAlgorithm));
+            }
+            
+            // Calculate confidence intervals
+            analysis.put("confidence_intervals", calculateConfidenceIntervals(allResults));
+            
+        } catch (Exception e) {
+            logger.error("Error in statistical analysis", e);
+            throw new ExperimentException("Failed to analyze statistical results", e);
+        }
+        
+        return analysis;
     }
     
     /**

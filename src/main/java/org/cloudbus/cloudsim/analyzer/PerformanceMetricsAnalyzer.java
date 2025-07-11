@@ -76,6 +76,37 @@ public class PerformanceMetricsAnalyzer {
     }
     
     /**
+     * Main analysis method for performance metrics
+     */
+    public Map<String, Object> analyzeResults(Map<String, List<ExperimentalResult>> results) {
+        loggingManager.logInfo("Starting comprehensive performance analysis");
+        
+        Map<String, Object> analysis = new HashMap<>();
+        
+        try {
+            // Flatten results for analysis
+            List<ExperimentalResult> allResults = results.values().stream()
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+            
+            // Perform individual analyses
+            analysis.put("resource_utilization", calculateResourceUtilization(allResults));
+            analysis.put("power_consumption", analyzePowerConsumption(allResults));
+            analysis.put("throughput", calculateThroughput(allResults));
+            analysis.put("response_time", analyzeResponseTime(allResults));
+            
+            // Generate overall performance report
+            analysis.put("performance_report", generatePerformanceReport());
+            
+        } catch (Exception e) {
+            loggingManager.logError("Error in performance analysis", e);
+            throw new ExperimentException("Failed to analyze performance results", e);
+        }
+        
+        return analysis;
+    }
+    
+    /**
      * Calculate and analyze resource utilization metrics
      */
     public Map<String, Object> calculateResourceUtilization(List<ExperimentalResult> results) {

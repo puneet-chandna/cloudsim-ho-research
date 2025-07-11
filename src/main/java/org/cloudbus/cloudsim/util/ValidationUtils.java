@@ -178,6 +178,32 @@ public class ValidationUtils {
     }
     
     /**
+     * Validate that an object is not null
+     * 
+     * @param obj the object to validate
+     * @param message the error message if validation fails
+     * @throws ExperimentException if the object is null
+     */
+    public static void validateNotNull(Object obj, String message) {
+        if (obj == null) {
+            throw new ExperimentException(message);
+        }
+    }
+    
+    /**
+     * Validate that a string is not null or empty
+     * 
+     * @param str the string to validate
+     * @param message the error message if validation fails
+     * @throws ExperimentException if the string is null or empty
+     */
+    public static void validateNotEmpty(String str, String message) {
+        if (str == null || str.trim().isEmpty()) {
+            throw new ExperimentException(message);
+        }
+    }
+    
+    /**
      * Validate experiment configuration
      */
     public static void validateConfiguration(ExperimentConfig config) {

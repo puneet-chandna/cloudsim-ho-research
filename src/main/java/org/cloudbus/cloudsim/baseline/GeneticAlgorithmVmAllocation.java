@@ -1,15 +1,19 @@
 package org.cloudbus.cloudsim.baseline;
 
-import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicy;
+import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicyAbstract;
 import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.datacenters.Datacenter;
 import org.cloudbus.cloudsim.hosts.Host;
 import org.cloudbus.cloudsim.vms.Vm;
 import org.cloudbus.cloudsim.util.ExperimentException;
 import org.cloudbus.cloudsim.util.LoggingManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.cloudbus.cloudsim.util.MetricsCalculator;
 
 import java.util.*;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
@@ -54,7 +58,9 @@ import java.util.stream.IntStream;
  * @author Puneet Chandna
  * @version 1.0
  */
-public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
+public class GeneticAlgorithmVmAllocation extends VmAllocationPolicyAbstract {
+    
+    private static final Logger LOGGER = LoggerFactory.getLogger(GeneticAlgorithmVmAllocation.class);
     
     // GA Parameters
     private int populationSize;
@@ -112,29 +118,47 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
         this.currentGeneration = 0;
     }
 
+    /**
+     * Default implementation for finding host for VM
+     */
+    @Override
+    public Optional<Host> defaultFindHostForVm(Vm vm) {
+        List<Host> hostList = getHostList();
+        return findHostForVm(vm, hostList);
+    }
+    
+    /**
+     * Find host for VM using GA approach
+     */
+    public Optional<Host> findHostForVm(Vm vm, List<Host> hostList) {
+        List<Host> suitableHosts = hostList.stream()
+            .filter(host -> host.isSuitableForVm(vm))
+            .collect(Collectors.toList());
+            
+        if (suitableHosts.isEmpty()) {
+            return Optional.empty();
+        }
+        
+        // For single VM allocation, use simple best fit
+        Host selectedHost = suitableHosts.stream()
+            .min(Comparator.comparingDouble(host -> 
+                calculateHostUtilization(host, vm)))
+            .orElse(null);
+            
+        return Optional.ofNullable(selectedHost);
+    }
+    
     @Override
     public boolean allocateHostForVm(Vm vm) {
         try {
-            List<Host> suitableHosts = getHostList().stream()
-                .filter(host -> host.isSuitableForVm(vm))
-                .toList();
-                
-            if (suitableHosts.isEmpty()) {
-                LoggingManager.logWarning("No suitable hosts found for VM " + vm.getId());
-                return false;
+            Optional<Host> hostOpt = defaultFindHostForVm(vm);
+            if (hostOpt.isPresent()) {
+                Host host = hostOpt.get();
+                if (host.isSuitableForVm(vm)) {
+                    vm.setHost(host);
+                    return true;
+                }
             }
-            
-            // For single VM allocation, use simple best fit
-            Host selectedHost = suitableHosts.stream()
-                .min(Comparator.comparingDouble(host -> 
-                    calculateHostUtilization(host, vm)))
-                .orElse(null);
-                
-            if (selectedHost != null && selectedHost.vmCreate(vm)) {
-                LoggingManager.logInfo("VM " + vm.getId() + " allocated to Host " + selectedHost.getId());
-                return true;
-            }
-            
             return false;
         } catch (Exception e) {
             throw new ExperimentException("GA VM allocation failed for VM " + vm.getId(), e);
@@ -144,8 +168,8 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
     @Override
     public boolean allocateHostForVm(Vm vm, Host host) {
         try {
-            if (host.isSuitableForVm(vm) && host.vmCreate(vm)) {
-                LoggingManager.logInfo("VM " + vm.getId() + " allocated to specified Host " + host.getId());
+            if (host.isSuitableForVm(vm)) {
+                vm.setHost(host);
                 return true;
             }
             return false;
@@ -156,8 +180,10 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
 
     @Override
     public void deallocateHostForVm(Vm vm) {
-        vm.getHost().vmDestroy(vm);
-        LoggingManager.logInfo("VM " + vm.getId() + " deallocated from Host " + vm.getHost().getId());
+        Host host = vm.getHost();
+        if (host != null && host != Host.NULL) {
+            vm.setHost(Host.NULL);
+        }
     }
 
     /**
@@ -169,7 +195,7 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
     public Map<Vm, Host> evolvePopulation(List<Vm> vmList) {
         try {
             startTime = System.currentTimeMillis();
-            LoggingManager.logInfo("Starting GA evolution for " + vmList.size() + " VMs");
+            LOGGER.info("Starting GA evolution for " + vmList.size() + " VMs");
             
             // Initialize population
             initializePopulation(vmList);
@@ -184,7 +210,7 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
                 
                 // Check convergence
                 if (hasConverged()) {
-                    LoggingManager.logInfo("GA converged at generation " + currentGeneration);
+                    LOGGER.info("GA converged at generation " + currentGeneration);
                     break;
                 }
                 
@@ -252,7 +278,7 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
             population.add(individual);
         }
         
-        LoggingManager.logInfo("Initialized GA population with " + populationSize + " individuals");
+        LOGGER.info("Initialized GA population with " + populationSize + " individuals");
     }
     
     /**

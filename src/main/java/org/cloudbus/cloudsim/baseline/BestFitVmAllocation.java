@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -91,6 +92,30 @@ public class BestFitVmAllocation extends VmAllocationPolicyAbstract {
         detailedMetrics.put("resourceWastage", 0.0);
         detailedMetrics.put("averageFitnessScore", 0.0);
         detailedMetrics.put("resourcePackingEfficiency", 0.0);
+    }
+    
+    /**
+     * Default implementation for finding host for VM
+     * 
+     * @param vm the VM to be allocated
+     * @return Optional containing the selected host, or empty if allocation fails
+     */
+    @Override
+    public Optional<Host> defaultFindHostForVm(Vm vm) {
+        List<Host> hostList = getHostList();
+        return findHostForVm(vm, hostList);
+    }
+    
+    /**
+     * Find host for VM using Best Fit algorithm
+     * 
+     * @param vm the VM to be allocated
+     * @param hostList the list of available hosts
+     * @return Optional containing the selected host, or empty if allocation fails
+     */
+    public Optional<Host> findHostForVm(Vm vm, List<Host> hostList) {
+        Host bestHost = findBestFitHost(vm, hostList);
+        return Optional.ofNullable(bestHost);
     }
     
     /**

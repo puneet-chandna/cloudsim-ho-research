@@ -325,6 +325,44 @@ public class ExperimentConfig {
         this.timeoutSeconds = timeoutSeconds; 
     }
     
+    // Additional methods needed by the framework
+    public String getExperimentType() { return algorithmType; }
+    public void setExperimentType(String experimentType) { 
+        this.algorithmType = experimentType; 
+    }
+    
+    public String getAlgorithmName() { return algorithmType; }
+    public void setAlgorithmName(String algorithmName) { 
+        this.algorithmType = algorithmName; 
+    }
+    
+    public Map<String, Object> getParameters() { return algorithmParameters; }
+    public void setParameters(Map<String, Object> parameters) { 
+        this.algorithmParameters = parameters; 
+    }
+    
+    public int getReplications() { 
+        return replicationSettings.getNumberOfReplications(); 
+    }
+    public void setReplications(int replications) { 
+        replicationSettings.setNumberOfReplications(replications); 
+    }
+    
+    public String getExperimentId() { 
+        return experimentName + "_" + System.currentTimeMillis(); 
+    }
+    
+    public int getTimeout() { return timeoutSeconds; }
+    
+    public Map<String, Object> getScenarioConfig() { 
+        Map<String, Object> config = new HashMap<>();
+        config.put("vm_count", vmCount);
+        config.put("host_count", hostCount);
+        config.put("scenario_type", scenarioType);
+        config.put("dataset_name", datasetName);
+        return config; 
+    }
+    
     @Override
     public String toString() {
         return String.format("ExperimentConfig[name=%s, algorithm=%s, vms=%d, hosts=%d, replications=%d]",

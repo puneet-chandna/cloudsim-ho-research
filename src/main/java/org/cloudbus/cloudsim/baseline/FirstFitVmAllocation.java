@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -79,6 +80,22 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
     }
     
     /**
+     * Find host for VM using First Fit algorithm
+     * 
+     * @param vm the VM to be allocated
+     * @param hostList the list of available hosts
+     * @return Optional containing the selected host, or empty if allocation fails
+     */
+    public Optional<Host> findHostForVm(Vm vm, List<Host> hostList) {
+        for (Host host : hostList) {
+            if (host.isSuitableForVm(vm)) {
+                return Optional.of(host);
+            }
+        }
+        return Optional.empty();
+    }
+    
+    /**
      * Allocates a host for a given VM using First Fit algorithm
      * 
      * @param vm the VM to be allocated
@@ -130,8 +147,8 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
      * @return true if successful, false otherwise
      */
     private boolean allocateHostForVmInternal(Vm vm, Host host) {
-        if (host.createVm(vm)) {
-            setVmToHost(vm, host);
+        if (host.isSuitableForVm(vm)) {
+            vm.setHost(host);
             return true;
         }
         return false;

@@ -156,6 +156,27 @@ public class ParameterSpace {
         this.samplingStrategy = SamplingStrategy.FULL_FACTORIAL;
     }
     
+    // Constructor with parameter map
+    public ParameterSpace(Map<String, Object> parameterMap) {
+        this();
+        if (parameterMap != null) {
+            for (Map.Entry<String, Object> entry : parameterMap.entrySet()) {
+                String name = entry.getKey();
+                Object value = entry.getValue();
+                
+                if (value instanceof Integer) {
+                    addIntegerParameter(name, (Integer) value, (Integer) value, (Integer) value);
+                } else if (value instanceof Double) {
+                    addDoubleParameter(name, (Double) value, (Double) value, (Double) value);
+                } else if (value instanceof Boolean) {
+                    addCategoricalParameter(name, Arrays.asList(true, false), value);
+                } else {
+                    addCategoricalParameter(name, Arrays.asList(value), value);
+                }
+            }
+        }
+    }
+    
     // Parameter management methods
     public void addParameter(ParameterDefinition parameter) {
         parameters.put(parameter.getName(), parameter);
@@ -406,6 +427,10 @@ public class ParameterSpace {
     }
     
     public int getTotalCombinations() { return generatedCombinations.size(); }
+    
+    public List<Map<String, Object>> generateSensitivitySets() {
+        return generateParameterCombinations();
+    }
     
     @Override
     public String toString() {

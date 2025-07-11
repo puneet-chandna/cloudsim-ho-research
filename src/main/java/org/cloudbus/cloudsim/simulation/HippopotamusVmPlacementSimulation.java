@@ -1,6 +1,6 @@
 package org.cloudbus.cloudsim.simulation;
 
-import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicy;
+import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicyAbstract;
 import org.cloudbus.cloudsim.brokers.DatacenterBroker;
 import org.cloudbus.cloudsim.brokers.DatacenterBrokerSimple;
 import org.cloudbus.cloudsim.cloudlets.Cloudlet;
@@ -45,7 +45,7 @@ public class HippopotamusVmPlacementSimulation {
     private List<Host> hostList;
     private List<Vm> vmList;
     private List<Cloudlet> cloudletList;
-    private VmAllocationPolicy allocationPolicy;
+    private VmAllocationPolicyAbstract allocationPolicy;
     private ExperimentalScenario currentScenario;
     private ResourceMonitor resourceMonitor;
     private MetricsCalculator metricsCalculator;
@@ -155,7 +155,7 @@ public class HippopotamusVmPlacementSimulation {
             
             // Collect comprehensive metrics
             ExperimentalResult result = collectMetrics();
-            result.setExecutionTime(executionTime);
+            result.setExecutionDurationMs((long) executionTime);
             result.setScenarioName(currentScenario.getScenarioName());
             
             // Validate results if enabled
