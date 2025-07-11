@@ -651,4 +651,89 @@ public class ExperimentalResult {
     public void setValidationStatus(ValidationStatus validationStatus) { 
         this.validationStatus = validationStatus; 
     }
+    
+    // Convenience methods for PerformanceMetricsAnalyzer
+    public String getAlgorithmName() {
+        return experimentConfig != null ? experimentConfig.getAlgorithmType() : "Unknown";
+    }
+    
+    public double getResourceUtilization() {
+        if (performanceMetrics != null && performanceMetrics.getResourceUtilization() != null) {
+            return performanceMetrics.getResourceUtilization().getAvgCpuUtilization();
+        }
+        return 0.0;
+    }
+    
+    public double getPowerConsumption() {
+        if (performanceMetrics != null && performanceMetrics.getPowerConsumption() != null) {
+            return performanceMetrics.getPowerConsumption().getAvgPowerConsumption();
+        }
+        return 0.0;
+    }
+    
+    public double getThroughput() {
+        if (performanceMetrics != null && performanceMetrics.getThroughput() != null) {
+            return performanceMetrics.getThroughput().getAvgThroughput();
+        }
+        return 0.0;
+    }
+    
+    public double getAverageResponseTime() {
+        if (performanceMetrics != null && performanceMetrics.getResponseTime() != null) {
+            return performanceMetrics.getResponseTime().getAvgResponseTime();
+        }
+        return 0.0;
+    }
+    
+    public double getSlaViolations() {
+        if (performanceMetrics != null && performanceMetrics.getSlaViolations() != null) {
+            return performanceMetrics.getSlaViolations().getViolationRate();
+        }
+        return 0.0;
+    }
+    
+    public long getExecutionTime() {
+        return executionDurationMs;
+    }
+    
+    public Map<String, Object> getDetailedMetrics() {
+        Map<String, Object> metrics = new HashMap<>();
+        if (performanceMetrics != null) {
+            if (performanceMetrics.getResourceUtilization() != null) {
+                metrics.put("cpu_utilization", performanceMetrics.getResourceUtilization().getAvgCpuUtilization());
+                metrics.put("memory_utilization", performanceMetrics.getResourceUtilization().getAvgMemoryUtilization());
+            }
+            if (performanceMetrics.getPowerConsumption() != null) {
+                metrics.put("power_consumption", performanceMetrics.getPowerConsumption().getAvgPowerConsumption());
+            }
+            if (performanceMetrics.getThroughput() != null) {
+                metrics.put("throughput", performanceMetrics.getThroughput().getAvgThroughput());
+            }
+            if (performanceMetrics.getResponseTime() != null) {
+                metrics.put("response_time", performanceMetrics.getResponseTime().getAvgResponseTime());
+            }
+        }
+        return metrics;
+    }
+    
+    public Map<String, Object> getScenarioDetails() {
+        Map<String, Object> details = new HashMap<>();
+        if (experimentConfig != null) {
+            details.put("algorithm", getAlgorithmName());
+            details.put("experiment_id", experimentId);
+            details.put("duration", executionDurationMs);
+        }
+        return details;
+    }
+    
+    // Compatibility methods
+    public Map<String, Object> getExperimentConfiguration() {
+        Map<String, Object> config = new HashMap<>();
+        if (experimentConfig != null) {
+            config.put("algorithm", getAlgorithmName());
+            config.put("experiment_id", experimentId);
+            // Add other configuration parameters as needed
+        }
+        return config;
+    }
 }

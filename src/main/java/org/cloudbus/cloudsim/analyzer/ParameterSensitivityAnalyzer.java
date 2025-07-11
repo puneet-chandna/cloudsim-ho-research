@@ -1,9 +1,7 @@
 package org.cloudbus.cloudsim.analyzer;
 
 import org.cloudbus.cloudsim.experiment.ExperimentalResult;
-import org.cloudbus.cloudsim.algorithm.HippopotamusParameters;
 import org.cloudbus.cloudsim.util.LoggingManager;
-import org.cloudbus.cloudsim.util.ValidationUtils;
 import org.cloudbus.cloudsim.util.ExperimentException;
 
 import org.apache.commons.math3.stat.correlation.PearsonsCorrelation;
@@ -37,6 +35,7 @@ public class ParameterSensitivityAnalyzer {
     private final List<ExperimentalResult> experimentResults;
     private final Set<String> significantParameters;
     private final Map<String, SensitivityMetrics> sensitivityResults;
+    private final LoggingManager loggingManager;
 
     /**
      * Sensitivity analysis metrics for a single parameter.
@@ -129,6 +128,7 @@ public class ParameterSensitivityAnalyzer {
         this.experimentResults     = Collections.synchronizedList(new ArrayList<>());
         this.significantParameters = Collections.synchronizedSet(new HashSet<>());
         this.sensitivityResults    = new ConcurrentHashMap<>();
+        this.loggingManager        = new LoggingManager();
     }
 
     /**
@@ -142,8 +142,8 @@ public class ParameterSensitivityAnalyzer {
     public SensitivityAnalysisReport performSensitivityAnalysis(List<ExperimentalResult> results,
                                                                 String objectiveName)
             throws ExperimentException {
-        LoggingManager.logInfo("Starting parameter sensitivity analysis for objective: " + objectiveName);
-        ValidationUtils.validateNotEmpty(results, "Experiment results");
+        loggingManager.logInfo("Starting parameter sensitivity analysis for objective: " + objectiveName);
+        validateResults(results, "Experiment results");
         if (results.size() < MIN_SAMPLES_FOR_ANALYSIS) {
             throw new ExperimentException(
                     "Insufficient samples for sensitivity analysis. Required: "
@@ -167,7 +167,7 @@ public class ParameterSensitivityAnalyzer {
         Map<String, Double>          partialCorrelations = calculatePartialCorrelations();
         double                       totalVariance      = calculateTotalVarianceExplained(metrics);
 
-        LoggingManager.logInfo("Parameter sensitivity analysis completed successfully");
+        loggingManager.logInfo("Parameter sensitivity analysis completed successfully");
         return new SensitivityAnalysisReport(metrics, rankedParams, interactions,
                                              totalVariance, partialCorrelations,
                                              results.size());
@@ -178,7 +178,7 @@ public class ParameterSensitivityAnalyzer {
         objectiveValues.clear();
         List<Double> objList = new ArrayList<>();
         for (ExperimentalResult result : results) {
-            double val = result.getPerformanceMetrics().getOrDefault(objectiveName, 0.0);
+            double val = getObjectiveValue(result, objectiveName);
             objList.add(val);
             Map<String, Object> params = result.getExperimentConfiguration();
             for (Map.Entry<String, Object> e : params.entrySet()) {
@@ -213,7 +213,7 @@ public class ParameterSensitivityAnalyzer {
 
             return new SensitivityMetrics(f1, t1, corr, morris, stderr, ci, signif);
         } catch (Exception e) {
-            LoggingManager.logError("Error computing metrics for " + parameterName, e);
+            loggingManager.logError("Error computing metrics for " + parameterName, e);
             throw new ExperimentException("Failed metrics for " + parameterName + ": " + e.getMessage(), e);
         }
     }
@@ -238,7 +238,8 @@ public class ParameterSensitivityAnalyzer {
         for (int i = 0; i < p.size(); i++) {
             groups.computeIfAbsent(p.get(i), k -> new ArrayList<>()).add(o.get(i));
         }
-        double sumVar = 0, count = 0;
+        double sumVar = 0;
+        double count = 0;
         for (List<Double> vals : groups.values()) {
             if (vals.size() > 1) {
                 DescriptiveStatistics ds = new DescriptiveStatistics();
@@ -319,10 +320,11 @@ public class ParameterSensitivityAnalyzer {
     private Map<String, Double> calculatePartialCorrelations() {
         Map<String, Double> partials = new LinkedHashMap<>();
         List<Double> objVals = objectiveValues.values().iterator().next();
-        for (String param : parameterValues.keySet()) {
+        for (Map.Entry<String, List<Double>> entry : parameterValues.entrySet()) {
+            String param = entry.getKey();
             double corr = new SpearmansCorrelation()
                     .correlation(
-                            parameterValues.get(param).stream().mapToDouble(Double::doubleValue).toArray(),
+                            entry.getValue().stream().mapToDouble(Double::doubleValue).toArray(),
                             objVals.stream().mapToDouble(Double::doubleValue).toArray());
             partials.put(param, corr);
         }
@@ -351,7 +353,7 @@ public class ParameterSensitivityAnalyzer {
             int idx = 1;
             for (String param : report.getRankedParameters()) {
                 SensitivityMetrics m = report.getParameterMetrics().get(param);
-                sb.append(String.format("%d. %s (Total=%.4f, Corr=%.4f)%s\n",
+                sb.append(String.format("%d. %s (Total=%.4f, Corr=%.4f)%s%n",
                         idx++, param, m.getTotalOrderIndex(), m.getCorrelationCoefficient(),
                         m.isSignificant() ? " [SIGNIFICANT]" : ""));
             }
@@ -359,7 +361,7 @@ public class ParameterSensitivityAnalyzer {
             for (Map.Entry<String, Map<String, Double>> e : report.getInteractionEffects().entrySet()) {
                 for (Map.Entry<String, Double> ie : e.getValue().entrySet()) {
                     if (Math.abs(ie.getValue()) > significanceThreshold) {
-                        sb.append(String.format("%s × %s: %.4f\n",
+                        sb.append(String.format("%s × %s: %.4f%n",
                                 e.getKey(), ie.getKey(), ie.getValue()));
                     }
                 }
@@ -367,7 +369,7 @@ public class ParameterSensitivityAnalyzer {
             Path path = Paths.get(outputPath);
             Files.createDirectories(path.getParent());
             Files.write(path, sb.toString().getBytes());
-            LoggingManager.logInfo("Sensitivity report saved to " + outputPath);
+            loggingManager.logInfo("Sensitivity report saved to " + outputPath);
         } catch (IOException e) {
             throw new ExperimentException("Failed writing report: " + e.getMessage(), e);
         }
@@ -384,5 +386,89 @@ public class ParameterSensitivityAnalyzer {
 
     public List<ExperimentalResult> getExperimentResults() {
         return new ArrayList<>(experimentResults);
+    }
+    
+    // Helper methods
+    
+    /**
+     * Validate experimental results
+     */
+    private void validateResults(List<ExperimentalResult> results, String message) {
+        if (results == null || results.isEmpty()) {
+            throw new ExperimentException(message + " cannot be null or empty");
+        }
+        
+        // Additional validation
+        for (ExperimentalResult result : results) {
+            if (result == null) {
+                throw new ExperimentException("Individual experimental results cannot be null");
+            }
+        }
+    }
+    
+    /**
+     * Extract objective value from experimental result safely
+     */
+    private double getObjectiveValue(ExperimentalResult result, String objectiveName) {
+        try {
+            // Extract common objective values based on the objective name
+            switch (objectiveName.toLowerCase()) {
+                case "resource_utilization":
+                    return result.getResourceUtilization();
+                case "power_consumption":
+                    return result.getPowerConsumption();
+                case "throughput":
+                    return result.getThroughput();
+                case "response_time":
+                    return result.getAverageResponseTime();
+                case "sla_violations":
+                    return result.getSlaViolations();
+                default:
+                    // Try to get from detailed metrics
+                    Map<String, Object> detailedMetrics = result.getDetailedMetrics();
+                    if (detailedMetrics != null && detailedMetrics.containsKey(objectiveName)) {
+                        Object value = detailedMetrics.get(objectiveName);
+                        if (value instanceof Number) {
+                            return ((Number) value).doubleValue();
+                        }
+                    }
+                    // Try to get from experiment configuration
+                    Map<String, Object> config = result.getExperimentConfiguration();
+                    if (config != null && config.containsKey(objectiveName)) {
+                        Object value = config.get(objectiveName);
+                        if (value instanceof Number) {
+                            return ((Number) value).doubleValue();
+                        }
+                    }
+                    return 0.0;
+            }
+        } catch (Exception e) {
+            loggingManager.logError("Error extracting objective value for " + objectiveName, e);
+            return 0.0;
+        }
+    }
+    
+    /**
+     * Calculate parameter interaction effect safely
+     */
+    private double calculateParameterInteractionEffect(List<Double> p, List<Double> o) {
+        if (p.size() != o.size() || p.size() < 2) {
+            return 0.0;
+        }
+        
+        try {
+            // Calculate correlation-based interaction effect
+            PearsonsCorrelation correlation = new PearsonsCorrelation();
+            double corr = correlation.correlation(
+                p.stream().mapToDouble(Double::doubleValue).toArray(),
+                o.stream().mapToDouble(Double::doubleValue).toArray()
+            );
+            
+            // Interaction effect as squared correlation (coefficient of determination)
+            return Math.abs(corr * corr);
+        } catch (Exception e) {
+            loggingManager.logError("Error calculating parameter interaction effect", e);
+            return 0.0;
+        }
     }
 }

@@ -2,26 +2,14 @@ package org.cloudbus.cloudsim.analyzer;
 
 import org.cloudbus.cloudsim.experiment.ExperimentalResult;
 import org.cloudbus.cloudsim.util.LoggingManager;
-import org.cloudbus.cloudsim.util.MetricsCalculator;
-import org.cloudbus.cloudsim.util.ValidationUtils;
-import org.cloudbus.cloudsim.reporting.VisualizationGenerator;
+import org.cloudbus.cloudsim.util.ExperimentException;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.correlation.PearsonsCorrelation;
-import org.apache.commons.math3.stat.inference.TTest;
-import org.apache.commons.math3.distribution.NormalDistribution;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.plot.PlotOrientation;
-import org.jfree.chart.plot.CategoryPlot;
-import org.jfree.chart.renderer.category.BoxAndWhiskerRenderer;
 import org.jfree.data.category.DefaultCategoryDataset;
-import org.jfree.data.statistics.BoxAndWhiskerCategoryDataset;
-import org.jfree.data.statistics.DefaultBoxAndWhiskerCategoryDataset;
-import org.jfree.data.xy.XYSeries;
-import org.jfree.data.xy.XYSeriesCollection;
-
-import java.awt.*;
 import java.util.*;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -42,6 +30,7 @@ public class PerformanceMetricsAnalyzer {
     private final Map<String, List<ExperimentalResult>> algorithmResults;
     private final Map<String, PerformanceProfile> performanceProfiles;
     private final Map<String, Map<String, DescriptiveStatistics>> metricStatistics;
+    private final LoggingManager loggingManager;
     
     // Metric categories
     public static final String RESOURCE_UTILIZATION = "resource_utilization";
@@ -83,20 +72,21 @@ public class PerformanceMetricsAnalyzer {
         this.algorithmResults = new HashMap<>();
         this.performanceProfiles = new HashMap<>();
         this.metricStatistics = new HashMap<>();
+        this.loggingManager = new LoggingManager();
     }
     
     /**
      * Calculate and analyze resource utilization metrics
      */
     public Map<String, Object> calculateResourceUtilization(List<ExperimentalResult> results) {
-        LoggingManager.logInfo("Calculating resource utilization metrics");
+        loggingManager.logInfo("Calculating resource utilization metrics");
         
         Map<String, Object> utilizationAnalysis = new HashMap<>();
         
         try {
             // Group results by algorithm
             Map<String, List<ExperimentalResult>> byAlgorithm = results.stream()
-                .collect(Collectors.groupingBy(r -> r.getAlgorithmName()));
+                .collect(Collectors.groupingBy(ExperimentalResult::getAlgorithmName));
             
             // Store for later use
             algorithmResults.putAll(byAlgorithm);
@@ -135,7 +125,7 @@ public class PerformanceMetricsAnalyzer {
             utilizationAnalysis.put("optimal_algorithm", identifyOptimalUtilization(efficiencyScores));
             
         } catch (Exception e) {
-            LoggingManager.logError("Error calculating resource utilization", e);
+            loggingManager.logError("Error calculating resource utilization", e);
             throw new ExperimentException("Failed to calculate resource utilization", e);
         }
         
@@ -146,13 +136,13 @@ public class PerformanceMetricsAnalyzer {
      * Analyze power consumption patterns
      */
     public Map<String, Object> analyzePowerConsumption(List<ExperimentalResult> results) {
-        LoggingManager.logInfo("Analyzing power consumption metrics");
+        loggingManager.logInfo("Analyzing power consumption metrics");
         
         Map<String, Object> powerAnalysis = new HashMap<>();
         
         try {
             Map<String, List<ExperimentalResult>> byAlgorithm = results.stream()
-                .collect(Collectors.groupingBy(r -> r.getAlgorithmName()));
+                .collect(Collectors.groupingBy(ExperimentalResult::getAlgorithmName));
             
             // Analyze power consumption for each algorithm
             Map<String, Map<String, Double>> algorithmPower = new HashMap<>();
@@ -189,7 +179,7 @@ public class PerformanceMetricsAnalyzer {
                 identifyMostPowerEfficient(powerEfficiency));
             
         } catch (Exception e) {
-            LoggingManager.logError("Error analyzing power consumption", e);
+            loggingManager.logError("Error analyzing power consumption", e);
             throw new ExperimentException("Failed to analyze power consumption", e);
         }
         
@@ -200,7 +190,7 @@ public class PerformanceMetricsAnalyzer {
      * Calculate throughput metrics
      */
     public Map<String, Object> calculateThroughput(List<ExperimentalResult> results) {
-        LoggingManager.logInfo("Calculating throughput metrics");
+        loggingManager.logInfo("Calculating throughput metrics");
         
         Map<String, Object> throughputAnalysis = new HashMap<>();
         
@@ -238,7 +228,7 @@ public class PerformanceMetricsAnalyzer {
                 identifyHighestThroughput(algorithmThroughput));
             
         } catch (Exception e) {
-            LoggingManager.logError("Error calculating throughput", e);
+            loggingManager.logError("Error calculating throughput", e);
             throw new ExperimentException("Failed to calculate throughput", e);
         }
         
@@ -249,7 +239,7 @@ public class PerformanceMetricsAnalyzer {
      * Analyze response time characteristics
      */
     public Map<String, Object> analyzeResponseTime(List<ExperimentalResult> results) {
-        LoggingManager.logInfo("Analyzing response time metrics");
+        loggingManager.logInfo("Analyzing response time metrics");
         
         Map<String, Object> responseTimeAnalysis = new HashMap<>();
         
@@ -294,7 +284,7 @@ public class PerformanceMetricsAnalyzer {
                 identifyLowestLatency(algorithmResponseTime));
             
         } catch (Exception e) {
-            LoggingManager.logError("Error analyzing response time", e);
+            loggingManager.logError("Error analyzing response time", e);
             throw new ExperimentException("Failed to analyze response time", e);
         }
         
@@ -305,7 +295,7 @@ public class PerformanceMetricsAnalyzer {
      * Generate comprehensive performance report
      */
     public Map<String, Object> generatePerformanceReport() {
-        LoggingManager.logInfo("Generating comprehensive performance report");
+        loggingManager.logInfo("Generating comprehensive performance report");
         
         Map<String, Object> report = new HashMap<>();
         
@@ -339,7 +329,7 @@ public class PerformanceMetricsAnalyzer {
             report.put("performance_profiles", performanceProfiles);
             
         } catch (Exception e) {
-            LoggingManager.logError("Error generating performance report", e);
+            loggingManager.logError("Error generating performance report", e);
             throw new ExperimentException("Failed to generate performance report", e);
         }
         
@@ -1362,7 +1352,7 @@ public class PerformanceMetricsAnalyzer {
             charts.put("performance_radar", radarChart);
             
         } catch (Exception e) {
-            LoggingManager.logError("Error generating visualizations", e);
+            loggingManager.logError("Error generating visualizations", e);
         }
         
         return charts;
@@ -1450,16 +1440,5 @@ public class PerformanceMetricsAnalyzer {
             PlotOrientation.VERTICAL,
             false, true, false
         );
-    }
-    
-    // Custom exception class
-    public static class ExperimentException extends RuntimeException {
-        public ExperimentException(String message) {
-            super(message);
-        }
-        
-        public ExperimentException(String message, Throwable cause) {
-            super(message, cause);
-        }
     }
 }

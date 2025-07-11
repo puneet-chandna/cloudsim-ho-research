@@ -5,15 +5,12 @@ import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.apache.commons.math3.stat.inference.OneWayAnova;
 import org.apache.commons.math3.stat.inference.TTest;
 import org.apache.commons.math3.distribution.TDistribution;
-import org.apache.commons.math3.stat.correlation.PearsonsCorrelation;
 import org.cloudbus.cloudsim.experiment.ExperimentalResult;
 import org.cloudbus.cloudsim.util.ExperimentException;
-import org.cloudbus.cloudsim.util.LoggingManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Comprehensive statistical analyzer for research experiments.
@@ -178,7 +175,7 @@ public class ComprehensiveStatisticalAnalyzer {
                 double stdError = stats.getStandardDeviation() / Math.sqrt(stats.getN());
                 
                 // Calculate t-value for given confidence level
-                TDistribution tDist = new TDistribution(stats.getN() - 1);
+                TDistribution tDist = new TDistribution((double) stats.getN() - 1);
                 double tValue = tDist.inverseCumulativeProbability(
                     1 - (1 - confidenceLevel) / 2);
                 
@@ -204,6 +201,17 @@ public class ComprehensiveStatisticalAnalyzer {
         }
         
         return intervals;
+    }
+    
+    /**
+     * Calculate confidence intervals for metrics using default confidence level.
+     * 
+     * @param results Experimental results
+     * @return Map of metrics to their confidence intervals
+     */
+    public Map<String, ConfidenceInterval> calculateConfidenceIntervals(
+            List<ExperimentalResult> results) {
+        return calculateConfidenceIntervals(results, DEFAULT_CONFIDENCE_LEVEL);
     }
     
     /**
@@ -332,11 +340,14 @@ public class ComprehensiveStatisticalAnalyzer {
         rawData.clear();
         
         for (ExperimentalResult result : results) {
-            Map<String, Double> metrics = result.getPerformanceMetrics();
-            
-            for (Map.Entry<String, Double> entry : metrics.entrySet()) {
-                rawData.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
-                       .add(entry.getValue());
+            // Extract metrics from performance metrics object
+            if (result != null && result.getPerformanceMetrics() != null) {
+                Map<String, Double> metrics = extractMetricsFromPerformanceMetrics(result.getPerformanceMetrics());
+                
+                for (Map.Entry<String, Double> entry : metrics.entrySet()) {
+                    rawData.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
+                           .add(entry.getValue());
+                }
             }
         }
     }
@@ -345,11 +356,13 @@ public class ComprehensiveStatisticalAnalyzer {
         Map<String, List<Double>> tempData = new HashMap<>();
         
         for (ExperimentalResult result : results) {
-            Map<String, Double> metrics = result.getPerformanceMetrics();
-            
-            for (Map.Entry<String, Double> entry : metrics.entrySet()) {
-                tempData.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
-                        .add(entry.getValue());
+            if (result != null && result.getPerformanceMetrics() != null) {
+                Map<String, Double> metrics = extractMetricsFromPerformanceMetrics(result.getPerformanceMetrics());
+                
+                for (Map.Entry<String, Double> entry : metrics.entrySet()) {
+                    tempData.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
+                            .add(entry.getValue());
+                }
             }
         }
         
@@ -366,7 +379,8 @@ public class ComprehensiveStatisticalAnalyzer {
     
     private double[] extractMetricValues(List<ExperimentalResult> results, String metricName) {
         return results.stream()
-                     .map(r -> r.getPerformanceMetrics().get(metricName))
+                     .filter(r -> r != null && r.getPerformanceMetrics() != null)
+                     .map(r -> extractMetricsFromPerformanceMetrics(r.getPerformanceMetrics()).get(metricName))
                      .filter(Objects::nonNull)
                      .mapToDouble(Double::doubleValue)
                      .toArray();
@@ -655,5 +669,80 @@ public class ComprehensiveStatisticalAnalyzer {
         public void setInterpretation(String interpretation) { 
             this.interpretation = interpretation; 
         }
+    }
+    
+    /**
+     * Extract key performance metrics from PerformanceMetrics object into a Map.
+     * 
+     * @param perfMetrics PerformanceMetrics object
+     * @return Map of metric names to values
+     */
+    private Map<String, Double> extractMetricsFromPerformanceMetrics(ExperimentalResult.PerformanceMetrics perfMetrics) {
+        Map<String, Double> metrics = new HashMap<>();
+        
+        if (perfMetrics != null) {
+            // Resource utilization metrics
+            if (perfMetrics.getResourceUtilization() != null) {
+                metrics.put("avgCpuUtilization", perfMetrics.getResourceUtilization().getAvgCpuUtilization());
+                metrics.put("avgMemoryUtilization", perfMetrics.getResourceUtilization().getAvgMemoryUtilization());
+                metrics.put("avgStorageUtilization", perfMetrics.getResourceUtilization().getAvgStorageUtilization());
+                metrics.put("avgNetworkUtilization", perfMetrics.getResourceUtilization().getAvgNetworkUtilization());
+                metrics.put("peakCpuUtilization", perfMetrics.getResourceUtilization().getPeakCpuUtilization());
+                metrics.put("peakMemoryUtilization", perfMetrics.getResourceUtilization().getPeakMemoryUtilization());
+            }
+            
+            // Power consumption metrics
+            if (perfMetrics.getPowerConsumption() != null) {
+                metrics.put("totalPowerConsumption", perfMetrics.getPowerConsumption().getTotalPowerConsumption());
+                metrics.put("avgPowerConsumption", perfMetrics.getPowerConsumption().getAvgPowerConsumption());
+                metrics.put("peakPowerConsumption", perfMetrics.getPowerConsumption().getPeakPowerConsumption());
+                metrics.put("powerEfficiencyRatio", perfMetrics.getPowerConsumption().getPowerEfficiencyRatio());
+            }
+            
+            // SLA violation metrics
+            if (perfMetrics.getSlaViolations() != null) {
+                metrics.put("totalViolations", (double) perfMetrics.getSlaViolations().getTotalViolations());
+                metrics.put("violationRate", perfMetrics.getSlaViolations().getViolationRate());
+                metrics.put("avgViolationDuration", perfMetrics.getSlaViolations().getAvgViolationDuration());
+                metrics.put("totalPenaltyCost", perfMetrics.getSlaViolations().getTotalPenaltyCost());
+            }
+            
+            // Response time metrics
+            if (perfMetrics.getResponseTime() != null) {
+                metrics.put("avgResponseTime", perfMetrics.getResponseTime().getAvgResponseTime());
+                metrics.put("minResponseTime", perfMetrics.getResponseTime().getMinResponseTime());
+                metrics.put("maxResponseTime", perfMetrics.getResponseTime().getMaxResponseTime());
+                metrics.put("p50ResponseTime", perfMetrics.getResponseTime().getP50ResponseTime());
+                metrics.put("p95ResponseTime", perfMetrics.getResponseTime().getP95ResponseTime());
+                metrics.put("p99ResponseTime", perfMetrics.getResponseTime().getP99ResponseTime());
+            }
+            
+            // Throughput metrics
+            if (perfMetrics.getThroughput() != null) {
+                metrics.put("avgThroughput", perfMetrics.getThroughput().getAvgThroughput());
+                metrics.put("peakThroughput", perfMetrics.getThroughput().getPeakThroughput());
+                metrics.put("totalJobsCompleted", perfMetrics.getThroughput().getTotalJobsCompleted());
+                metrics.put("successRate", perfMetrics.getThroughput().getSuccessRate());
+            }
+            
+            // Cost metrics
+            if (perfMetrics.getCostMetrics() != null) {
+                metrics.put("totalOperationalCost", perfMetrics.getCostMetrics().getTotalOperationalCost());
+                metrics.put("powerCost", perfMetrics.getCostMetrics().getPowerCost());
+                metrics.put("resourceCost", perfMetrics.getCostMetrics().getResourceCost());
+                metrics.put("slaPenaltyCost", perfMetrics.getCostMetrics().getSlaPenaltyCost());
+                metrics.put("costPerJob", perfMetrics.getCostMetrics().getCostPerJob());
+            }
+            
+            // Migration metrics
+            if (perfMetrics.getMigrationMetrics() != null) {
+                metrics.put("totalMigrations", (double) perfMetrics.getMigrationMetrics().getTotalMigrations());
+                metrics.put("avgMigrationTime", perfMetrics.getMigrationMetrics().getAvgMigrationTime());
+                metrics.put("totalMigrationDowntime", perfMetrics.getMigrationMetrics().getTotalMigrationDowntime());
+                metrics.put("migrationOverhead", perfMetrics.getMigrationMetrics().getMigrationOverhead());
+            }
+        }
+        
+        return metrics;
     }
 }

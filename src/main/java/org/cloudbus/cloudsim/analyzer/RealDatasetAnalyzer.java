@@ -2,10 +2,6 @@ package org.cloudbus.cloudsim.analyzer;
 
 import org.cloudbus.cloudsim.experiment.ExperimentalResult;
 import org.cloudbus.cloudsim.util.LoggingManager;
-import org.cloudbus.cloudsim.util.MetricsCalculator;
-import org.cloudbus.cloudsim.util.ValidationUtils;
-import org.cloudbus.cloudsim.reporting.LatexTableGenerator;
-import org.cloudbus.cloudsim.reporting.VisualizationGenerator;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.correlation.PearsonsCorrelation;
@@ -13,8 +9,6 @@ import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.data.category.DefaultCategoryDataset;
-import org.jfree.data.xy.XYSeries;
-import org.jfree.data.xy.XYSeriesCollection;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -34,36 +28,69 @@ public class RealDatasetAnalyzer {
     private final Map<String, List<ExperimentalResult>> datasetResults;
     private final Map<String, Map<String, DescriptiveStatistics>> performanceByDataset;
     private final Map<String, WorkloadCharacterization> datasetCharacteristics;
+    private final LoggingManager loggingManager;
     
     // Dataset types
     public static final String GOOGLE_TRACES = "google_traces";
     public static final String AZURE_TRACES = "azure_traces";
     public static final String SYNTHETIC_WORKLOAD = "synthetic_workloads";
     
+    // Analysis keys
+    private static final String ALGORITHM_PERFORMANCE_KEY = "algorithm_performance";
+    private static final String WORKLOAD_CHARACTERISTICS_KEY = "workload_characteristics";
+    private static final String BEST_ALGORITHM_KEY = "best_algorithm";
+    private static final String AVG_UTILIZATION_KEY = "avg_utilization";
+    
     // Workload characteristics
     public static class WorkloadCharacterization {
-        public double avgResourceDemand;
-        public double resourceVariability;
-        public double temporalBurstiness;
-        public double vmHeterogeneity;
-        public int totalVMs;
-        public int totalHosts;
-        public double avgUtilization;
+        private double avgResourceDemand;
+        private double resourceVariability;
+        private double temporalBurstiness;
+        private double vmHeterogeneity;
+        private int totalVMs;
+        private int totalHosts;
+        private double avgUtilization;
         
-        public WorkloadCharacterization() {}
+        // Default constructor for initialization
+        public WorkloadCharacterization() {
+            // Initialize with default values
+        }
+        
+        // Getters and setters
+        public double getAvgResourceDemand() { return avgResourceDemand; }
+        public void setAvgResourceDemand(double avgResourceDemand) { this.avgResourceDemand = avgResourceDemand; }
+        
+        public double getResourceVariability() { return resourceVariability; }
+        public void setResourceVariability(double resourceVariability) { this.resourceVariability = resourceVariability; }
+        
+        public double getTemporalBurstiness() { return temporalBurstiness; }
+        public void setTemporalBurstiness(double temporalBurstiness) { this.temporalBurstiness = temporalBurstiness; }
+        
+        public double getVmHeterogeneity() { return vmHeterogeneity; }
+        public void setVmHeterogeneity(double vmHeterogeneity) { this.vmHeterogeneity = vmHeterogeneity; }
+        
+        public int getTotalVMs() { return totalVMs; }
+        public void setTotalVMs(int totalVMs) { this.totalVMs = totalVMs; }
+        
+        public int getTotalHosts() { return totalHosts; }
+        public void setTotalHosts(int totalHosts) { this.totalHosts = totalHosts; }
+        
+        public double getAvgUtilization() { return avgUtilization; }
+        public void setAvgUtilization(double avgUtilization) { this.avgUtilization = avgUtilization; }
     }
     
     public RealDatasetAnalyzer() {
         this.datasetResults = new HashMap<>();
         this.performanceByDataset = new HashMap<>();
         this.datasetCharacteristics = new HashMap<>();
+        this.loggingManager = new LoggingManager();
     }
     
     /**
      * Analyze performance on Google cluster traces
      */
     public Map<String, Object> analyzeGoogleTraces(List<ExperimentalResult> results) {
-        LoggingManager.logInfo("Analyzing performance on Google cluster traces");
+        loggingManager.logInfo("Analyzing performance on Google cluster traces");
         
         Map<String, Object> analysis = new HashMap<>();
         
@@ -95,17 +122,17 @@ public class RealDatasetAnalyzer {
             List<String> insights = generateGoogleTraceInsights(
                 algorithmPerformance, characteristics, correlations);
             
-            analysis.put("algorithm_performance", algorithmPerformance);
-            analysis.put("workload_characteristics", characteristics);
+            analysis.put(ALGORITHM_PERFORMANCE_KEY, algorithmPerformance);
+            analysis.put(WORKLOAD_CHARACTERISTICS_KEY, characteristics);
             analysis.put("metric_correlations", correlations);
             analysis.put("insights", insights);
-            analysis.put("best_algorithm", identifyBestAlgorithm(algorithmPerformance));
+            analysis.put(BEST_ALGORITHM_KEY, identifyBestAlgorithm(algorithmPerformance));
             
             // Store for cross-dataset comparison
             datasetResults.put(GOOGLE_TRACES, results);
             
         } catch (Exception e) {
-            LoggingManager.logError("Error analyzing Google traces", e);
+            loggingManager.logError("Error analyzing Google traces", e);
             throw new ExperimentException("Failed to analyze Google traces", e);
         }
         
@@ -116,7 +143,7 @@ public class RealDatasetAnalyzer {
      * Analyze performance on Azure traces
      */
     public Map<String, Object> analyzeAzureTraces(List<ExperimentalResult> results) {
-        LoggingManager.logInfo("Analyzing performance on Azure traces");
+        loggingManager.logInfo("Analyzing performance on Azure traces");
         
         Map<String, Object> analysis = new HashMap<>();
         
@@ -142,18 +169,18 @@ public class RealDatasetAnalyzer {
             Map<String, Double> correlations = analyzeMetricCorrelations(results);
             
             List<String> insights = generateAzureTraceInsights(
-                algorithmPerformance, characteristics, correlations);
+                algorithmPerformance, characteristics);
             
-            analysis.put("algorithm_performance", algorithmPerformance);
-            analysis.put("workload_characteristics", characteristics);
+            analysis.put(ALGORITHM_PERFORMANCE_KEY, algorithmPerformance);
+            analysis.put(WORKLOAD_CHARACTERISTICS_KEY, characteristics);
             analysis.put("metric_correlations", correlations);
             analysis.put("insights", insights);
-            analysis.put("best_algorithm", identifyBestAlgorithm(algorithmPerformance));
+            analysis.put(BEST_ALGORITHM_KEY, identifyBestAlgorithm(algorithmPerformance));
             
             datasetResults.put(AZURE_TRACES, results);
             
         } catch (Exception e) {
-            LoggingManager.logError("Error analyzing Azure traces", e);
+            loggingManager.logError("Error analyzing Azure traces", e);
             throw new ExperimentException("Failed to analyze Azure traces", e);
         }
         
@@ -164,7 +191,7 @@ public class RealDatasetAnalyzer {
      * Compare algorithm performance across different datasets
      */
     public Map<String, Object> compareDatasetPerformance() {
-        LoggingManager.logInfo("Comparing performance across datasets");
+        loggingManager.logInfo("Comparing performance across datasets");
         
         Map<String, Object> comparison = new HashMap<>();
         
@@ -198,7 +225,7 @@ public class RealDatasetAnalyzer {
             comparison.put("recommendation", generateDatasetRecommendations());
             
         } catch (Exception e) {
-            LoggingManager.logError("Error comparing dataset performance", e);
+            loggingManager.logError("Error comparing dataset performance", e);
             throw new ExperimentException("Failed to compare dataset performance", e);
         }
         
@@ -209,7 +236,7 @@ public class RealDatasetAnalyzer {
      * Generate comprehensive dataset-specific report
      */
     public Map<String, Object> generateDatasetReport() {
-        LoggingManager.logInfo("Generating comprehensive dataset report");
+        loggingManager.logInfo("Generating comprehensive dataset report");
         
         Map<String, Object> report = new HashMap<>();
         
@@ -244,7 +271,7 @@ public class RealDatasetAnalyzer {
             report.put("visualizations", generateDatasetVisualizations());
             
         } catch (Exception e) {
-            LoggingManager.logError("Error generating dataset report", e);
+            loggingManager.logError("Error generating dataset report", e);
             throw new ExperimentException("Failed to generate dataset report", e);
         }
         
@@ -271,7 +298,7 @@ public class RealDatasetAnalyzer {
             responseTime.addValue(result.getAverageResponseTime());
         }
         
-        metrics.put("avg_utilization", utilization.getMean());
+        metrics.put(AVG_UTILIZATION_KEY, utilization.getMean());
         metrics.put("avg_power", power.getMean());
         metrics.put("avg_sla_violations", slaViolations.getMean());
         metrics.put("avg_response_time", responseTime.getMean());
@@ -305,18 +332,18 @@ public class RealDatasetAnalyzer {
             }
         }
         
-        characteristics.avgResourceDemand = resourceDemand.getMean();
-        characteristics.resourceVariability = resourceDemand.getStandardDeviation();
-        characteristics.avgUtilization = utilization.getMean();
+        characteristics.setAvgResourceDemand(resourceDemand.getMean());
+        characteristics.setResourceVariability(resourceDemand.getStandardDeviation());
+        characteristics.setAvgUtilization(utilization.getMean());
         
         // Google traces typically have high burstiness
-        characteristics.temporalBurstiness = 0.7; // High burstiness
-        characteristics.vmHeterogeneity = 0.8; // High heterogeneity
+        characteristics.setTemporalBurstiness(0.7); // High burstiness
+        characteristics.setVmHeterogeneity(0.8); // High heterogeneity
         
         if (!results.isEmpty()) {
             Map<String, Object> scenario = results.get(0).getScenarioDetails();
-            characteristics.totalVMs = (Integer) scenario.getOrDefault("vm_count", 0);
-            characteristics.totalHosts = (Integer) scenario.getOrDefault("host_count", 0);
+            characteristics.setTotalVMs((Integer) scenario.getOrDefault("vm_count", 0));
+            characteristics.setTotalHosts((Integer) scenario.getOrDefault("host_count", 0));
         }
         
         return characteristics;
@@ -340,18 +367,18 @@ public class RealDatasetAnalyzer {
             }
         }
         
-        characteristics.avgResourceDemand = resourceDemand.getMean();
-        characteristics.resourceVariability = resourceDemand.getStandardDeviation();
-        characteristics.avgUtilization = utilization.getMean();
+        characteristics.setAvgResourceDemand(resourceDemand.getMean());
+        characteristics.setResourceVariability(resourceDemand.getStandardDeviation());
+        characteristics.setAvgUtilization(utilization.getMean());
         
         // Azure traces typically have moderate burstiness
-        characteristics.temporalBurstiness = 0.5; // Moderate burstiness
-        characteristics.vmHeterogeneity = 0.6; // Moderate heterogeneity
+        characteristics.setTemporalBurstiness(0.5); // Moderate burstiness
+        characteristics.setVmHeterogeneity(0.6); // Moderate heterogeneity
         
         if (!results.isEmpty()) {
             Map<String, Object> scenario = results.get(0).getScenarioDetails();
-            characteristics.totalVMs = (Integer) scenario.getOrDefault("vm_count", 0);
-            characteristics.totalHosts = (Integer) scenario.getOrDefault("host_count", 0);
+            characteristics.setTotalVMs((Integer) scenario.getOrDefault("vm_count", 0));
+            characteristics.setTotalHosts((Integer) scenario.getOrDefault("host_count", 0));
         }
         
         return characteristics;
@@ -419,7 +446,7 @@ public class RealDatasetAnalyzer {
         // Algorithm-specific insights
         if (performance.containsKey("HippopotamusOptimization")) {
             double hoUtilization = performance.get("HippopotamusOptimization")
-                .get("avg_utilization");
+                .get(AVG_UTILIZATION_KEY);
             if (hoUtilization > 0.8) {
                 insights.add("HO algorithm achieves high resource utilization " +
                     "(>80%) on Google workloads");
@@ -431,8 +458,7 @@ public class RealDatasetAnalyzer {
     
     private List<String> generateAzureTraceInsights(
             Map<String, Map<String, Double>> performance,
-            WorkloadCharacterization characteristics,
-            Map<String, Double> correlations) {
+            WorkloadCharacterization characteristics) {
         
         List<String> insights = new ArrayList<>();
         
@@ -470,7 +496,7 @@ public class RealDatasetAnalyzer {
             Map<String, Double> metrics = entry.getValue();
             
             // Composite score (customize weights as needed)
-            double score = metrics.get("avg_utilization") * 0.3
+            double score = metrics.get(AVG_UTILIZATION_KEY) * 0.3
                 - metrics.get("avg_power") * 0.3
                 - metrics.get("avg_sla_violations") * 0.2
                 - metrics.get("avg_response_time") * 0.2;
@@ -641,17 +667,21 @@ public class RealDatasetAnalyzer {
                 datasetCharacteristics.entrySet()) {
             
             WorkloadCharacterization wc = entry.getValue();
-            double charValue = 0.0;
+            double charValue;
             
             switch (characteristic) {
                 case "temporalBurstiness":
-                    charValue = wc.temporalBurstiness;
+                    charValue = wc.getTemporalBurstiness();
                     break;
                 case "vmHeterogeneity":
-                    charValue = wc.vmHeterogeneity;
+                    charValue = wc.getVmHeterogeneity();
                     break;
                 case "totalVMs":
-                    charValue = wc.totalVMs;
+                    charValue = wc.getTotalVMs();
+                    break;
+                default:
+                    // Handle unknown characteristics
+                    charValue = 0.0;
                     break;
             }
             
@@ -714,7 +744,7 @@ public class RealDatasetAnalyzer {
         
         // Basic statistics
         summary.put("total_experiments", results.size());
-        summary.put("workload_characteristics", wc);
+        summary.put(WORKLOAD_CHARACTERISTICS_KEY, wc);
         
         // Performance summary
         Map<String, Map<String, Double>> perfByAlgorithm = new HashMap<>();
@@ -727,8 +757,8 @@ public class RealDatasetAnalyzer {
             perfByAlgorithm.put(entry.getKey(), metrics);
         }
         
-        summary.put("algorithm_performance", perfByAlgorithm);
-        summary.put("best_algorithm", identifyBestAlgorithm(perfByAlgorithm));
+        summary.put(ALGORITHM_PERFORMANCE_KEY, perfByAlgorithm);
+        summary.put(BEST_ALGORITHM_KEY, identifyBestAlgorithm(perfByAlgorithm));
         
         return summary;
     }
@@ -862,13 +892,13 @@ public class RealDatasetAnalyzer {
             
             visualizations.put("performance_comparison", 
                 Arrays.asList(performanceChart));
-            visualizations.put("workload_characteristics", 
+            visualizations.put(WORKLOAD_CHARACTERISTICS_KEY, 
                 Arrays.asList(characteristicsChart));
             visualizations.put("algorithm_consistency", 
                 Arrays.asList(consistencyChart));
             
         } catch (Exception e) {
-            LoggingManager.logError("Error generating visualizations", e);
+            loggingManager.logError("Error generating visualizations", e);
         }
         
         return visualizations;
