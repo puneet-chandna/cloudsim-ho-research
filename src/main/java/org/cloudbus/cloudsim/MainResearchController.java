@@ -626,10 +626,20 @@ public class MainResearchController {
         Map<String, Object> scalabilityTests = 
             (Map<String, Object>) baseConfig.get("scalability_tests");
         
+        if (scalabilityTests == null) {
+            logger.warn("No scalability_tests section found in configuration, skipping scalability experiments");
+            return;
+        }
+        
         @SuppressWarnings("unchecked")
         List<Integer> vmCounts = (List<Integer>) scalabilityTests.get("vm_counts");
         @SuppressWarnings("unchecked")
         List<Integer> hostCounts = (List<Integer>) scalabilityTests.get("host_counts");
+        
+        if (vmCounts == null || hostCounts == null) {
+            logger.warn("Missing vm_counts or host_counts in scalability_tests, skipping scalability experiments");
+            return;
+        }
         
         for (Integer vmCount : vmCounts) {
             for (Integer hostCount : hostCounts) {
