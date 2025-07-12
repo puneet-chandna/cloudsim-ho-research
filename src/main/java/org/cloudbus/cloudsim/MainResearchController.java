@@ -100,6 +100,19 @@ public class MainResearchController {
             config.setReplications(1);
             config.setOutputSettings(new ExperimentConfig.OutputSettings());
             config.getOutputSettings().setOutputDirectory(outputDirectory.toString());
+            
+            // Set default parameters to prevent validation failure
+            Map<String, Object> defaultParams = new HashMap<>();
+            defaultParams.put("population_size", 20);
+            defaultParams.put("max_iterations", 100);
+            defaultParams.put("convergence_threshold", 0.001);
+            config.setParameters(defaultParams);
+            
+            // Set default scenario configuration
+            ExperimentConfig scenarioConfig = new ExperimentConfig();
+            scenarioConfig.setVmCount(50);
+            scenarioConfig.setHostCount(10);
+            config.setScenarioConfig(scenarioConfig);
 
             // Run experiment
             ExperimentRunner runner = new ExperimentRunner();

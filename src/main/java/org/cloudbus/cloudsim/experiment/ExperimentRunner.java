@@ -386,13 +386,22 @@ public class ExperimentRunner {
                                      Map<String, Object> resourceUsage) {
         ExperimentalResult.ExecutionMetadata metadata = result.getExecutionMetadata();
         
-        metadata.setUsedMemory((long) resourceUsage.getOrDefault("max_memory_usage", 0L));
+        // Use Number conversion to handle both Integer and Double values
+        Object maxMemoryObj = resourceUsage.getOrDefault("max_memory_usage", 0L);
+        long maxMemory = maxMemoryObj instanceof Number ? 
+            ((Number) maxMemoryObj).longValue() : 0L;
+        metadata.setUsedMemory(maxMemory);
         
         // Add system resource usage to raw data
-        result.addRawDataPoint("system_cpu_usage", 
-            (Double) resourceUsage.getOrDefault("avg_cpu_usage", 0.0));
-        result.addRawDataPoint("system_memory_usage", 
-            (Double) resourceUsage.getOrDefault("avg_memory_usage", 0.0));
+        Object cpuUsageObj = resourceUsage.getOrDefault("avg_cpu_usage", 0.0);
+        double cpuUsage = cpuUsageObj instanceof Number ? 
+            ((Number) cpuUsageObj).doubleValue() : 0.0;
+        result.addRawDataPoint("system_cpu_usage", cpuUsage);
+        
+        Object memoryUsageObj = resourceUsage.getOrDefault("avg_memory_usage", 0.0);
+        double memoryUsage = memoryUsageObj instanceof Number ? 
+            ((Number) memoryUsageObj).doubleValue() : 0.0;
+        result.addRawDataPoint("system_memory_usage", memoryUsage);
     }
     
     /**

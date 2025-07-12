@@ -2,6 +2,7 @@ package org.cloudbus.cloudsim.experiment;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -19,7 +20,7 @@ public class ExperimentalResult {
     private String experimentId;
     
     @JsonProperty("experiment_config")
-    private ExperimentConfig experimentConfig;
+    private Map<String, Object> experimentConfigData;
     
     @JsonProperty("start_time")
     private LocalDateTime startTime;
@@ -602,9 +603,26 @@ public class ExperimentalResult {
         this.experimentId = experimentId; 
     }
     
-    public ExperimentConfig getExperimentConfig() { return experimentConfig; }
+    public Map<String, Object> getExperimentConfigData() { return experimentConfigData; }
+    public void setExperimentConfigData(Map<String, Object> experimentConfigData) { 
+        this.experimentConfigData = experimentConfigData; 
+    }
+    
+    // Keep the original getter for backward compatibility
+    public ExperimentConfig getExperimentConfig() { 
+        // Return null to avoid circular reference in JSON
+        return null; 
+    }
     public void setExperimentConfig(ExperimentConfig experimentConfig) { 
-        this.experimentConfig = experimentConfig; 
+        // Convert to map to avoid circular reference
+        if (experimentConfig != null) {
+            this.experimentConfigData = new HashMap<>();
+            this.experimentConfigData.put("experimentId", experimentConfig.getExperimentId());
+            this.experimentConfigData.put("algorithmName", experimentConfig.getAlgorithmName());
+            this.experimentConfigData.put("replications", experimentConfig.getReplications());
+            this.experimentConfigData.put("vmCount", experimentConfig.getVmCount());
+            this.experimentConfigData.put("hostCount", experimentConfig.getHostCount());
+        }
     }
     
     public LocalDateTime getStartTime() { return startTime; }
@@ -654,7 +672,8 @@ public class ExperimentalResult {
     
     // Convenience methods for PerformanceMetricsAnalyzer
     public String getAlgorithmName() {
-        return experimentConfig != null ? experimentConfig.getAlgorithmType() : "Unknown";
+        return experimentConfigData != null && experimentConfigData.containsKey("algorithmName") ? 
+            (String) experimentConfigData.get("algorithmName") : "Unknown";
     }
     
     public double getResourceUtilization() {
@@ -762,22 +781,18 @@ public class ExperimentalResult {
     
     public Map<String, Object> getScenarioDetails() {
         Map<String, Object> details = new HashMap<>();
-        if (experimentConfig != null) {
-            details.put("algorithm", getAlgorithmName());
-            details.put("experiment_id", experimentId);
-            details.put("duration", executionDurationMs);
-        }
+        details.put("algorithm", getAlgorithmName());
+        details.put("experiment_id", experimentId);
+        details.put("duration", executionDurationMs);
         return details;
     }
     
     // Compatibility methods
     public Map<String, Object> getExperimentConfiguration() {
         Map<String, Object> config = new HashMap<>();
-        if (experimentConfig != null) {
-            config.put("algorithm", getAlgorithmName());
-            config.put("experiment_id", experimentId);
-            // Add other configuration parameters as needed
-        }
+        config.put("algorithm", getAlgorithmName());
+        config.put("experiment_id", experimentId);
+        // Add other configuration parameters as needed
         return config;
     }
     

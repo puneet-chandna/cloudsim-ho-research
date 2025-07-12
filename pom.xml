@@ -65,6 +65,12 @@
       <artifactId>jackson-dataformat-csv</artifactId>
       <version>2.15.2</version>
     </dependency>
+    <!-- Jackson JSR310 module for Java 8 date/time support -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.datatype</groupId>
+      <artifactId>jackson-datatype-jsr310</artifactId>
+      <version>2.15.2</version>
+    </dependency>
 
     <!-- JFreeChart for visualization -->
     <dependency>

@@ -21,6 +21,7 @@ import org.cloudbus.cloudsim.utilizationmodels.UtilizationModelFull;
 import org.cloudbus.cloudsim.vms.Vm;
 import org.cloudbus.cloudsim.vms.VmSimple;
 import org.cloudbus.cloudsim.policy.HippopotamusVmAllocationPolicy;
+import org.cloudbus.cloudsim.power.models.PowerModelHostSimple;
 import org.cloudbus.cloudsim.util.MetricsCalculator;
 import org.cloudbus.cloudsim.util.ExperimentException;
 import org.cloudbus.cloudsim.util.LoggingManager;
@@ -339,10 +340,10 @@ public class HippopotamusVmPlacementSimulation {
             // Use default host configuration if not specified
             Map<String, Object> hostSpec = new HashMap<>();
             hostSpec.put("cpu_cores", 4);
-            hostSpec.put("cpu_mips", 1000);
-            hostSpec.put("ram", 8192);
-            hostSpec.put("storage", 1000000);
-            hostSpec.put("bandwidth", 10000);
+            hostSpec.put("cpu_mips", 1000.0);  // Use Double instead of Integer
+            hostSpec.put("ram", 8192L);  // Use Long instead of Integer
+            hostSpec.put("storage", 1000000L);  // Use Long instead of Integer
+            hostSpec.put("bandwidth", 10000L);  // Use Long instead of Integer
             
             Host host = createHost(hostSpec);
             hostList.add(host);
@@ -356,21 +357,27 @@ public class HippopotamusVmPlacementSimulation {
      * @return Created host
      */
     private Host createHost(Map<String, Object> hostSpec) {
-        int cpuCores = (Integer) hostSpec.getOrDefault("cpu_cores", 4);
-        double cpuMips = (Double) hostSpec.getOrDefault("cpu_mips", 1000.0);
-        long ram = (Long) hostSpec.getOrDefault("ram", 8192L);
-        long storage = (Long) hostSpec.getOrDefault("storage", 1000000L);
-        long bandwidth = (Long) hostSpec.getOrDefault("bandwidth", 10000L);
+        int cpuCores = ((Number) hostSpec.getOrDefault("cpu_cores", 4)).intValue();
+        double cpuMips = ((Number) hostSpec.getOrDefault("cpu_mips", 1000.0)).doubleValue();
+        long ram = ((Number) hostSpec.getOrDefault("ram", 8192L)).longValue();
+        long storage = ((Number) hostSpec.getOrDefault("storage", 1000000L)).longValue();
+        long bandwidth = ((Number) hostSpec.getOrDefault("bandwidth", 10000L)).longValue();
         
         List<Pe> peList = new ArrayList<>();
         for (int i = 0; i < cpuCores; i++) {
             peList.add(new PeSimple(cpuMips, new PeProvisionerSimple()));
         }
         
-        return new HostSimple(ram, bandwidth, storage, peList)
+        Host host = new HostSimple(ram, bandwidth, storage, peList)
             .setRamProvisioner(new ResourceProvisionerSimple())
             .setBwProvisioner(new ResourceProvisionerSimple())
             .setVmScheduler(new VmSchedulerTimeShared());
+        
+        // Add power model for realistic power consumption calculation
+        // maxPower = 400W, staticPower = 200W (maxPower must be > staticPower)
+        host.setPowerModel(new PowerModelHostSimple(400.0, 200.0));
+        
+        return host;
     }
     
     /**
@@ -395,10 +402,10 @@ public class HippopotamusVmPlacementSimulation {
             // Use default VM configuration if not specified
             Map<String, Object> vmSpec = new HashMap<>();
             vmSpec.put("cpu_cores", 1);
-            vmSpec.put("cpu_mips", 250);
-            vmSpec.put("ram", 512);
-            vmSpec.put("storage", 1000);
-            vmSpec.put("bandwidth", 1000);
+            vmSpec.put("cpu_mips", 250.0);  // Use Double instead of Integer
+            vmSpec.put("ram", 512L);  // Use Long instead of Integer
+            vmSpec.put("storage", 1000L);  // Use Long instead of Integer
+            vmSpec.put("bandwidth", 1000L);  // Use Long instead of Integer
             
             Vm vm = createVm(i, vmSpec);
             vmList.add(vm);
@@ -413,11 +420,11 @@ public class HippopotamusVmPlacementSimulation {
      * @return Created VM
      */
     private Vm createVm(int id, Map<String, Object> vmSpec) {
-        int cpuCores = (Integer) vmSpec.getOrDefault("cpu_cores", 1);
-        double cpuMips = (Double) vmSpec.getOrDefault("cpu_mips", 250.0);
-        long ram = (Long) vmSpec.getOrDefault("ram", 512L);
-        long storage = (Long) vmSpec.getOrDefault("storage", 1000L);
-        long bandwidth = (Long) vmSpec.getOrDefault("bandwidth", 1000L);
+        int cpuCores = ((Number) vmSpec.getOrDefault("cpu_cores", 1)).intValue();
+        double cpuMips = ((Number) vmSpec.getOrDefault("cpu_mips", 250.0)).doubleValue();
+        long ram = ((Number) vmSpec.getOrDefault("ram", 512L)).longValue();
+        long storage = ((Number) vmSpec.getOrDefault("storage", 1000L)).longValue();
+        long bandwidth = ((Number) vmSpec.getOrDefault("bandwidth", 1000L)).longValue();
         
         return new VmSimple(id, cpuMips, cpuCores)
             .setRam(ram)
@@ -438,11 +445,11 @@ public class HippopotamusVmPlacementSimulation {
         for (int i = 0; i < cloudletCount; i++) {
             // Use default cloudlet configuration if not specified
             Map<String, Object> cloudletSpec = new HashMap<>();
-            cloudletSpec.put("length", 10000);
+            cloudletSpec.put("length", 10000L);  // Use Long instead of Integer
             cloudletSpec.put("cpu_cores", 1);
-            cloudletSpec.put("ram", 256);
-            cloudletSpec.put("storage", 100);
-            cloudletSpec.put("bandwidth", 100);
+            cloudletSpec.put("ram", 256L);  // Use Long instead of Integer
+            cloudletSpec.put("storage", 100L);  // Use Long instead of Integer
+            cloudletSpec.put("bandwidth", 100L);  // Use Long instead of Integer
             
             Cloudlet cloudlet = createCloudlet(i, cloudletSpec);
             cloudletList.add(cloudlet);
@@ -457,11 +464,11 @@ public class HippopotamusVmPlacementSimulation {
      * @return Created cloudlet
      */
     private Cloudlet createCloudlet(int id, Map<String, Object> cloudletSpec) {
-        long length = (Long) cloudletSpec.getOrDefault("length", 10000L);
-        int cpuCores = (Integer) cloudletSpec.getOrDefault("cpu_cores", 1);
-        long ram = (Long) cloudletSpec.getOrDefault("ram", 256L);
-        long storage = (Long) cloudletSpec.getOrDefault("storage", 100L);
-        long bandwidth = (Long) cloudletSpec.getOrDefault("bandwidth", 100L);
+        long length = ((Number) cloudletSpec.getOrDefault("length", 10000L)).longValue();
+        int cpuCores = ((Number) cloudletSpec.getOrDefault("cpu_cores", 1)).intValue();
+        long ram = ((Number) cloudletSpec.getOrDefault("ram", 256L)).longValue();
+        long storage = ((Number) cloudletSpec.getOrDefault("storage", 100L)).longValue();
+        long bandwidth = ((Number) cloudletSpec.getOrDefault("bandwidth", 100L)).longValue();
         
         UtilizationModel utilizationModel = new UtilizationModelFull();
         
