@@ -11,6 +11,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -169,20 +170,19 @@ public class AppTest {
     void testConfigurationLoading() throws IOException {
         // Create a test configuration file
         Path configFile = tempDir.resolve("test_config.yaml");
-        String configContent = """
-            experiments:
-              algorithms:
-                - name: "HippopotamusOptimization"
-                  parameters:
-                    population_size: 50
-                    max_iterations: 100
-              datasets:
-                - "test_dataset"
-              metrics:
-                - "resource_utilization"
-                - "power_consumption"
-            """;
-        Files.writeString(configFile, configContent);
+        String configContent =
+            "experiments:\n" +
+            "  algorithms:\n" +
+            "    - name: \"HippopotamusOptimization\"\n" +
+            "      parameters:\n" +
+            "        population_size: 50\n" +
+            "        max_iterations: 100\n" +
+            "  datasets:\n" +
+            "    - \"test_dataset\"\n" +
+            "  metrics:\n" +
+            "    - \"resource_utilization\"\n" +
+            "    - \"power_consumption\"\n";
+        Files.write(configFile, configContent.getBytes(StandardCharsets.UTF_8));
         
         String[] args = {"--config", configFile.toString(), "--validate"};
         

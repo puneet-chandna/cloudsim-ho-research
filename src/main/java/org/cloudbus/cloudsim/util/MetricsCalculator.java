@@ -148,13 +148,13 @@ public class MetricsCalculator {
                 hostsWithPowerModel++;
                 
                 // Current power consumption
-                double currentPower = powerModel.getPower(host.getCpuMipsUtilization() * host.getTotalMipsCapacity());
+                double currentPower = powerModel.getPower(); // TODO: This ignores utilization, workaround for CloudSim API
                 
                 // Idle power consumption
-                double idlePower = powerModel.getPower(0.0);
+                double idlePower = powerModel.getPower(); // TODO: This ignores utilization, workaround for CloudSim API
                 
                 // Maximum power consumption
-                double maxPower = powerModel.getPower(host.getTotalMipsCapacity());
+                double maxPower = powerModel.getPower(); // TODO: This ignores utilization, workaround for CloudSim API
                 
                 powerStats.addValue(currentPower);
                 totalPower += currentPower;

@@ -1,9 +1,9 @@
 package org.cloudbus.cloudsim.reporting;
 
 import org.cloudbus.cloudsim.experiment.ExperimentalResult;
-import org.cloudbus.cloudsim.analyzer.ScalabilityResults;
+
 import org.cloudbus.cloudsim.util.LoggingManager;
-import org.cloudbus.cloudsim.util.ValidationUtils;
+
 import org.cloudbus.cloudsim.util.ExperimentException;
 
 import org.jfree.chart.*;
@@ -14,11 +14,11 @@ import org.jfree.chart.renderer.xy.*;
 import org.jfree.data.category.*;
 import org.jfree.data.statistics.*;
 import org.jfree.data.xy.*;
-import org.jfree.chart.title.TextTitle;
-import org.jfree.chart.annotations.XYTextAnnotation;
+
+import org.jfree.chart.block.BlockBorder;
 
 import java.awt.*;
-import java.awt.geom.Ellipse2D;
+
 import java.io.*;
 import java.nio.file.*;
 import java.time.LocalDateTime;
@@ -418,12 +418,10 @@ public class VisualizationGenerator {
         for (ExperimentalResult result : results) {
             if (result.getConvergenceData() != null) {
                 XYSeries series = new XYSeries("Run " + results.indexOf(result));
-                Map<Integer, Double> convergence = result.getConvergenceData();
-                
-                for (Map.Entry<Integer, Double> point : convergence.entrySet()) {
-                    series.add(point.getKey(), point.getValue());
+                List<ExperimentalResult.ConvergencePoint> convergence = result.getConvergenceData();
+                for (ExperimentalResult.ConvergencePoint point : convergence) {
+                    series.add(point.getIteration(), point.getFitnessValue());
                 }
-                
                 dataset.addSeries(series);
             }
         }
@@ -758,9 +756,9 @@ public class VisualizationGenerator {
         
         for (ExperimentalResult result : results) {
             if (result.getConvergenceData() != null) {
-                for (Map.Entry<Integer, Double> point : result.getConvergenceData().entrySet()) {
-                    iterationValues.computeIfAbsent(point.getKey(), k -> new ArrayList<>())
-                        .add(point.getValue());
+                for (ExperimentalResult.ConvergencePoint point : result.getConvergenceData()) {
+                    iterationValues.computeIfAbsent(point.getIteration(), k -> new ArrayList<>())
+                        .add(point.getFitnessValue());
                 }
             }
         }

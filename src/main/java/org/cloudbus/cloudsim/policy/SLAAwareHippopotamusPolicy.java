@@ -50,6 +50,9 @@ public class SLAAwareHippopotamusPolicy extends VmAllocationPolicyAbstract {
     private final HippopotamusOptimization optimizationEngine;
     private final HippopotamusParameters parameters;
     
+    // Add CloudSim instance for simulation time access
+    private final CloudSim simulation;
+    
     // SLA tracking and analysis
     private final Map<Vm, SLARequirements> vmSLARequirements;
     private final Map<Vm, SLAMetrics> vmSLAMetrics;
@@ -243,9 +246,10 @@ public class SLAAwareHippopotamusPolicy extends VmAllocationPolicyAbstract {
     /**
      * Constructor for SLA-Aware Hippopotamus Policy
      */
-    public SLAAwareHippopotamusPolicy() {
+    public SLAAwareHippopotamusPolicy(CloudSim simulation) {
         super();
         try {
+            this.simulation = simulation;
             this.parameters = new HippopotamusParameters();
             this.optimizationEngine = new HippopotamusOptimization();
             
@@ -349,7 +353,7 @@ public class SLAAwareHippopotamusPolicy extends VmAllocationPolicyAbstract {
     public Map<Vm, List<SLAViolationEvent>> calculateSLAViolations() {
         try {
             Map<Vm, List<SLAViolationEvent>> violationsMap = new HashMap<>();
-            double currentTime = CloudSim.clock();
+            double currentTime = simulation.clock();
             
             for (Map.Entry<Vm, SLARequirements> entry : vmSLARequirements.entrySet()) {
                 Vm vm = entry.getKey();

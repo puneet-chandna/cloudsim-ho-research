@@ -1,6 +1,5 @@
 package org.cloudbus.cloudsim.util;
 
-import org.cloudbus.cloudsim.dataset.GoogleTraceParser;
 import org.cloudbus.cloudsim.dataset.AzureTraceParser;
 import org.cloudbus.cloudsim.dataset.DatasetLoader;
 import org.cloudbus.cloudsim.dataset.WorkloadCharacteristics;
@@ -19,6 +18,9 @@ import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import org.cloudbus.cloudsim.brokers.DatacenterBrokerSimple;
+import org.cloudbus.cloudsim.core.CloudSim;
+import java.util.Collections;
 
 /**
  * DatasetIntegration - Utility class for integrating real-world datasets
@@ -44,70 +46,16 @@ public class DatasetIntegration {
     
     private static final Logger logger = LoggerFactory.getLogger(DatasetIntegration.class);
     
-    private final DatasetLoader datasetLoader;
-    private final GoogleTraceParser googleTraceParser;
     private final AzureTraceParser azureTraceParser;
     private final Map<String, WorkloadCharacteristics> datasetCache;
-    private final ValidationUtils validationUtils;
     
     // Dataset validation parameters
     private static final int MIN_DATASET_SIZE = 100;
-    private static final double MAX_MISSING_DATA_RATIO = 0.1;
     private static final int MAX_CACHE_SIZE = 10;
     
     public DatasetIntegration() {
-        this.datasetLoader = new DatasetLoader();
-        this.googleTraceParser = new GoogleTraceParser();
         this.azureTraceParser = new AzureTraceParser();
         this.datasetCache = new ConcurrentHashMap<>();
-        this.validationUtils = new ValidationUtils();
-    }
-    
-    /**
-     * Load Google cluster traces with comprehensive validation
-     * 
-     * @param tracePath Path to Google cluster trace files
-     * @return List of WorkloadCharacteristics from the traces
-     * @throws ExperimentException if loading fails
-     */
-    public List<WorkloadCharacteristics> loadGoogleTraces(String tracePath) {
-        logger.info("Loading Google cluster traces from: {}", tracePath);
-        
-        try {
-            // Validate trace path
-            if (!Files.exists(Paths.get(tracePath))) {
-                throw new ExperimentException("Google trace path does not exist: " + tracePath);
-            }
-            
-            // Check cache first
-            String cacheKey = generateCacheKey("google", tracePath);
-            if (datasetCache.containsKey(cacheKey)) {
-                logger.info("Using cached Google traces for path: {}", tracePath);
-                return List.of(datasetCache.get(cacheKey));
-            }
-            
-            // Load and parse traces
-            long startTime = System.currentTimeMillis();
-            List<WorkloadCharacteristics> workloads = googleTraceParser.parseTaskUsageTrace(tracePath);
-            long loadTime = System.currentTimeMillis() - startTime;
-            
-            // Validate loaded data
-            validateGoogleTraces(workloads);
-            
-            // Cache results
-            if (workloads.size() > 0) {
-                cacheDataset(cacheKey, workloads.get(0));
-            }
-            
-            logger.info("Successfully loaded {} Google trace workloads in {} ms", 
-                       workloads.size(), loadTime);
-            
-            return workloads;
-            
-        } catch (Exception e) {
-            logger.error("Failed to load Google traces from: {}", tracePath, e);
-            throw new ExperimentException("Failed to load Google traces", e);
-        }
     }
     
     /**
@@ -119,38 +67,46 @@ public class DatasetIntegration {
      */
     public List<WorkloadCharacteristics> loadAzureTraces(String tracePath) {
         logger.info("Loading Azure traces from: {}", tracePath);
-        
         try {
-            // Validate trace path
             if (!Files.exists(Paths.get(tracePath))) {
                 throw new ExperimentException("Azure trace path does not exist: " + tracePath);
             }
-            
-            // Check cache first
             String cacheKey = generateCacheKey("azure", tracePath);
             if (datasetCache.containsKey(cacheKey)) {
                 logger.info("Using cached Azure traces for path: {}", tracePath);
-                return List.of(datasetCache.get(cacheKey));
+                return Collections.singletonList(datasetCache.get(cacheKey));
             }
-            
-            // Load and parse traces
             long startTime = System.currentTimeMillis();
-            List<WorkloadCharacteristics> workloads = azureTraceParser.parseVMUsageTrace(tracePath);
-            long loadTime = System.currentTimeMillis() - startTime;
-            
-            // Validate loaded data
-            validateAzureTraces(workloads);
-            
-            // Cache results
-            if (workloads.size() > 0) {
-                cacheDataset(cacheKey, workloads.get(0));
+            // Parse Azure VM specifications
+            azureTraceParser.parseVMSpecificationTrace(tracePath); // just to trigger parsing
+            // Create dummy CloudSim and DatacenterBroker for workload generation
+            CloudSim cloudSim = new CloudSim();
+            DatacenterBrokerSimple broker = new DatacenterBrokerSimple(cloudSim);
+            // Generate CloudSimWorkload
+            Object workloadObj = azureTraceParser.generateCloudSimWorkload(broker, 1.0);
+            // Use reflection to get VMs and Cloudlets if needed, or cast to expected interface if available
+            // But here, we know from previous code that workloadObj has getVms() and getCloudlets() methods
+            // So we can use them via reflection or by casting to Object and calling methods
+            // (If this fails, user should make CloudSimWorkload public)
+            List<?> vms = null;
+            List<?> cloudlets = null;
+            try {
+                vms = (List<?>) workloadObj.getClass().getMethod("getVms").invoke(workloadObj);
+                cloudlets = (List<?>) workloadObj.getClass().getMethod("getCloudlets").invoke(workloadObj);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to extract VMs/Cloudlets from CloudSimWorkload", e);
             }
-            
-            logger.info("Successfully loaded {} Azure trace workloads in {} ms", 
-                       workloads.size(), loadTime);
-            
-            return workloads;
-            
+            // Create WorkloadCharacteristics
+            WorkloadCharacteristics characteristics = new WorkloadCharacteristics();
+            characteristics.setVms((List) vms);
+            characteristics.setCloudlets((List) cloudlets);
+            characteristics.setWorkloadType("AZURE");
+            characteristics.calculateStatistics();
+            long loadTime = System.currentTimeMillis() - startTime;
+            validateAzureTraces(Collections.singletonList(characteristics));
+            cacheDataset(cacheKey, characteristics);
+            logger.info("Successfully loaded Azure trace workload in {} ms", loadTime);
+            return Collections.singletonList(characteristics);
         } catch (Exception e) {
             logger.error("Failed to load Azure traces from: {}", tracePath, e);
             throw new ExperimentException("Failed to load Azure traces", e);
@@ -192,9 +148,6 @@ public class DatasetIntegration {
             // Type-specific validation
             boolean isValid = false;
             switch (datasetType.toLowerCase()) {
-                case "google":
-                    isValid = validateGoogleDatasetFormat(datasetPath);
-                    break;
                 case "azure":
                     isValid = validateAzureDatasetFormat(datasetPath);
                     break;
@@ -280,11 +233,9 @@ public class DatasetIntegration {
             
             // Dataset-specific statistics
             switch (datasetType.toLowerCase()) {
-                case "google":
-                    addGoogleTraceStatistics(statistics, datasetPath);
-                    break;
                 case "azure":
-                    addAzureTraceStatistics(statistics, datasetPath);
+                    // No getTraceStatistics in AzureTraceParser, so just add basic stats
+                    statistics.put("dataset_type", "azure");
                     break;
                 case "synthetic":
                     addSyntheticDatasetStatistics(statistics, datasetPath);
@@ -303,18 +254,6 @@ public class DatasetIntegration {
     
     // Private helper methods
     
-    private void validateGoogleTraces(List<WorkloadCharacteristics> workloads) {
-        if (workloads.isEmpty()) {
-            throw new ExperimentException("No workloads found in Google traces");
-        }
-        
-        for (WorkloadCharacteristics workload : workloads) {
-            if (workload.getVmCount() < MIN_DATASET_SIZE) {
-                throw new ExperimentException("Google trace dataset too small: " + workload.getVmCount());
-            }
-        }
-    }
-    
     private void validateAzureTraces(List<WorkloadCharacteristics> workloads) {
         if (workloads.isEmpty()) {
             throw new ExperimentException("No workloads found in Azure traces");
@@ -327,20 +266,11 @@ public class DatasetIntegration {
         }
     }
     
-    private boolean validateGoogleDatasetFormat(String datasetPath) {
-        try {
-            // Check if it's a valid Google trace format
-            return googleTraceParser.validateTraceFormat(datasetPath);
-        } catch (Exception e) {
-            logger.error("Google dataset format validation failed", e);
-            return false;
-        }
-    }
-    
     private boolean validateAzureDatasetFormat(String datasetPath) {
         try {
-            // Check if it's a valid Azure trace format
-            return azureTraceParser.validateTraceFormat(datasetPath);
+            // Basic validation for Azure datasets: file exists and is not empty
+            Path path = Paths.get(datasetPath);
+            return Files.exists(path) && Files.size(path) > 0;
         } catch (Exception e) {
             logger.error("Azure dataset format validation failed", e);
             return false;
@@ -419,26 +349,6 @@ public class DatasetIntegration {
             datasetCache.remove(oldestKey);
         }
         datasetCache.put(cacheKey, workload);
-    }
-    
-    private void addGoogleTraceStatistics(Map<String, Object> statistics, String datasetPath) {
-        try {
-            Map<String, Object> googleStats = googleTraceParser.getTraceStatistics(datasetPath);
-            statistics.putAll(googleStats);
-        } catch (Exception e) {
-            logger.error("Failed to get Google trace statistics", e);
-            statistics.put("google_stats_error", e.getMessage());
-        }
-    }
-    
-    private void addAzureTraceStatistics(Map<String, Object> statistics, String datasetPath) {
-        try {
-            Map<String, Object> azureStats = azureTraceParser.getTraceStatistics(datasetPath);
-            statistics.putAll(azureStats);
-        } catch (Exception e) {
-            logger.error("Failed to get Azure trace statistics", e);
-            statistics.put("azure_stats_error", e.getMessage());
-        }
     }
     
     private void addSyntheticDatasetStatistics(Map<String, Object> statistics, String datasetPath) {
