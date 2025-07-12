@@ -693,7 +693,51 @@ public class ExperimentalResult {
     }
     
     public long getExecutionTime() {
-        return executionDurationMs;
+        return getExecutionDurationMs();
+    }
+    
+    public double getTimestamp() {
+        if (startTime != null) {
+            return startTime.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+        }
+        return System.currentTimeMillis();
+    }
+    
+    public double getAverageCpuUtilization() {
+        if (performanceMetrics != null && performanceMetrics.getResourceUtilization() != null) {
+            return performanceMetrics.getResourceUtilization().getAvgCpuUtilization();
+        }
+        return 0.0;
+    }
+    
+    public double getAverageMemoryUtilization() {
+        if (performanceMetrics != null && performanceMetrics.getResourceUtilization() != null) {
+            return performanceMetrics.getResourceUtilization().getAvgMemoryUtilization();
+        }
+        return 0.0;
+    }
+    
+    public double getTotalDowntime() {
+        // Calculate downtime based on availability or SLA violations
+        if (performanceMetrics != null && performanceMetrics.getSlaViolations() != null) {
+            return performanceMetrics.getSlaViolations().getAvgViolationDuration();
+        }
+        return 0.0;
+    }
+    
+    public int getTotalVmRequests() {
+        // Return total number of VM requests processed
+        if (performanceMetrics != null && performanceMetrics.getThroughput() != null) {
+            return (int) performanceMetrics.getThroughput().getTotalJobsCompleted();
+        }
+        return 0;
+    }
+    
+    public double getMemoryUsage() {
+        if (executionMetadata != null) {
+            return executionMetadata.getUsedMemory();
+        }
+        return 0.0;
     }
     
     public Map<String, Object> getDetailedMetrics() {
@@ -735,5 +779,68 @@ public class ExperimentalResult {
             // Add other configuration parameters as needed
         }
         return config;
+    }
+    
+    // Method to get metrics as a Map<String, Double> for compatibility
+    public Map<String, Double> getMetrics() {
+        Map<String, Double> metrics = new HashMap<>();
+        
+        if (performanceMetrics != null) {
+            // Resource utilization metrics
+            if (performanceMetrics.getResourceUtilization() != null) {
+                metrics.put("resourceUtilization", performanceMetrics.getResourceUtilization().getAvgCpuUtilization());
+                metrics.put("cpuUtilization", performanceMetrics.getResourceUtilization().getAvgCpuUtilization());
+                metrics.put("memoryUtilization", performanceMetrics.getResourceUtilization().getAvgMemoryUtilization());
+                metrics.put("storageUtilization", performanceMetrics.getResourceUtilization().getAvgStorageUtilization());
+                metrics.put("networkUtilization", performanceMetrics.getResourceUtilization().getAvgNetworkUtilization());
+            }
+            
+            // Power consumption metrics
+            if (performanceMetrics.getPowerConsumption() != null) {
+                metrics.put("powerConsumption", performanceMetrics.getPowerConsumption().getTotalPowerConsumption());
+                metrics.put("avgPowerConsumption", performanceMetrics.getPowerConsumption().getAvgPowerConsumption());
+                metrics.put("peakPowerConsumption", performanceMetrics.getPowerConsumption().getPeakPowerConsumption());
+            }
+            
+            // SLA violation metrics
+            if (performanceMetrics.getSlaViolations() != null) {
+                metrics.put("slaViolations", (double) performanceMetrics.getSlaViolations().getTotalViolations());
+                metrics.put("violationRate", performanceMetrics.getSlaViolations().getViolationRate());
+            }
+            
+            // Response time metrics
+            if (performanceMetrics.getResponseTime() != null) {
+                metrics.put("avgResponseTime", performanceMetrics.getResponseTime().getAvgResponseTime());
+                metrics.put("minResponseTime", performanceMetrics.getResponseTime().getMinResponseTime());
+                metrics.put("maxResponseTime", performanceMetrics.getResponseTime().getMaxResponseTime());
+            }
+            
+            // Throughput metrics
+            if (performanceMetrics.getThroughput() != null) {
+                metrics.put("throughput", performanceMetrics.getThroughput().getAvgThroughput());
+                metrics.put("totalJobsCompleted", performanceMetrics.getThroughput().getTotalJobsCompleted());
+                metrics.put("successRate", performanceMetrics.getThroughput().getSuccessRate());
+            }
+            
+            // Cost metrics
+            if (performanceMetrics.getCostMetrics() != null) {
+                metrics.put("totalCost", performanceMetrics.getCostMetrics().getTotalOperationalCost());
+                metrics.put("powerCost", performanceMetrics.getCostMetrics().getPowerCost());
+                metrics.put("resourceCost", performanceMetrics.getCostMetrics().getResourceCost());
+                metrics.put("slaPenaltyCost", performanceMetrics.getCostMetrics().getSlaPenaltyCost());
+            }
+            
+            // Migration metrics
+            if (performanceMetrics.getMigrationMetrics() != null) {
+                metrics.put("totalMigrations", (double) performanceMetrics.getMigrationMetrics().getTotalMigrations());
+                metrics.put("avgMigrationTime", performanceMetrics.getMigrationMetrics().getAvgMigrationTime());
+                metrics.put("migrationOverhead", performanceMetrics.getMigrationMetrics().getMigrationOverhead());
+            }
+        }
+        
+        // Add execution metadata
+        metrics.put("executionDuration", (double) executionDurationMs);
+        
+        return metrics;
     }
 }

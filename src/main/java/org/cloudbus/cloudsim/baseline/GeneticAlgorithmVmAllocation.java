@@ -1,6 +1,6 @@
 package org.cloudbus.cloudsim.baseline;
 
-import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicy;
+import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicyAbstract;
 import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.datacenters.Datacenter;
 import org.cloudbus.cloudsim.hosts.Host;
@@ -11,6 +11,7 @@ import org.cloudbus.cloudsim.util.MetricsCalculator;
 
 import java.util.*;
 import java.util.stream.IntStream;
+import java.util.stream.Collectors;
 
 /**
  * Genetic Algorithm implementation for VM placement optimization.
@@ -54,7 +55,7 @@ import java.util.stream.IntStream;
  * @author Puneet Chandna
  * @version 1.0
  */
-public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
+public class GeneticAlgorithmVmAllocation extends VmAllocationPolicyAbstract {
     
     // GA Parameters
     private int populationSize;
@@ -75,6 +76,9 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
     private List<Individual> population;
     private Individual bestSolution;
     private int currentGeneration;
+    
+    // Logging manager instance
+    private final LoggingManager loggingManager = new LoggingManager();
     
     /**
      * Constructor with default GA parameters optimized for VM placement.
@@ -113,15 +117,19 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
     }
 
     @Override
-    public boolean allocateHostForVm(Vm vm) {
+    public Optional<Host> defaultFindHostForVm(Vm vm) {
+        List<Host> hostList = getHostList();
+        return findHostForVm(vm, hostList);
+    }
+    
+    public Optional<Host> findHostForVm(Vm vm, List<Host> hostList) {
         try {
-            List<Host> suitableHosts = getHostList().stream()
+            List<Host> suitableHosts = hostList.stream()
                 .filter(host -> host.isSuitableForVm(vm))
-                .toList();
+                .collect(Collectors.toList());
                 
             if (suitableHosts.isEmpty()) {
-                LoggingManager.logWarning("No suitable hosts found for VM " + vm.getId());
-                return false;
+                return Optional.empty();
             }
             
             // For single VM allocation, use simple best fit
@@ -130,34 +138,23 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
                     calculateHostUtilization(host, vm)))
                 .orElse(null);
                 
-            if (selectedHost != null && selectedHost.vmCreate(vm)) {
-                LoggingManager.logInfo("VM " + vm.getId() + " allocated to Host " + selectedHost.getId());
-                return true;
+            if (selectedHost != null && selectedHost.isSuitableForVm(vm)) {
+                vm.setHost(selectedHost);
+                return Optional.of(selectedHost);
             }
             
-            return false;
+            return Optional.empty();
         } catch (Exception e) {
             throw new ExperimentException("GA VM allocation failed for VM " + vm.getId(), e);
         }
     }
 
     @Override
-    public boolean allocateHostForVm(Vm vm, Host host) {
-        try {
-            if (host.isSuitableForVm(vm) && host.vmCreate(vm)) {
-                LoggingManager.logInfo("VM " + vm.getId() + " allocated to specified Host " + host.getId());
-                return true;
-            }
-            return false;
-        } catch (Exception e) {
-            throw new ExperimentException("GA VM allocation failed for VM " + vm.getId() + " on Host " + host.getId(), e);
-        }
-    }
-
-    @Override
     public void deallocateHostForVm(Vm vm) {
-        vm.getHost().vmDestroy(vm);
-        LoggingManager.logInfo("VM " + vm.getId() + " deallocated from Host " + vm.getHost().getId());
+        Host host = vm.getHost();
+        if (host != null && host != Host.NULL) {
+            vm.setHost(Host.NULL);
+        }
     }
 
     /**
@@ -169,7 +166,7 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
     public Map<Vm, Host> evolvePopulation(List<Vm> vmList) {
         try {
             startTime = System.currentTimeMillis();
-            LoggingManager.logInfo("Starting GA evolution for " + vmList.size() + " VMs");
+            loggingManager.logInfo("Starting GA evolution for " + vmList.size() + " VMs");
             
             // Initialize population
             initializePopulation(vmList);
@@ -184,7 +181,7 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
                 
                 // Check convergence
                 if (hasConverged()) {
-                    LoggingManager.logInfo("GA converged at generation " + currentGeneration);
+                    loggingManager.logInfo("GA converged at generation " + currentGeneration);
                     break;
                 }
                 
@@ -237,22 +234,23 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
             
             // Create random allocation
             for (int j = 0; j < vmList.size(); j++) {
+                final int vmIndex = j;
                 List<Host> suitableHosts = availableHosts.stream()
-                    .filter(host -> host.isSuitableForVm(vmList.get(j)))
-                    .toList();
+                    .filter(host -> host.isSuitableForVm(vmList.get(vmIndex)))
+                    .collect(Collectors.toList());
                     
                 if (!suitableHosts.isEmpty()) {
                     int randomIndex = random.nextInt(suitableHosts.size());
-                    individual.allocation[j] = availableHosts.indexOf(suitableHosts.get(randomIndex));
+                    individual.allocation[vmIndex] = availableHosts.indexOf(suitableHosts.get(randomIndex));
                 } else {
-                    individual.allocation[j] = -1; // No suitable host
+                    individual.allocation[vmIndex] = -1; // No suitable host
                 }
             }
             
             population.add(individual);
         }
         
-        LoggingManager.logInfo("Initialized GA population with " + populationSize + " individuals");
+        loggingManager.logInfo("Initialized GA population with " + populationSize + " individuals");
     }
     
     /**
@@ -364,7 +362,7 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
                 }
             }
         } else {
-            // No crossover - copy parents
+            // No crossover, copy parents
             System.arraycopy(parent1.allocation, 0, offspring[0].allocation, 0, parent1.allocation.length);
             System.arraycopy(parent2.allocation, 0, offspring[1].allocation, 0, parent2.allocation.length);
         }
@@ -373,90 +371,88 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
     }
     
     /**
-     * Mutation operation with constraint preservation.
+     * Mutation operation on an individual.
      *
-     * @param individual Individual to mutate
+     * @param individual The individual to mutate
      */
     private void mutation(Individual individual) {
         for (int i = 0; i < individual.allocation.length; i++) {
             if (random.nextDouble() < mutationRate) {
-                // Mutate this gene
                 List<Host> availableHosts = getHostList();
-                List<Integer> validHostIndices = new ArrayList<>();
-                
-                // Find valid hosts for this VM
-                for (int j = 0; j < availableHosts.size(); j++) {
-                    if (availableHosts.get(j).isSuitableForVm(createDummyVm())) {
-                        validHostIndices.add(j);
-                    }
-                }
-                
-                if (!validHostIndices.isEmpty()) {
-                    individual.allocation[i] = validHostIndices.get(random.nextInt(validHostIndices.size()));
+                List<Host> suitableHosts = availableHosts.stream()
+                    .filter(host -> host.isSuitableForVm(createDummyVm()))
+                    .collect(Collectors.toList());
+                    
+                if (!suitableHosts.isEmpty()) {
+                    int randomIndex = random.nextInt(suitableHosts.size());
+                    individual.allocation[i] = availableHosts.indexOf(suitableHosts.get(randomIndex));
                 }
             }
         }
     }
     
     /**
-     * Preserve elite individuals in the new population.
+     * Preserve elite solutions in the new population.
      *
-     * @param newPopulation New population being created
+     * @param newPopulation The new population being built
      */
     private void preserveElites(List<Individual> newPopulation) {
-        // Sort population by fitness (descending)
-        population.sort((a, b) -> Double.compare(b.fitness, a.fitness));
+        List<Individual> sortedPopulation = new ArrayList<>(population);
+        sortedPopulation.sort(Comparator.comparingDouble(ind -> ind.fitness));
+        Collections.reverse(sortedPopulation);
         
-        // Add elite individuals
-        for (int i = 0; i < Math.min(elitismCount, population.size()); i++) {
-            newPopulation.add(new Individual(population.get(i)));
+        for (int i = 0; i < elitismCount && i < sortedPopulation.size(); i++) {
+            newPopulation.add(new Individual(sortedPopulation.get(i)));
         }
     }
     
     /**
-     * Track convergence and diversity metrics for research analysis.
+     * Track convergence and diversity metrics.
      */
     private void trackProgress() {
-        // Convergence tracking
-        double avgFitness = population.stream()
-            .mapToDouble(ind -> ind.fitness)
-            .average()
-            .orElse(0.0);
-        convergenceHistory.add(avgFitness);
+        // Track convergence
+        if (bestSolution != null) {
+            convergenceHistory.add(bestSolution.fitness);
+        }
         
-        // Diversity tracking
+        // Track diversity
         double diversity = calculatePopulationDiversity();
         diversityHistory.add(diversity);
         
-        // Log progress
+        // Log progress every 10 generations
         if (currentGeneration % 10 == 0) {
-            LoggingManager.logInfo(String.format("Generation %d: Best=%.2f, Avg=%.2f, Diversity=%.3f", 
-                currentGeneration, bestSolution != null ? bestSolution.fitness : 0.0, avgFitness, diversity));
+            loggingManager.logInfo("Generation " + currentGeneration + 
+                                 ": Best Fitness = " + (bestSolution != null ? bestSolution.fitness : 0) +
+                                 ", Diversity = " + String.format("%.4f", diversity));
         }
     }
     
     /**
-     * Check if the algorithm has converged.
+     * Check if the population has converged.
      *
      * @return True if converged, false otherwise
      */
     private boolean hasConverged() {
-        if (convergenceHistory.size() < 10) return false;
+        if (convergenceHistory.size() < 10) {
+            return false;
+        }
         
-        // Check if improvement in last 10 generations is minimal
-        int size = convergenceHistory.size();
-        double recentImprovement = convergenceHistory.get(size - 1) - convergenceHistory.get(size - 10);
+        // Check if fitness hasn't improved in last 10 generations
+        double recentBest = convergenceHistory.get(convergenceHistory.size() - 1);
+        double tenGenerationsAgo = convergenceHistory.get(convergenceHistory.size() - 10);
         
-        return recentImprovement < 0.01; // Convergence threshold
+        return Math.abs(recentBest - tenGenerationsAgo) < 0.001;
     }
     
     /**
      * Calculate population diversity using Hamming distance.
      *
-     * @return Population diversity measure
+     * @return Diversity measure
      */
     private double calculatePopulationDiversity() {
-        if (population.size() < 2) return 0.0;
+        if (population.size() < 2) {
+            return 0.0;
+        }
         
         double totalDistance = 0.0;
         int comparisons = 0;
@@ -479,19 +475,19 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
      * @return Hamming distance
      */
     private double hammingDistance(Individual ind1, Individual ind2) {
-        int differences = 0;
+        int distance = 0;
         for (int i = 0; i < ind1.allocation.length; i++) {
             if (ind1.allocation[i] != ind2.allocation[i]) {
-                differences++;
+                distance++;
             }
         }
-        return (double) differences / ind1.allocation.length;
+        return (double) distance / ind1.allocation.length;
     }
     
     /**
-     * Convert the best individual to a VM-Host allocation map.
+     * Convert best solution to VM-to-Host allocation map.
      *
-     * @param solution Best solution individual
+     * @param solution The best solution found
      * @param vmList List of VMs
      * @return Allocation map
      */
@@ -500,9 +496,8 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
         List<Host> hosts = getHostList();
         
         for (int i = 0; i < solution.allocation.length && i < vmList.size(); i++) {
-            int hostIndex = solution.allocation[i];
-            if (hostIndex >= 0 && hostIndex < hosts.size()) {
-                allocationMap.put(vmList.get(i), hosts.get(hostIndex));
+            if (solution.allocation[i] >= 0 && solution.allocation[i] < hosts.size()) {
+                allocationMap.put(vmList.get(i), hosts.get(solution.allocation[i]));
             }
         }
         
@@ -510,10 +505,10 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
     }
     
     /**
-     * Calculate host utilization considering a specific allocation.
+     * Calculate host utilization for a specific allocation.
      *
      * @param host Host to evaluate
-     * @param individual Individual solution
+     * @param individual The individual solution
      * @param vmList List of VMs
      * @return Utilization percentage
      */
@@ -529,7 +524,7 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
             }
         }
         
-        double cpuUtil = cpuUsage / (host.getNumberOfPes() * host.getVmScheduler().getMaxCpuPercent());
+        double cpuUtil = cpuUsage / (host.getNumberOfPes() * host.getCpuPercentUtilization());
         double ramUtil = ramUsage / host.getRam().getCapacity();
         
         return Math.max(cpuUtil, ramUtil) * 100; // Return percentage
@@ -544,7 +539,7 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
      */
     private double calculateHostUtilization(Host host, Vm vm) {
         double cpuUtil = (host.getCpuPercentUtilization() * host.getNumberOfPes() + vm.getNumberOfPes()) 
-                        / host.getNumberOfPes();
+                        / (double) host.getNumberOfPes();
         double ramUtil = (host.getRam().getAllocatedResource() + vm.getRam().getCapacity()) 
                         / host.getRam().getCapacity();
         
@@ -568,79 +563,76 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
      * @return Dummy VM instance
      */
     private Vm createDummyVm() {
-        // This is a simplified dummy VM - in real implementation,
-        // you would need proper VM creation based on actual requirements
-        return new org.cloudbus.cloudsim.vms.VmSimple(0, 1000, 1);
+        // Create a simple VM with basic requirements for validation
+        Vm dummyVm = new org.cloudbus.cloudsim.vms.VmSimple(0, 1000, 1);
+        return dummyVm;
     }
     
     /**
-     * Get detailed metrics for research analysis and comparison.
+     * Get detailed performance metrics for research analysis.
      *
-     * @return Map of performance metrics
+     * @return Map containing detailed metrics
      */
     public Map<String, Double> getDetailedMetrics() {
-        performanceMetrics.clear();
+        Map<String, Double> metrics = new HashMap<>();
         
-        // Algorithm performance metrics
-        performanceMetrics.put("execution_time_ms", (double) (endTime - startTime));
-        performanceMetrics.put("generations_executed", (double) currentGeneration);
-        performanceMetrics.put("best_fitness", bestSolution != null ? bestSolution.fitness : 0.0);
-        
-        // Convergence metrics
-        if (!convergenceHistory.isEmpty()) {
-            performanceMetrics.put("initial_fitness", convergenceHistory.get(0));
-            performanceMetrics.put("final_fitness", convergenceHistory.get(convergenceHistory.size() - 1));
-            performanceMetrics.put("fitness_improvement", 
-                convergenceHistory.get(convergenceHistory.size() - 1) - convergenceHistory.get(0));
-        }
-        
-        // Diversity metrics
-        if (!diversityHistory.isEmpty()) {
-            performanceMetrics.put("initial_diversity", diversityHistory.get(0));
-            performanceMetrics.put("final_diversity", diversityHistory.get(diversityHistory.size() - 1));
-            performanceMetrics.put("avg_diversity", 
-                diversityHistory.stream().mapToDouble(Double::doubleValue).average().orElse(0.0));
-        }
+        // Basic performance metrics
+        metrics.put("totalOptimizationTime", (double) (endTime - startTime));
+        metrics.put("finalBestFitness", bestSolution != null ? bestSolution.fitness : 0.0);
+        metrics.put("convergenceGeneration", (double) currentGeneration);
+        metrics.put("finalPopulationDiversity", diversityHistory.isEmpty() ? 0.0 : diversityHistory.get(diversityHistory.size() - 1));
         
         // Resource utilization metrics
-        if (bestSolution != null) {
-            performanceMetrics.put("resource_utilization", calculateResourceUtilization());
-            performanceMetrics.put("load_balance_metric", calculateLoadBalanceMetric());
-        }
+        metrics.put("averageResourceUtilization", calculateResourceUtilization());
+        metrics.put("loadBalanceMetric", calculateLoadBalanceMetric());
         
-        return new HashMap<>(performanceMetrics);
+        // Algorithm-specific metrics
+        metrics.put("populationSize", (double) populationSize);
+        metrics.put("mutationRate", mutationRate);
+        metrics.put("crossoverRate", crossoverRate);
+        metrics.put("elitismCount", (double) elitismCount);
+        
+        return metrics;
     }
     
     /**
-     * Calculate overall resource utilization.
+     * Calculate average resource utilization across all hosts.
      *
-     * @return Resource utilization percentage
+     * @return Average utilization percentage
      */
     private double calculateResourceUtilization() {
-        return getHostList().stream()
-            .mapToDouble(host -> host.getCpuPercentUtilization())
+        List<Host> hosts = getHostList();
+        if (hosts.isEmpty()) {
+            return 0.0;
+        }
+        
+        return hosts.stream()
+            .mapToDouble(Host::getCpuPercentUtilization)
             .average()
-            .orElse(0.0) * 100;
+            .orElse(0.0);
     }
     
     /**
-     * Calculate load balance metric (lower is better).
+     * Calculate load balancing metric.
      *
-     * @return Load balance metric
+     * @return Load balance measure
      */
     private double calculateLoadBalanceMetric() {
-        List<Double> utilizations = getHostList().stream()
-            .mapToDouble(host -> host.getCpuPercentUtilization() * 100)
-            .boxed()
-            .toList();
-            
+        List<Host> hosts = getHostList();
+        if (hosts.size() < 2) {
+            return 1.0; // Perfect balance for single host
+        }
+        
+        List<Double> utilizations = hosts.stream()
+            .map(Host::getCpuPercentUtilization)
+            .collect(Collectors.toList());
+        
         double mean = utilizations.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
         double variance = utilizations.stream()
             .mapToDouble(util -> Math.pow(util - mean, 2))
-            .average()
-            .orElse(0.0);
-            
-        return Math.sqrt(variance); // Standard deviation
+            .average().orElse(0.0);
+        
+        return 1.0 / (1.0 + Math.sqrt(variance)); // Higher value = better balance
     }
     
     /**
@@ -662,7 +654,7 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
     }
     
     /**
-     * Inner class representing an individual solution in the GA population.
+     * Individual solution representation for GA.
      */
     private static class Individual {
         int[] allocation; // allocation[i] = host index for VM i
@@ -674,7 +666,7 @@ public class GeneticAlgorithmVmAllocation extends VmAllocationPolicy {
         }
         
         Individual(Individual other) {
-            this.allocation = other.allocation.clone();
+            this.allocation = Arrays.copyOf(other.allocation, other.allocation.length);
             this.fitness = other.fitness;
         }
     }

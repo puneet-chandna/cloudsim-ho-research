@@ -9,7 +9,6 @@ import ch.qos.logback.core.ConsoleAppender;
 import ch.qos.logback.core.FileAppender;
 import ch.qos.logback.core.rolling.RollingFileAppender;
 import ch.qos.logback.core.rolling.TimeBasedRollingPolicy;
-// import org.cloudbus.cloudsim.ExperimentException;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
@@ -38,6 +37,9 @@ import java.util.stream.Collectors;
 public class LoggingManager {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(LoggingManager.class);
     
+    // Singleton instance for static method access
+    private static LoggingManager instance;
+    
     private static final String LOG_DIR = "logs";
     private static final String EXPERIMENT_LOG_DIR = "logs/experiments";
     private static final String METRICS_LOG_DIR = "logs/metrics";
@@ -54,6 +56,99 @@ public class LoggingManager {
     private String currentExperimentId;
     private FileAppender<ILoggingEvent> experimentAppender;
     private FileAppender<ILoggingEvent> metricsAppender;
+    
+    /**
+     * Get the singleton instance of LoggingManager.
+     * Creates a new instance if one doesn't exist.
+     *
+     * @return the singleton LoggingManager instance
+     */
+    public static synchronized LoggingManager getInstance() {
+        if (instance == null) {
+            instance = new LoggingManager();
+        }
+        return instance;
+    }
+    
+    /**
+     * Static method to log info messages.
+     *
+     * @param message the message to log
+     * @param args optional arguments for message formatting
+     */
+    public static void logInfo(String message, Object... args) {
+        logger.info(message, args);
+    }
+    
+    /**
+     * Static method to log warning messages.
+     *
+     * @param message the message to log
+     * @param args optional arguments for message formatting
+     */
+    public static void logWarning(String message, Object... args) {
+        logger.warn(message, args);
+    }
+    
+    /**
+     * Static method to log error messages.
+     *
+     * @param message the message to log
+     * @param throwable the throwable to log
+     */
+    public static void logError(String message, Throwable throwable) {
+        logger.error("ERROR: {}", message, throwable);
+    }
+    
+    /**
+     * Static method to log debug messages.
+     *
+     * @param message the message to log
+     * @param args optional arguments for message formatting
+     */
+    public static void logDebug(String message, Object... args) {
+        logger.debug(message, args);
+    }
+    
+    /**
+     * Static method to configure logging.
+     */
+    public static void configureLogging() {
+        getInstance().configureLogging();
+    }
+    
+    /**
+     * Static method to configure logging with custom directory.
+     *
+     * @param logDirectory the log directory path
+     */
+    public static void configureLogging(String logDirectory) {
+        if (instance == null) {
+            instance = new LoggingManager(Paths.get(logDirectory));
+        }
+        instance.configureLogging();
+    }
+    
+    /**
+     * Static method to initialize research logging.
+     *
+     * @param outputDirectory the output directory for logs
+     */
+    public static void initializeResearchLogging(Path outputDirectory) {
+        if (instance == null) {
+            instance = new LoggingManager(outputDirectory);
+        }
+        instance.configureLogging();
+    }
+    
+    /**
+     * Static method to generate log summary.
+     *
+     * @param outputDirectory the output directory
+     */
+    public static void generateLogSummary(Path outputDirectory) {
+        getInstance().generateLogSummary("research");
+    }
     
     /**
      * Constructs a LoggingManager with default log directory.
@@ -199,61 +294,6 @@ public class LoggingManager {
                     LocalDateTime.now().format(TIMESTAMP_FORMAT), metricName, value)
             );
         }
-    }
-    
-    /**
-     * Logs errors and exceptions with context.
-     *
-     * @param message error message
-     * @param throwable the exception
-     */
-    public void logError(String message, Throwable throwable) {
-        // Add experiment context to error
-        if (currentExperimentId != null) {
-            MDC.put("experimentId", currentExperimentId);
-        }
-        
-        logger.error("ERROR: {}", message, throwable);
-        
-        // Log to experiment-specific log
-        if (currentExperimentId != null && experimentLogs.containsKey(currentExperimentId)) {
-            experimentLogs.get(currentExperimentId).add(
-                String.format("ERROR[%s]: %s - %s", 
-                    LocalDateTime.now().format(TIMESTAMP_FORMAT), 
-                    message, 
-                    throwable != null ? throwable.getMessage() : "No exception details")
-            );
-        }
-    }
-    
-    /**
-     * Logs debug information.
-     *
-     * @param message debug message
-     * @param args message arguments
-     */
-    public void logDebug(String message, Object... args) {
-        logger.debug(message, args);
-    }
-    
-    /**
-     * Logs informational messages.
-     *
-     * @param message info message
-     * @param args message arguments
-     */
-    public void logInfo(String message, Object... args) {
-        logger.info(message, args);
-    }
-    
-    /**
-     * Logs warning messages.
-     *
-     * @param message warning message
-     * @param args message arguments
-     */
-    public void logWarning(String message, Object... args) {
-        logger.warn(message, args);
     }
     
     /**
@@ -568,4 +608,4 @@ public class LoggingManager {
         
         return errorLogs;
     }
-}
+} 

@@ -5,7 +5,6 @@ import org.cloudbus.cloudsim.vms.Vm;
 import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicy;
 import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicyAbstract;
 import org.cloudbus.cloudsim.datacenters.Datacenter;
-import org.cloudbus.cloudsim.util.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,15 +79,13 @@ public class RandomVmAllocation extends VmAllocationPolicyAbstract {
     }
     
     /**
-     * Finds a host for a VM using random selection strategy.
-     * This method implements the core random allocation logic while
-     * ensuring resource constraints are respected.
+     * Default implementation for finding host for VM
      * 
-     * @param vm The VM to be allocated
+     * @param vm the VM to be allocated
      * @return Optional containing the selected host, or empty if allocation fails
      */
     @Override
-    public Optional<Host> findHostForVm(Vm vm) {
+    public Optional<Host> defaultFindHostForVm(Vm vm) {
         if (vm == null) {
             logger.warn("Attempted to allocate null VM");
             return Optional.empty();
@@ -142,6 +139,15 @@ public class RandomVmAllocation extends VmAllocationPolicyAbstract {
     }
     
     /**
+     * Finds a host for a VM using random selection strategy.
+     * This method implements the core random allocation logic while
+     * ensuring resource constraints are respected.
+     * 
+     * @param vm The VM to be allocated
+     * @return Optional containing the selected host, or empty if allocation fails
+     */
+    
+    /**
      * Performs random allocation from the list of suitable hosts.
      * Implements the core random selection logic with attempt limiting.
      * 
@@ -185,7 +191,7 @@ public class RandomVmAllocation extends VmAllocationPolicyAbstract {
         
         // Check CPU constraints
         double requiredMips = vm.getMips();
-        double availableMips = host.getAvailableMips();
+        double availableMips = host.getTotalMipsCapacity() - host.getCpuPercentUtilization() * host.getTotalMipsCapacity();
         if (requiredMips > availableMips) {
             logger.trace("CPU constraint violation: Required {} MIPS, Available {} MIPS", 
                         requiredMips, availableMips);
@@ -256,7 +262,7 @@ public class RandomVmAllocation extends VmAllocationPolicyAbstract {
     private double calculateHostUtilization(Host host) {
         if (host == null) return 0.0;
         
-        double cpuUtilization = 1.0 - (host.getAvailableMips() / host.getTotalMipsCapacity());
+        double cpuUtilization = host.getCpuPercentUtilization();
         double ramUtilization = 1.0 - ((double) host.getRam().getAvailableResource() / host.getRam().getCapacity());
         double bwUtilization = 1.0 - ((double) host.getBw().getAvailableResource() / host.getBw().getCapacity());
         double storageUtilization = 1.0 - ((double) host.getStorage().getAvailableResource() / host.getStorage().getCapacity());

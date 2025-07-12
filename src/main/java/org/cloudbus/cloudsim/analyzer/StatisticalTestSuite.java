@@ -31,19 +31,16 @@ public class StatisticalTestSuite {
     private static final double DEFAULT_SIGNIFICANCE_LEVEL = 0.05;
     private static final double NORMALITY_TEST_ALPHA = 0.05;
     private static final int MIN_SAMPLE_SIZE = 5;
-    private static final int BOOTSTRAP_ITERATIONS = 10000;
     
     private final TTest tTest;
     private final MannWhitneyUTest mannWhitneyUTest;
     private final WilcoxonSignedRankTest wilcoxonTest;
-    private final OneWayAnova anovaTest;
     private final KolmogorovSmirnovTest ksTest;
     
     public StatisticalTestSuite() {
         this.tTest = new TTest();
         this.mannWhitneyUTest = new MannWhitneyUTest();
         this.wilcoxonTest = new WilcoxonSignedRankTest();
-        this.anovaTest = new OneWayAnova();
         this.ksTest = new KolmogorovSmirnovTest();
     }
     
@@ -164,7 +161,7 @@ public class StatisticalTestSuite {
             // Perform test using custom implementation
             result.hStatistic = calculateKruskalWallisH(samples);
             result.degreesOfFreedom = samples.size() - 1;
-            result.pValue = calculateKruskalWallisPValue(result.hStatistic, result.degreesOfFreedom);
+            result.pValue = calculateKruskalWallisPValue(result.hStatistic, (int) result.degreesOfFreedom);
             result.significant = result.pValue < DEFAULT_SIGNIFICANCE_LEVEL;
             
             // Post-hoc analysis if significant

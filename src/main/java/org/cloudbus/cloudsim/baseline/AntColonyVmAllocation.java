@@ -1,6 +1,6 @@
 package org.cloudbus.cloudsim.baseline;
 
-import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicy;
+import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicyAbstract;
 import org.cloudbus.cloudsim.brokers.DatacenterBroker;
 import org.cloudbus.cloudsim.hosts.Host;
 import org.cloudbus.cloudsim.vms.Vm;
@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  * @author Puneet Chandna
  * @version 1.0
  */
-public class AntColonyVmAllocation extends VmAllocationPolicy {
+public class AntColonyVmAllocation extends VmAllocationPolicyAbstract {
     
     // ACO Algorithm Parameters
     private static final double DEFAULT_ALPHA = 1.0;           // Pheromone importance
@@ -39,7 +39,7 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
     private double alpha;          // Pheromone importance factor
     private double beta;           // Heuristic importance factor
     private double rho;            // Evaporation rate
-    private double Q;              // Pheromone deposit constant
+    private double qValue;         // Pheromone deposit constant
     private int maxIterations;     // Maximum number of iterations
     private int antCount;          // Number of ants in colony
     private double initialPheromone; // Initial pheromone level
@@ -58,6 +58,8 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
     private int evaluationCount;
     private double bestFitness;
     private Map<Vm, Host> bestSolution;
+    
+    private final LoggingManager loggingManager = new LoggingManager();
     
     /**
      * Default constructor with standard ACO parameters
@@ -84,7 +86,7 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
         this.alpha = alpha;
         this.beta = beta;
         this.rho = rho;
-        this.Q = Q;
+        this.qValue = Q;
         this.maxIterations = maxIterations;
         this.antCount = antCount;
         this.initialPheromone = initialPheromone;
@@ -96,9 +98,7 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
         this.bestFitness = Double.MAX_VALUE;
         this.bestSolution = new HashMap<>();
         
-        LoggingManager.logInfo("ACO VM Allocation initialized with parameters: " +
-                             "alpha=" + alpha + ", beta=" + beta + ", rho=" + rho + 
-                             ", maxIter=" + maxIterations);
+        loggingManager.logInfo("ACO VM Allocation initialized with parameters: alpha={}, beta={}, rho={}, maxIter={}", alpha, beta, rho, maxIterations);
     }
     
     /**
@@ -108,11 +108,10 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
      * @param hostList List of available hosts
      * @return Selected host or empty optional if allocation fails
      */
-    @Override
     public Optional<Host> findHostForVm(Vm vm, List<Host> hostList) {
         try {
             if (hostList.isEmpty()) {
-                LoggingManager.logWarning("No hosts available for VM allocation");
+                loggingManager.logWarning("No hosts available for VM allocation");
                 return Optional.empty();
             }
             
@@ -120,17 +119,21 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
             Host selectedHost = selectNextHost(vm, hostList);
             
             if (selectedHost != null && selectedHost.isSuitableForVm(vm)) {
-                LoggingManager.logInfo("ACO allocated VM " + vm.getId() + 
-                                     " to Host " + selectedHost.getId());
+                loggingManager.logInfo("ACO allocated VM {} to Host {}", vm.getId(), selectedHost.getId());
                 return Optional.of(selectedHost);
             }
             
-            LoggingManager.logWarning("ACO failed to find suitable host for VM " + vm.getId());
+            loggingManager.logWarning("ACO failed to find suitable host for VM {}", vm.getId());
             return Optional.empty();
             
         } catch (Exception e) {
             throw new ExperimentException("Error in ACO VM allocation: " + e.getMessage(), e);
         }
+    }
+
+    @Override
+    public Optional<Host> defaultFindHostForVm(Vm vm) {
+        return findHostForVm(vm, getHostList());
     }
     
     /**
@@ -146,8 +149,7 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
             this.vmList = new ArrayList<>(vmList);
             this.hostList = new ArrayList<>(hostList);
             
-            LoggingManager.logInfo("Starting ACO optimization for " + vmList.size() + 
-                                 " VMs and " + hostList.size() + " hosts");
+            loggingManager.logInfo("Starting ACO optimization for {} VMs and {} hosts", vmList.size(), hostList.size());
             
             // Initialize pheromone matrix
             initializePheromoneMatrix();
@@ -183,8 +185,7 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
                 
                 // Log progress
                 if (iteration % 10 == 0) {
-                    LoggingManager.logInfo("ACO Iteration " + iteration + 
-                                         ", Best Fitness: " + String.format("%.4f", bestGlobalFitness));
+                    loggingManager.logInfo("ACO Iteration {}, Best Fitness: {}", iteration, String.format("%.4f", bestGlobalFitness));
                 }
             }
             
@@ -194,9 +195,7 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
             
             calculateMetrics(bestGlobalSolution);
             
-            LoggingManager.logInfo("ACO optimization completed. Best fitness: " + 
-                                 String.format("%.4f", bestGlobalFitness) + 
-                                 ", Time: " + (endTime - startTime) + "ms");
+            loggingManager.logInfo("ACO optimization completed. Best fitness: {}, Time: {}ms", String.format("%.4f", bestGlobalFitness), (endTime - startTime));
             
             return bestGlobalSolution;
             
@@ -269,7 +268,7 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
             return suitableHosts.get(suitableHosts.size() - 1);
             
         } catch (Exception e) {
-            LoggingManager.logError("Error in host selection: " + e.getMessage(), e);
+            loggingManager.logError("Error in host selection: " + e.getMessage(), e);
             // Return first suitable host as fallback
             return availableHosts.stream()
                 .filter(host -> host.isSuitableForVm(vm))
@@ -305,7 +304,7 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
                 double fitness = antFitnesses.get(ant);
                 
                 // Calculate pheromone amount (higher for better solutions)
-                double pheromoneAmount = Q / (1.0 + fitness);
+                double pheromoneAmount = qValue / (1.0 + fitness);
                 
                 // Deposit pheromones for this solution
                 for (Map.Entry<Vm, Host> entry : solution.entrySet()) {
@@ -331,7 +330,7 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
             }
             
         } catch (Exception e) {
-            LoggingManager.logError("Error updating pheromones: " + e.getMessage(), e);
+            loggingManager.logError("Error updating pheromones: " + e.getMessage(), e);
         }
     }
     
@@ -340,7 +339,7 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
      */
     private void initializePheromoneMatrix() {
         if (vmList == null || hostList == null || vmList.isEmpty() || hostList.isEmpty()) {
-            LoggingManager.logWarning("Cannot initialize pheromone matrix: empty VM or host list");
+            loggingManager.logWarning("Cannot initialize pheromone matrix: empty VM or host list");
             return;
         }
         
@@ -352,7 +351,7 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
             }
         }
         
-        LoggingManager.logInfo("Pheromone matrix initialized: " + vmList.size() + 
+        loggingManager.logInfo("Pheromone matrix initialized: " + vmList.size() + 
                              "x" + hostList.size());
     }
     
@@ -379,6 +378,7 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
                 Host leastLoadedHost = findLeastLoadedHost(vm, availableHosts);
                 if (leastLoadedHost != null) {
                     solution.put(vm, leastLoadedHost);
+                    loggingManager.logInfo("ACO found least loaded host {} for VM {}", leastLoadedHost.getId(), vm.getId());
                 }
             }
         }
@@ -410,7 +410,7 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
             
             // Calculate utilization for this host
             double utilization = hostUtilization.getOrDefault(host, 0.0);
-            utilization += (double) vm.getMips().getTotalMips() / host.getMips().getTotalMips();
+            utilization += vm.getMips() / host.getTotalMipsCapacity();
             hostUtilization.put(host, utilization);
         }
         
@@ -450,7 +450,7 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
      */
     private double calculateHeuristic(Vm vm, Host host) {
         // Calculate resource fitness
-        double cpuRatio = (double) vm.getMips().getTotalMips() / host.getMips().getTotalMips();
+        double cpuRatio = vm.getMips() / host.getTotalMipsCapacity();
         double ramRatio = (double) vm.getRam().getCapacity() / host.getRam().getCapacity();
         double bwRatio = (double) vm.getBw().getCapacity() / host.getBw().getCapacity();
         
@@ -497,7 +497,16 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
             .filter(host -> host.isSuitableForVm(vm))
             .min(Comparator.comparing(host -> 
                 host.getVmList().stream()
-                    .mapToDouble(allocatedVm -> allocatedVm.getCurrentRequestedMips())
+                    .mapToDouble(allocatedVm -> {
+                        Object mips = allocatedVm.getCurrentRequestedMips();
+                        if (mips instanceof Collection) {
+                            return ((Collection<?>) mips).stream().mapToDouble(val -> ((Number) val).doubleValue()).sum();
+                        } else if (mips instanceof Number) {
+                            return ((Number) mips).doubleValue();
+                        } else {
+                            return 0.0;
+                        }
+                    })
                     .sum()))
             .orElse(null);
     }
@@ -522,14 +531,9 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
                 metrics.put("allocation_ratio", (double) solution.size() / vmList.size());
                 
                 // Resource utilization
-                double avgUtilization = MetricsCalculator.calculateAverageResourceUtilization(
-                    new ArrayList<>(solution.values()));
-                metrics.put("avg_resource_utilization", avgUtilization);
-                
-                // Load balance
-                double loadBalance = MetricsCalculator.calculateLoadBalance(
-                    new ArrayList<>(solution.values()));
-                metrics.put("load_balance", loadBalance);
+                Map<String, Double> utilMetrics = MetricsCalculator.calculateResourceUtilization(new ArrayList<>(solution.values()));
+                metrics.put("avg_resource_utilization", utilMetrics.getOrDefault("overall_cpu_utilization", 0.0));
+                metrics.put("load_balance", utilMetrics.getOrDefault("std_cpu_utilization", 0.0));
             }
             
             // Convergence metrics
@@ -540,10 +544,10 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
                     convergenceHistory.get(0) / convergenceHistory.get(convergenceHistory.size() - 1));
             }
             
-            LoggingManager.logInfo("ACO metrics calculated: " + metrics.size() + " metrics");
+            loggingManager.logInfo("ACO metrics calculated: " + metrics.size() + " metrics");
             
         } catch (Exception e) {
-            LoggingManager.logError("Error calculating ACO metrics: " + e.getMessage(), e);
+            loggingManager.logError("Error calculating ACO metrics: " + e.getMessage(), e);
         }
     }
     
@@ -559,7 +563,7 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
         detailedMetrics.put("alpha", alpha);
         detailedMetrics.put("beta", beta);
         detailedMetrics.put("rho", rho);
-        detailedMetrics.put("q_value", Q);
+        detailedMetrics.put("q_value", qValue);
         detailedMetrics.put("ant_count", (double) antCount);
         detailedMetrics.put("max_iterations", (double) maxIterations);
         
@@ -652,7 +656,7 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
         bestFitness = Double.MAX_VALUE;
         bestSolution.clear();
         
-        LoggingManager.logInfo("ACO algorithm state reset");
+        loggingManager.logInfo("ACO algorithm state reset");
     }
     
     // Getter and setter methods for algorithm parameters
@@ -665,8 +669,8 @@ public class AntColonyVmAllocation extends VmAllocationPolicy {
     public double getRho() { return rho; }
     public void setRho(double rho) { this.rho = rho; }
     
-    public double getQ() { return Q; }
-    public void setQ(double Q) { this.Q = Q; }
+    public double getQ() { return qValue; }
+    public void setQ(double Q) { this.qValue = Q; }
     
     public int getMaxIterations() { return maxIterations; }
     public void setMaxIterations(int maxIterations) { this.maxIterations = maxIterations; }

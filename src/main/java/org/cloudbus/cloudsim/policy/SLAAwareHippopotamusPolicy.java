@@ -1,6 +1,6 @@
 package org.cloudbus.cloudsim.policy;
 
-import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicy;
+import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicyAbstract;
 import org.cloudbus.cloudsim.brokers.DatacenterBroker;
 import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.datacenters.Datacenter;
@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
  * @author Puneet Chandna
  * @version 1.0
  */
-public class SLAAwareHippopotamusPolicy extends VmAllocationPolicy {
+public class SLAAwareHippopotamusPolicy extends VmAllocationPolicyAbstract {
     
     // Core optimization engine
     private final HippopotamusOptimization optimizationEngine;

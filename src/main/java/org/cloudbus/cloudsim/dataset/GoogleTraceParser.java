@@ -4,13 +4,13 @@ import org.cloudbus.cloudsim.util.ExperimentException;
 import org.cloudbus.cloudsim.util.LoggingManager;
 import org.cloudbus.cloudsim.simulation.ExperimentalScenario;
 import org.apache.commons.csv.CSVRecord;
-import org.cloudsimplus.cloudlets.Cloudlet;
-import org.cloudsimplus.cloudlets.CloudletSimple;
-import org.cloudsimplus.utilizationmodels.UtilizationModel;
-import org.cloudsimplus.utilizationmodels.UtilizationModelDynamic;
-import org.cloudsimplus.utilizationmodels.UtilizationModelFull;
-import org.cloudsimplus.vms.Vm;
-import org.cloudsimplus.vms.VmSimple;
+import org.cloudbus.cloudsim.cloudlets.Cloudlet;
+import org.cloudbus.cloudsim.cloudlets.CloudletSimple;
+import org.cloudbus.cloudsim.utilizationmodels.UtilizationModel;
+import org.cloudbus.cloudsim.utilizationmodels.UtilizationModelDynamic;
+import org.cloudbus.cloudsim.utilizationmodels.UtilizationModelFull;
+import org.cloudbus.cloudsim.vms.Vm;
+import org.cloudbus.cloudsim.vms.VmSimple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,7 +23,10 @@ import java.util.stream.Collectors;
  * Handles task usage and task events traces.
  */
 public class GoogleTraceParser {
-    private static final Logger logger = LoggerFactory.getLogger(GoogleTraceParser.class);
+    // Private constructor to prevent instantiation
+    private GoogleTraceParser() {
+        // Utility class - no instantiation needed
+    }
     
     // Google trace column indices (based on trace format)
     private static final int TIMESTAMP_COL = 0;
@@ -333,17 +336,17 @@ public class GoogleTraceParser {
         scenario.setScenarioName("Google_Trace_" + vmCount + "_VMs");
         scenario.setDescription("Scenario generated from Google cluster trace with " + vmCount + " VMs");
         
-        // Create VMs based on trace data
-        List<Vm> vms = createVmsFromTrace(taskUsageData, vmCount);
-        scenario.setVms(vms);
-        
-        // Create Cloudlets based on trace data
-        List<Cloudlet> cloudlets = createCloudletsFromTrace(taskUsageData, taskEventsData, vmCount);
-        scenario.setCloudlets(cloudlets);
-        
         // Set workload characteristics
         WorkloadCharacteristics characteristics = deriveWorkloadCharacteristics(taskUsageData);
         scenario.setWorkloadCharacteristics(characteristics);
+        
+        // Set scenario properties based on trace data
+        scenario.setNumberOfVms(vmCount);
+        scenario.setNumberOfHosts(Math.max(1, vmCount / 10)); // 10 VMs per host on average
+        scenario.setArrivalRate(10.0); // Default arrival rate
+        scenario.setExecutionTime(3600.0); // 1 hour execution time
+        scenario.setDatasetSource("Google_Cluster_Trace");
+        scenario.setWorkloadType("Google_Cluster_Trace");
         
         return scenario;
     }
@@ -378,7 +381,6 @@ public class GoogleTraceParser {
     
     private static List<Cloudlet> createCloudletsFromTrace(
             List<TaskUsageData> taskUsageData,
-            List<TaskEventData> taskEventsData,
             int vmCount) {
         
         List<Cloudlet> cloudlets = new ArrayList<>();
@@ -452,8 +454,6 @@ public class GoogleTraceParser {
     }
     
     private static WorkloadCharacteristics deriveWorkloadCharacteristics(List<TaskUsageData> taskUsageData) {
-        WorkloadCharacteristics characteristics = new WorkloadCharacteristics();
-        
         // Calculate resource intensity
         double avgCpuIntensity = taskUsageData.stream()
             .flatMap(task -> task.getUsagePoints().stream())
@@ -465,18 +465,109 @@ public class GoogleTraceParser {
             .mapToDouble(ResourceUsagePoint::getMemoryUsage)
             .average().orElse(0.5);
         
-        characteristics.setCpuIntensity(avgCpuIntensity);
-        characteristics.setMemoryIntensity(avgMemoryIntensity);
-        
         // Calculate temporal characteristics
         double avgTaskDuration = taskUsageData.stream()
             .mapToDouble(GoogleTraceParser::calculateTaskDuration)
             .average().orElse(300.0); // 5 minutes default
         
-        characteristics.setAvgTaskDuration(avgTaskDuration);
-        characteristics.setWorkloadType("Google_Cluster_Trace");
+        // Create resource patterns
+        WorkloadCharacteristics.ResourceRequirementPatterns resourcePatterns = 
+            new WorkloadCharacteristics.ResourceRequirementPatterns(
+                avgCpuIntensity * 100.0, // avg CPU requirement
+                avgMemoryIntensity * 1024.0, // avg memory requirement
+                avgCpuIntensity * 200.0, // max CPU requirement
+                avgMemoryIntensity * 2048.0, // max memory requirement
+                avgCpuIntensity * 10.0, // min CPU requirement
+                avgMemoryIntensity * 512.0, // min memory requirement
+                avgCpuIntensity * 20.0, // CPU std dev
+                avgMemoryIntensity * 256.0, // memory std dev
+                0.4, // CPU variability coefficient
+                0.25, // memory variability coefficient
+                0.6, // CPU-memory correlation
+                "Normal" // resource distribution
+            );
         
-        return characteristics;
+        // Create temporal characteristics
+        Map<String, Double> distributionParams = new HashMap<>();
+        distributionParams.put("lambda", 10.0);
+        distributionParams.put("shape", 2.0);
+        
+        WorkloadCharacteristics.TemporalCharacteristics temporalCharacteristics = 
+            new WorkloadCharacteristics.TemporalCharacteristics(
+                avgTaskDuration * taskUsageData.size(), // total duration
+                "Poisson", // arrival pattern
+                10.0, // arrival rate
+                0.3, // arrival rate variability
+                avgTaskDuration, // avg execution time
+                0.5, // execution time variability
+                0.2, // seasonality index
+                Arrays.asList(900.0, 1800.0, 2700.0), // peak periods
+                distributionParams // distribution parameters
+            );
+        
+        // Create SLA requirements
+        WorkloadCharacteristics.SlaRequirements slaRequirements = 
+            new WorkloadCharacteristics.SlaRequirements(
+                0.99, // min availability
+                100.0, // max response time
+                1000.0, // min throughput
+                0.01, // max error rate
+                new HashMap<>(), // custom SLA metrics
+                "Gold", // SLA class
+                100.0 // penalty cost
+            );
+        
+        // Create performance targets
+        WorkloadCharacteristics.PerformanceTargets performanceTargets = 
+            new WorkloadCharacteristics.PerformanceTargets(
+                0.8, // target resource utilization
+                0.9, // target power efficiency
+                0.85, // target cost efficiency
+                0.9, // target load balancing
+                new HashMap<>(), // custom performance targets
+                Arrays.asList("utilization", "power", "sla") // optimization objectives
+            );
+        
+        // Create metadata
+        WorkloadCharacteristics.WorkloadMetadata metadata = 
+            new WorkloadCharacteristics.WorkloadMetadata(
+                "Google_Cluster_Trace", // workload name
+                "Google_Cluster_Trace", // workload type
+                "Google_Cluster_Trace", // dataset source
+                taskUsageData.size(), // VM count
+                taskUsageData.size() * 3, // task count
+                "Workload derived from Google cluster trace data", // description
+                new HashMap<>() // additional metadata
+            );
+        
+        // Create statistical characteristics
+        Map<String, Double> statDistributionParams = new HashMap<>();
+        statDistributionParams.put("mean", avgCpuIntensity * 100.0);
+        statDistributionParams.put("stddev", avgCpuIntensity * 20.0);
+        
+        Map<String, Double> momentStats = new HashMap<>();
+        momentStats.put("skewness", 0.1);
+        momentStats.put("kurtosis", 3.0);
+        
+        WorkloadCharacteristics.StatisticalCharacteristics statisticalCharacteristics = 
+            new WorkloadCharacteristics.StatisticalCharacteristics(
+                statDistributionParams, // distribution parameters
+                "Normal", // resource distribution type
+                "Exponential", // temporal distribution type
+                0.3, // autocorrelation coefficient
+                Arrays.asList(0.25, 0.5, 0.75, 0.95), // quantiles
+                3.5, // entropy
+                momentStats // moment statistics
+            );
+        
+        return new WorkloadCharacteristics.Builder()
+            .setResourcePatterns(resourcePatterns)
+            .setTemporalCharacteristics(temporalCharacteristics)
+            .setSlaRequirements(slaRequirements)
+            .setPerformanceTargets(performanceTargets)
+            .setMetadata(metadata)
+            .setStatisticalCharacteristics(statisticalCharacteristics)
+            .build();
     }
     
     // Utility methods

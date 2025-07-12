@@ -139,13 +139,13 @@ public class ScalabilityResults implements Serializable {
         // Update complexity summary
         if (complexityModel != null) {
             this.complexitySummary.put("time_complexity", 
-                complexityModel.timeComplexity.getNotation());
+                complexityModel.getTimeComplexity().getNotation());
             this.complexitySummary.put("space_complexity", 
-                complexityModel.spaceComplexity.getNotation());
+                complexityModel.getSpaceComplexity().getNotation());
             this.complexitySummary.put("time_r_squared", 
-                String.format("%.4f", complexityModel.rSquaredTime));
+                String.format("%.4f", complexityModel.getRSquaredTime()));
             this.complexitySummary.put("space_r_squared", 
-                String.format("%.4f", complexityModel.rSquaredSpace));
+                String.format("%.4f", complexityModel.getRSquaredSpace()));
         }
     }
     
@@ -387,9 +387,9 @@ public class ScalabilityResults implements Serializable {
         // Add key metrics
         Map<String, Double> keyMetrics = new HashMap<>();
         keyMetrics.put("time_complexity_r_squared", 
-            complexityModel != null ? complexityModel.rSquaredTime : 0.0);
+            complexityModel != null ? complexityModel.getRSquaredTime() : 0.0);
         keyMetrics.put("space_complexity_r_squared", 
-            complexityModel != null ? complexityModel.rSquaredSpace : 0.0);
+            complexityModel != null ? complexityModel.getRSquaredSpace() : 0.0);
         
         summary.put("key_metrics", keyMetrics);
         
@@ -407,7 +407,7 @@ public class ScalabilityResults implements Serializable {
         
         if (complexityModel == null) return false;
         
-        boolean notExponential = complexityModel.timeComplexity.getOrder() < 
+        boolean notExponential = complexityModel.getTimeComplexity().getOrder() < 
             ScalabilityAnalyzer.ComplexityClass.EXPONENTIAL.getOrder();
         boolean acceptableDegradation = Math.abs(efficiencyDegradationRate) < 5.0;
         boolean goodLimit = recommendedMaxScale > 1000;
@@ -421,8 +421,8 @@ public class ScalabilityResults implements Serializable {
             "ScalabilityResults{algorithm='%s', timeComplexity='%s', " +
             "spaceComplexity='%s', practicalLimit=%d, scalable=%s}",
             algorithmName,
-            complexityModel != null ? complexityModel.timeComplexity.getNotation() : "N/A",
-            complexityModel != null ? complexityModel.spaceComplexity.getNotation() : "N/A",
+            complexityModel != null ? complexityModel.getTimeComplexity().getNotation() : "N/A",
+            complexityModel != null ? complexityModel.getSpaceComplexity().getNotation() : "N/A",
             recommendedMaxScale,
             isScalable()
         );

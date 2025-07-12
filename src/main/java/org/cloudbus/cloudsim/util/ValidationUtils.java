@@ -226,6 +226,42 @@ public class ValidationUtils {
         }
     }
     
+    /**
+     * Validate that a value is positive
+     * @param value The value to validate
+     * @param paramName The parameter name for error messages
+     * @throws ExperimentException if value is not positive
+     */
+    public static void validatePositive(int value, String paramName) {
+        if (value <= 0) {
+            throw new ExperimentException(paramName + " must be positive, got: " + value);
+        }
+    }
+    
+    /**
+     * Validate that a value is positive
+     * @param value The value to validate
+     * @param paramName The parameter name for error messages
+     * @throws ExperimentException if value is not positive
+     */
+    public static void validatePositive(double value, String paramName) {
+        if (value <= 0) {
+            throw new ExperimentException(paramName + " must be positive, got: " + value);
+        }
+    }
+    
+    /**
+     * Validate that a value is not null
+     * @param value The value to validate
+     * @param paramName The parameter name for error messages
+     * @throws ExperimentException if value is null
+     */
+    public static void validateNotNull(Object value, String paramName) {
+        if (value == null) {
+            throw new ExperimentException(paramName + " cannot be null");
+        }
+    }
+    
     // Private helper methods
     
     private static ValidationCheck validateDataCompleteness(List<ExperimentalResult> results) {

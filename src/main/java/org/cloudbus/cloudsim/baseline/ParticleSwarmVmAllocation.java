@@ -1,6 +1,6 @@
 package org.cloudbus.cloudsim.baseline;
 
-import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicy;
+import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicyAbstract;
 import org.cloudbus.cloudsim.hosts.Host;
 import org.cloudbus.cloudsim.vms.Vm;
 import org.cloudbus.cloudsim.datacenters.Datacenter;
@@ -28,7 +28,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * @author Puneet Chandna
  * @version 1.0
  */
-public class ParticleSwarmVmAllocation extends VmAllocationPolicy {
+public class ParticleSwarmVmAllocation extends VmAllocationPolicyAbstract {
     
     private static final Logger LOGGER = LoggerFactory.getLogger(ParticleSwarmVmAllocation.class);
     
@@ -69,6 +69,41 @@ public class ParticleSwarmVmAllocation extends VmAllocationPolicy {
     }
     
     /**
+     * Default implementation for finding host for VM
+     * 
+     * @param vm the VM to be allocated
+     * @return Optional containing the selected host, or empty if allocation fails
+     */
+    @Override
+    public Optional<Host> defaultFindHostForVm(Vm vm) {
+        List<Host> hostList = getHostList();
+        if (hostList.isEmpty()) {
+            LOGGER.warn("No hosts available for VM allocation");
+            return Optional.empty();
+        }
+        
+        long startTime = System.currentTimeMillis();
+        
+        // Initialize swarm if not already done
+        if (swarm.isEmpty()) {
+            initializeSwarm(hostList);
+        }
+        
+        // Run PSO optimization
+        Host selectedHost = optimizeVmPlacement(vm, hostList);
+        
+        this.optimizationTime = System.currentTimeMillis() - startTime;
+        
+        if (selectedHost != null && selectedHost.isSuitableForVm(vm)) {
+            LOGGER.debug("PSO selected host {} for VM {}", selectedHost.getId(), vm.getId());
+            return Optional.of(selectedHost);
+        }
+        
+        LOGGER.warn("PSO failed to find suitable host for VM {}", vm.getId());
+        return Optional.empty();
+    }
+    
+    /**
      * Allocate host for VM using PSO optimization.
      * This method implements the main PSO algorithm for VM placement.
      * 
@@ -76,9 +111,7 @@ public class ParticleSwarmVmAllocation extends VmAllocationPolicy {
      * @param hostList the list of available hosts
      * @return the selected host or Host.NULL if allocation fails
      */
-    @Override
-    public Optional<Host> findHostForVm(Vm vm) {
-        List<Host> hostList = getHostList();
+    public Optional<Host> findHostForVm(Vm vm, List<Host> hostList) {
         if (hostList.isEmpty()) {
             LOGGER.warn("No hosts available for VM allocation");
             return Optional.empty();
@@ -175,7 +208,7 @@ public class ParticleSwarmVmAllocation extends VmAllocationPolicy {
         }
         
         // Select host based on global best solution
-        return selectHostFromSolution(vm, hostList, globalBest);
+        return selectHostFromSolution(hostList, globalBest);
     }
     
     /**
@@ -268,9 +301,7 @@ public class ParticleSwarmVmAllocation extends VmAllocationPolicy {
         double loadBalancing = calculateLoadBalancingFitness(selectedHost, hostList);
         
         // Weighted combination of objectives
-        double fitness = 0.4 * resourceUtilization + 0.4 * powerConsumption + 0.2 * loadBalancing;
-        
-        return fitness;
+        return 0.4 * resourceUtilization + 0.4 * powerConsumption + 0.2 * loadBalancing;
     }
     
     /**
@@ -301,12 +332,13 @@ public class ParticleSwarmVmAllocation extends VmAllocationPolicy {
      * @return power consumption fitness value
      */
     private double calculatePowerConsumptionFitness(Host host, Vm vm) {
-        double currentPower = host.getPowerModel().getPower(host.getCpuPercentUtilization());
         double projectedUtilization = (host.getCpuPercentUtilization() * host.getTotalMipsCapacity() + 
                                      vm.getTotalMipsCapacity()) / host.getTotalMipsCapacity();
         double projectedPower = host.getPowerModel().getPower(projectedUtilization);
         
-        return projectedPower / host.getPowerModel().getMaxPower(); // Normalized power consumption
+        // Use a reasonable maximum power value for normalization
+        double maxPower = 1000.0; // Default maximum power in watts
+        return projectedPower / maxPower; // Normalized power consumption
     }
     
     /**
@@ -399,7 +431,7 @@ public class ParticleSwarmVmAllocation extends VmAllocationPolicy {
             }
         }
         
-        return comparisons > 0 ? totalDistance / comparisons : 0.0;
+        return comparisons > 0 ? totalDistance / (double) comparisons : 0.0;
     }
     
     /**
@@ -439,12 +471,11 @@ public class ParticleSwarmVmAllocation extends VmAllocationPolicy {
     /**
      * Select final host from the best solution found.
      * 
-     * @param vm the VM to be placed
      * @param hostList the list of available hosts
      * @param bestSolution the best solution found by PSO
      * @return the selected host
      */
-    private Host selectHostFromSolution(Vm vm, List<Host> hostList, Particle bestSolution) {
+    private Host selectHostFromSolution(List<Host> hostList, Particle bestSolution) {
         if (bestSolution == null || bestSolution.position == null) {
             return null;
         }

@@ -24,14 +24,19 @@ import java.util.zip.GZIPInputStream;
  * @author Puneet Chandna
  */
 public class DatasetLoader {
-    private static final Logger logger = LoggerFactory.getLogger(DatasetLoader.class);
-    
     // Dataset cache for multiple experiments
     private static final Map<String, List<CSVRecord>> datasetCache = new ConcurrentHashMap<>();
     private static final Map<String, DatasetStatistics> statisticsCache = new ConcurrentHashMap<>();
     
+    /**
+     * Private constructor to prevent instantiation.
+     */
+    private DatasetLoader() {
+        // Utility class - no instantiation needed
+    }
+    
     // Supported file extensions
-    private static final Set<String> SUPPORTED_EXTENSIONS = Set.of(".csv", ".tsv", ".gz");
+    private static final Set<String> SUPPORTED_EXTENSIONS = new HashSet<>(Arrays.asList(".csv", ".tsv", ".gz"));
     
     /**
      * Generic dataset loader that handles various formats.
@@ -237,21 +242,16 @@ public class DatasetLoader {
         Path path = Paths.get(datasetPath);
         String fileName = path.getFileName().toString().toLowerCase();
         
-        InputStream inputStream = Files.newInputStream(path);
-        
-        // Handle compressed files
-        if (fileName.endsWith(".gz")) {
-            inputStream = new GZIPInputStream(inputStream);
-        }
-        
         // Determine CSV format
         CSVFormat format = CSVFormat.DEFAULT;
         if (fileName.contains(".tsv")) {
             format = CSVFormat.TDF;
         }
         
-        try (Reader reader = new InputStreamReader(inputStream);
-             CSVParser parser = new CSVParser(reader, format.withFirstRecordAsHeader())) {
+        try (InputStream inputStream = Files.newInputStream(path);
+             InputStream decompressedStream = fileName.endsWith(".gz") ? new GZIPInputStream(inputStream) : inputStream;
+             Reader reader = new InputStreamReader(decompressedStream);
+             CSVParser parser = new CSVParser(reader, format.builder().setHeader().build())) {
             
             return new ArrayList<>(parser.getRecords());
         }
@@ -328,8 +328,8 @@ public class DatasetLoader {
         
         // Calculate file size
         try {
-            Path path = Paths.get(datasetPath);
-            stats.setFileSizeBytes(Files.size(path));
+            Path filePath = Paths.get(datasetPath);
+            stats.setFileSizeBytes(Files.size(filePath));
         } catch (IOException e) {
             LoggingManager.logWarning("Could not determine file size for: " + datasetPath);
         }

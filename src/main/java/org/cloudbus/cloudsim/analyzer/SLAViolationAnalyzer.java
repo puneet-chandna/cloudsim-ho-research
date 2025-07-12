@@ -452,14 +452,13 @@ public class SLAViolationAnalyzer {
         double totalCost = 0.0;
         
         // Cost per violation type (example values)
-        Map<String, Double> costPerViolation = Map.of(
-            "PERFORMANCE", 10.0,
-            "AVAILABILITY", 100.0,
-            "RESOURCE", 5.0,
-            "MIGRATION", 2.0,
-            "QOS", 20.0
-        );
-        
+        Map<String, Double> costPerViolation = new HashMap<>();
+        costPerViolation.put("PERFORMANCE", 10.0);
+        costPerViolation.put("AVAILABILITY", 100.0);
+        costPerViolation.put("RESOURCE", 5.0);
+        costPerViolation.put("MIGRATION", 2.0);
+        costPerViolation.put("QOS", 20.0);
+
         for (Map.Entry<String, List<SLAViolation>> entry : violations.entrySet()) {
             String type = entry.getKey();
             int count = entry.getValue().size();

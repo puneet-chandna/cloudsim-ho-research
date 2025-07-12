@@ -331,7 +331,7 @@ public class SyntheticWorkloadGenerator {
     private void generateWebServerWorkload(List<Vm> vms, List<Cloudlet> cloudlets, int vmCount, int cloudletCount) {
         // Web servers typically have moderate CPU, high network I/O
         for (int i = 0; i < vmCount; i++) {
-            VmSimple vm = new VmSimple(i, 2000, 2) // Moderate CPU
+            Vm vm = new VmSimple(i, 2000, 2) // Moderate CPU
                     .setRam(2048) // Moderate RAM
                     .setBw(100000) // High bandwidth
                     .setSize(50000); // Moderate storage
@@ -340,13 +340,13 @@ public class SyntheticWorkloadGenerator {
         
         // Web requests are typically short, frequent
         for (int i = 0; i < cloudletCount; i++) {
-            UtilizationModel webUtilization = new UtilizationModelStochastic(0.3, 0.1);
-            CloudletSimple cloudlet = new CloudletSimple(i, 25000, 1) // Short tasks
+            UtilizationModel webUtilization = new UtilizationModelDynamic(0.3);
+            Cloudlet cloudlet = new CloudletSimple(i, 25000, 1) // Short tasks
                     .setFileSize(500)
                     .setOutputSize(1000) // Web responses
                     .setUtilizationModelCpu(webUtilization)
                     .setUtilizationModelRam(webUtilization)
-                    .setUtilizationModelBw(new UtilizationModelStochastic(0.7, 0.2)); // High network usage
+                    .setUtilizationModelBw(new UtilizationModelDynamic(0.7)); // High network usage
             cloudlets.add(cloudlet);
         }
     }
@@ -357,7 +357,7 @@ public class SyntheticWorkloadGenerator {
     private void generateBatchProcessingWorkload(List<Vm> vms, List<Cloudlet> cloudlets, int vmCount, int cloudletCount) {
         // Batch processing typically needs high CPU, moderate I/O
         for (int i = 0; i < vmCount; i++) {
-            VmSimple vm = new VmSimple(i, 4000, 4) // High CPU
+            Vm vm = new VmSimple(i, 4000, 4) // High CPU
                     .setRam(4096) // High RAM
                     .setBw(10000) // Moderate bandwidth
                     .setSize(100000); // High storage
@@ -366,13 +366,13 @@ public class SyntheticWorkloadGenerator {
         
         // Batch jobs are typically long-running, CPU intensive
         for (int i = 0; i < cloudletCount; i++) {
-            UtilizationModel batchUtilization = new UtilizationModelStochastic(0.8, 0.1);
-            CloudletSimple cloudlet = new CloudletSimple(i, 500000, 4) // Long tasks
+            UtilizationModel batchUtilization = new UtilizationModelDynamic(0.8);
+            Cloudlet cloudlet = new CloudletSimple(i, 500000, 4) // Long tasks
                     .setFileSize(2000)
                     .setOutputSize(2000)
                     .setUtilizationModelCpu(batchUtilization) // High CPU usage
-                    .setUtilizationModelRam(new UtilizationModelStochastic(0.6, 0.15))
-                    .setUtilizationModelBw(new UtilizationModelStochastic(0.2, 0.1)); // Low network usage
+                    .setUtilizationModelRam(new UtilizationModelDynamic(0.6))
+                    .setUtilizationModelBw(new UtilizationModelDynamic(0.2)); // Low network usage
             cloudlets.add(cloudlet);
         }
     }
@@ -383,7 +383,7 @@ public class SyntheticWorkloadGenerator {
     private void generateDatabaseWorkload(List<Vm> vms, List<Cloudlet> cloudlets, int vmCount, int cloudletCount) {
         // Databases need high I/O, moderate CPU
         for (int i = 0; i < vmCount; i++) {
-            VmSimple vm = new VmSimple(i, 3000, 4) // Moderate-high CPU
+            Vm vm = new VmSimple(i, 3000, 4) // Moderate-high CPU
                     .setRam(8192) // Very high RAM
                     .setBw(50000) // High bandwidth
                     .setSize(500000); // Very high storage
@@ -393,12 +393,12 @@ public class SyntheticWorkloadGenerator {
         // Database queries have mixed characteristics
         for (int i = 0; i < cloudletCount; i++) {
             UtilizationModel dbUtilization = new UtilizationModelDynamic(0.4);
-            CloudletSimple cloudlet = new CloudletSimple(i, 100000, 2)
+            Cloudlet cloudlet = new CloudletSimple(i, 100000, 2)
                     .setFileSize(1000)
                     .setOutputSize(500)
                     .setUtilizationModelCpu(dbUtilization)
-                    .setUtilizationModelRam(new UtilizationModelStochastic(0.7, 0.2)) // High RAM usage
-                    .setUtilizationModelBw(new UtilizationModelStochastic(0.5, 0.15));
+                    .setUtilizationModelRam(new UtilizationModelDynamic(0.7)) // High RAM usage
+                    .setUtilizationModelBw(new UtilizationModelDynamic(0.5));
             cloudlets.add(cloudlet);
         }
     }
@@ -409,7 +409,7 @@ public class SyntheticWorkloadGenerator {
     private void generateMixedWorkload(List<Vm> vms, List<Cloudlet> cloudlets, int vmCount, int cloudletCount) {
         // Mix of different VM types
         for (int i = 0; i < vmCount; i++) {
-            VmSimple vm;
+            Vm vm;
             if (i % 3 == 0) {
                 // Web server type
                 vm = new VmSimple(i, 2000, 2).setRam(2048).setBw(100000).setSize(50000);
@@ -425,17 +425,17 @@ public class SyntheticWorkloadGenerator {
         
         // Mix of different cloudlet types
         for (int i = 0; i < cloudletCount; i++) {
-            CloudletSimple cloudlet;
+            Cloudlet cloudlet;
             if (i % 3 == 0) {
                 // Web request type
                 cloudlet = new CloudletSimple(i, 25000, 1)
                         .setFileSize(500).setOutputSize(1000)
-                        .setUtilizationModelCpu(new UtilizationModelStochastic(0.3, 0.1));
+                        .setUtilizationModelCpu(new UtilizationModelDynamic(0.3));
             } else if (i % 3 == 1) {
                 // Batch job type
                 cloudlet = new CloudletSimple(i, 500000, 4)
                         .setFileSize(2000).setOutputSize(2000)
-                        .setUtilizationModelCpu(new UtilizationModelStochastic(0.8, 0.1));
+                        .setUtilizationModelCpu(new UtilizationModelDynamic(0.8));
             } else {
                 // Database query type
                 cloudlet = new CloudletSimple(i, 100000, 2)
@@ -452,7 +452,7 @@ public class SyntheticWorkloadGenerator {
     private void generateHighUtilizationWorkload(List<Vm> vms, List<Cloudlet> cloudlets, int vmCount, int cloudletCount) {
         // High-end VMs
         for (int i = 0; i < vmCount; i++) {
-            VmSimple vm = new VmSimple(i, 8000, 8) // Maximum CPU
+            Vm vm = new VmSimple(i, 8000, 8) // Maximum CPU
                     .setRam(4096)
                     .setBw(1000000)
                     .setSize(500000);
@@ -461,8 +461,8 @@ public class SyntheticWorkloadGenerator {
         
         // Very demanding cloudlets
         for (int i = 0; i < cloudletCount; i++) {
-            UtilizationModel highUtilization = new UtilizationModelStochastic(0.95, 0.05);
-            CloudletSimple cloudlet = new CloudletSimple(i, 1000000, 8) // Very long tasks
+            UtilizationModel highUtilization = new UtilizationModelDynamic(0.95);
+            Cloudlet cloudlet = new CloudletSimple(i, 1000000, 8) // Very long tasks
                     .setFileSize(2000)
                     .setOutputSize(2000)
                     .setUtilizationModelCpu(highUtilization)
@@ -478,7 +478,7 @@ public class SyntheticWorkloadGenerator {
     private void generateResourceContentionWorkload(List<Vm> vms, List<Cloudlet> cloudlets, int vmCount, int cloudletCount) {
         // Limited variety of VM types to create contention
         for (int i = 0; i < vmCount; i++) {
-            VmSimple vm = new VmSimple(i, 2000, 2) // Limited CPU variety
+            Vm vm = new VmSimple(i, 2000, 2) // Limited CPU variety
                     .setRam(1024) // Limited RAM
                     .setBw(10000)
                     .setSize(50000);
@@ -487,8 +487,8 @@ public class SyntheticWorkloadGenerator {
         
         // More cloudlets than optimal for available resources
         for (int i = 0; i < cloudletCount; i++) {
-            UtilizationModel contentionUtilization = new UtilizationModelStochastic(0.7, 0.3);
-            CloudletSimple cloudlet = new CloudletSimple(i, 200000, 2)
+            UtilizationModel contentionUtilization = new UtilizationModelDynamic(0.7);
+            Cloudlet cloudlet = new CloudletSimple(i, 200000, 2)
                     .setFileSize(1500)
                     .setOutputSize(1500)
                     .setUtilizationModelCpu(contentionUtilization)
@@ -504,7 +504,7 @@ public class SyntheticWorkloadGenerator {
     private void generateOversubscriptionWorkload(List<Vm> vms, List<Cloudlet> cloudlets, int vmCount, int cloudletCount) {
         // Many small VMs
         for (int i = 0; i < vmCount; i++) {
-            VmSimple vm = new VmSimple(i, 1000, 1) // Small VMs
+            Vm vm = new VmSimple(i, 1000, 1) // Small VMs
                     .setRam(512)
                     .setBw(1000)
                     .setSize(10000);
@@ -514,7 +514,7 @@ public class SyntheticWorkloadGenerator {
         // Cloudlets that exceed VM capacity when combined
         for (int i = 0; i < cloudletCount; i++) {
             UtilizationModel oversubscriptionUtilization = new UtilizationModelFull();
-            CloudletSimple cloudlet = new CloudletSimple(i, 150000, 1)
+            Cloudlet cloudlet = new CloudletSimple(i, 150000, 1)
                     .setFileSize(1000)
                     .setOutputSize(1000)
                     .setUtilizationModelCpu(oversubscriptionUtilization)
@@ -560,9 +560,8 @@ public class SyntheticWorkloadGenerator {
         int fileSize = (int) (baseFileSize * scalabilityFactor);
         int outputSize = (int) (baseOutputSize * scalabilityFactor);
         
-        UtilizationModel utilizationModel = new UtilizationModelStochastic(
-                DEFAULT_CPU_UTILIZATION_MEAN * scalabilityFactor, 
-                DEFAULT_CPU_UTILIZATION_STD);
+        UtilizationModel utilizationModel = new UtilizationModelDynamic(
+                DEFAULT_CPU_UTILIZATION_MEAN * scalabilityFactor);
         
         return new CloudletSimple(id, length, pesNumber)
                 .setFileSize(fileSize)
@@ -577,8 +576,7 @@ public class SyntheticWorkloadGenerator {
      */
     private UtilizationModel createRandomUtilizationModel() {
         double utilizationMean = ThreadLocalRandom.current().nextDouble(0.2, 0.9);
-        double utilizationStd = ThreadLocalRandom.current().nextDouble(0.05, 0.3);
-        return new UtilizationModelStochastic(utilizationMean, utilizationStd);
+        return new UtilizationModelDynamic(utilizationMean);
     }
     
     /**

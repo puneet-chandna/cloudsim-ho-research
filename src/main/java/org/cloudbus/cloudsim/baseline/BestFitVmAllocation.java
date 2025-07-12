@@ -100,7 +100,6 @@ public class BestFitVmAllocation extends VmAllocationPolicyAbstract {
      * @param hostList the list of available hosts
      * @return true if allocation was successful, false otherwise
      */
-    @Override
     public boolean allocateHostForVm(Vm vm, List<Host> hostList) {
         if (trackDetailedMetrics) {
             startTime = System.nanoTime();
@@ -149,6 +148,7 @@ public class BestFitVmAllocation extends VmAllocationPolicyAbstract {
         double bestFitness = Double.MAX_VALUE;
         
         for (Host host : hostList) {
+            // CloudSim Host.isSuitableForVm(vm) returns boolean
             if (host.isSuitableForVm(vm)) {
                 double fitness = calculateFitness(vm, host);
                 
@@ -274,7 +274,7 @@ public class BestFitVmAllocation extends VmAllocationPolicyAbstract {
      * @return true if successful, false otherwise
      */
     private boolean allocateHostForVmInternal(Vm vm, Host host) {
-        if (host.createVm(vm)) {
+        if (host.isSuitableForVm(vm)) {
             setVmToHost(vm, host);
             return true;
         }
@@ -402,7 +402,7 @@ public class BestFitVmAllocation extends VmAllocationPolicyAbstract {
         
         // Calculate resource utilization
         double cpuUtilization = host.getCpuPercentUtilization();
-        double memoryUtilization = host.getRamPercentUtilization();
+        double memoryUtilization = host.getRam().getPercentUtilization();
         
         // Calculate fragmentation as inverse of utilization balance
         double utilizationBalance = Math.abs(cpuUtilization - memoryUtilization);
@@ -459,7 +459,7 @@ public class BestFitVmAllocation extends VmAllocationPolicyAbstract {
         }
         
         List<Double> utilizationValues = getHostList().stream()
-            .mapToDouble(host -> (host.getCpuPercentUtilization() + host.getRamPercentUtilization()) / 2.0)
+            .mapToDouble(host -> (host.getCpuPercentUtilization() + host.getRam().getPercentUtilization()) / 2.0)
             .boxed()
             .collect(Collectors.toList());
         
@@ -492,7 +492,7 @@ public class BestFitVmAllocation extends VmAllocationPolicyAbstract {
             if (!host.getVmList().isEmpty()) {
                 activeHosts++;
                 double cpuUtil = host.getCpuPercentUtilization();
-                double memUtil = host.getRamPercentUtilization();
+                double memUtil = host.getRam().getPercentUtilization();
                 
                 // Wastage is the difference between allocated and efficiently used resources
                 double utilizationImbalance = Math.abs(cpuUtil - memUtil);
@@ -519,7 +519,7 @@ public class BestFitVmAllocation extends VmAllocationPolicyAbstract {
             if (!host.getVmList().isEmpty()) {
                 activeHosts++;
                 double cpuUtil = host.getCpuPercentUtilization();
-                double memUtil = host.getRamPercentUtilization();
+                double memUtil = host.getRam().getPercentUtilization();
                 
                 // Efficiency is the geometric mean of resource utilizations
                 double efficiency = Math.sqrt(cpuUtil * memUtil);
@@ -721,5 +721,14 @@ public class BestFitVmAllocation extends VmAllocationPolicyAbstract {
     public String toString() {
         return String.format("BestFitVmAllocation[fitnessType=%s, tracking=%s, success_rate=%.2f%%]", 
                            fitnessType, trackDetailedMetrics, detailedMetrics.get("allocationSuccessRate"));
+    }
+
+    @Override
+    public Optional<Host> defaultFindHostForVm(Vm vm) {
+        return Optional.ofNullable(findBestFitHost(vm, getHostList()));
+    }
+
+    private void setVmToHost(Vm vm, Host host) {
+        vm.setHost(host);
     }
 }

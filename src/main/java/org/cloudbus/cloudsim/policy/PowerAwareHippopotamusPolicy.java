@@ -7,10 +7,10 @@ import org.cloudbus.cloudsim.util.MetricsCalculator;
 import org.cloudbus.cloudsim.util.ExperimentException;
 import org.cloudbus.cloudsim.util.LoggingManager;
 import org.cloudbus.cloudsim.util.ValidationUtils;
-import org.cloudsimplus.hosts.Host;
-import org.cloudsimplus.vms.Vm;
-import org.cloudsimplus.power.models.PowerModel;
-import org.cloudsimplus.power.models.PowerModelHost;
+import org.cloudbus.cloudsim.hosts.Host;
+import org.cloudbus.cloudsim.vms.Vm;
+import org.cloudbus.cloudsim.power.models.PowerModel;
+import org.cloudbus.cloudsim.power.models.PowerModelHost;
 
 import java.util.*;
 import java.util.stream.Collectors;

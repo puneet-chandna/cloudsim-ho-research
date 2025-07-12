@@ -35,6 +35,13 @@ import java.util.stream.Collectors;
 public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
     private static final Logger LOGGER = LoggerFactory.getLogger(FirstFitVmAllocation.class);
     
+    // Constants for metric names to avoid string duplication
+    private static final String METRIC_AVERAGE_ALLOCATION_TIME = "averageAllocationTime";
+    private static final String METRIC_ALLOCATION_SUCCESS_RATE = "allocationSuccessRate";
+    private static final String METRIC_HOST_UTILIZATION_VARIANCE = "hostUtilizationVariance";
+    private static final String METRIC_FRAGMENTATION_INDEX = "fragmentationIndex";
+    private static final String METRIC_RESOURCE_WASTAGE = "resourceWastage";
+    
     // Performance tracking metrics
     private long totalAllocationTime = 0;
     private int successfulAllocations = 0;
@@ -71,11 +78,23 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
      * Initialize performance metrics
      */
     private void initializeMetrics() {
-        detailedMetrics.put("averageAllocationTime", 0.0);
-        detailedMetrics.put("allocationSuccessRate", 0.0);
-        detailedMetrics.put("hostUtilizationVariance", 0.0);
-        detailedMetrics.put("fragmentationIndex", 0.0);
-        detailedMetrics.put("resourceWastage", 0.0);
+        detailedMetrics.put(METRIC_AVERAGE_ALLOCATION_TIME, 0.0);
+        detailedMetrics.put(METRIC_ALLOCATION_SUCCESS_RATE, 0.0);
+        detailedMetrics.put(METRIC_HOST_UTILIZATION_VARIANCE, 0.0);
+        detailedMetrics.put(METRIC_FRAGMENTATION_INDEX, 0.0);
+        detailedMetrics.put(METRIC_RESOURCE_WASTAGE, 0.0);
+    }
+    
+    /**
+     * Default implementation for finding host for VM
+     * 
+     * @param vm the VM to be allocated
+     * @return Optional containing the selected host, or empty if allocation fails
+     */
+    @Override
+    public Optional<Host> defaultFindHostForVm(Vm vm) {
+        List<Host> hostList = getHostList();
+        return findHostForVm(vm, hostList);
     }
     
     /**
@@ -83,10 +102,9 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
      * 
      * @param vm the VM to be allocated
      * @param hostList the list of available hosts
-     * @return true if allocation was successful, false otherwise
+     * @return Optional containing the selected host, or empty if allocation fails
      */
-    @Override
-    public boolean allocateHostForVm(Vm vm, List<Host> hostList) {
+    public Optional<Host> findHostForVm(Vm vm, List<Host> hostList) {
         if (trackDetailedMetrics) {
             startTime = System.nanoTime();
         }
@@ -98,11 +116,11 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
                     boolean allocationResult = allocateHostForVmInternal(vm, host);
                     
                     if (allocationResult) {
-                        recordSuccessfulAllocation(host);
+                        recordSuccessfulAllocation();
                         updateHostAllocationCount(host);
                         LOGGER.debug("VM {} allocated to Host {} using First Fit", 
                                    vm.getId(), host.getId());
-                        return true;
+                        return Optional.of(host);
                     }
                 }
             }
@@ -110,12 +128,12 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
             // If no suitable host found
             recordFailedAllocation();
             LOGGER.warn("Failed to allocate VM {} using First Fit - no suitable host found", vm.getId());
-            return false;
+            return Optional.empty();
             
         } catch (Exception e) {
             recordFailedAllocation();
             LOGGER.error("Error during First Fit allocation for VM {}: {}", vm.getId(), e.getMessage());
-            return false;
+            return Optional.empty();
         } finally {
             if (trackDetailedMetrics) {
                 recordAllocationTime(System.nanoTime() - startTime);
@@ -130,8 +148,8 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
      * @return true if successful, false otherwise
      */
     private boolean allocateHostForVmInternal(Vm vm, Host host) {
-        if (host.createVm(vm)) {
-            setVmToHost(vm, host);
+        if (host.isSuitableForVm(vm)) {
+            vm.setHost(host);
             return true;
         }
         return false;
@@ -139,9 +157,8 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
     
     /**
      * Record successful allocation metrics
-     * @param host the host that was allocated
      */
-    private void recordSuccessfulAllocation(Host host) {
+    private void recordSuccessfulAllocation() {
         if (trackDetailedMetrics) {
             successfulAllocations++;
             updateAllocationSuccessRate();
@@ -186,7 +203,7 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
         int totalAllocations = successfulAllocations + failedAllocations;
         if (totalAllocations > 0) {
             double avgTime = (double) totalAllocationTime / totalAllocations / 1_000_000; // Convert to milliseconds
-            detailedMetrics.put("averageAllocationTime", avgTime);
+            detailedMetrics.put(METRIC_AVERAGE_ALLOCATION_TIME, avgTime);
         }
     }
     
@@ -197,7 +214,7 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
         int totalAllocations = successfulAllocations + failedAllocations;
         if (totalAllocations > 0) {
             double successRate = (double) successfulAllocations / totalAllocations * 100.0;
-            detailedMetrics.put("allocationSuccessRate", successRate);
+            detailedMetrics.put(METRIC_ALLOCATION_SUCCESS_RATE, successRate);
         }
     }
     
@@ -240,7 +257,7 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
      */
     private void calculateHostUtilizationVariance() {
         if (getHostList().isEmpty()) {
-            detailedMetrics.put("hostUtilizationVariance", 0.0);
+            detailedMetrics.put(METRIC_HOST_UTILIZATION_VARIANCE, 0.0);
             return;
         }
         
@@ -253,7 +270,7 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
             .mapToDouble(util -> Math.pow(util - mean, 2))
             .average().orElse(0.0);
         
-        detailedMetrics.put("hostUtilizationVariance", variance);
+        detailedMetrics.put(METRIC_HOST_UTILIZATION_VARIANCE, variance);
     }
     
     /**
@@ -276,7 +293,7 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
      */
     private void calculateFragmentationIndex() {
         if (getHostList().isEmpty()) {
-            detailedMetrics.put("fragmentationIndex", 0.0);
+            detailedMetrics.put(METRIC_FRAGMENTATION_INDEX, 0.0);
             return;
         }
         
@@ -285,7 +302,7 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
             .sum();
         
         double averageFragmentation = totalFragmentation / getHostList().size();
-        detailedMetrics.put("fragmentationIndex", averageFragmentation);
+        detailedMetrics.put(METRIC_FRAGMENTATION_INDEX, averageFragmentation);
     }
     
     /**
@@ -299,7 +316,7 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
         double cpuFragmentation = cpuUsage > 0 ? (100.0 - cpuUsage) / 100.0 : 0.0;
         
         // Calculate RAM fragmentation
-        double ramUsage = host.getRamPercentUtilization();
+        double ramUsage = host.getRam().getPercentUtilization();
         double ramFragmentation = ramUsage > 0 ? (100.0 - ramUsage) / 100.0 : 0.0;
         
         // Return average fragmentation
@@ -311,7 +328,7 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
      */
     private void calculateResourceWastage() {
         if (getHostList().isEmpty()) {
-            detailedMetrics.put("resourceWastage", 0.0);
+            detailedMetrics.put(METRIC_RESOURCE_WASTAGE, 0.0);
             return;
         }
         
@@ -320,7 +337,7 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
             .sum();
         
         double averageWastage = totalWastage / getHostList().size();
-        detailedMetrics.put("resourceWastage", averageWastage);
+        detailedMetrics.put(METRIC_RESOURCE_WASTAGE, averageWastage);
     }
     
     /**
@@ -334,7 +351,7 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
         }
         
         double cpuWastage = 100.0 - host.getCpuPercentUtilization();
-        double ramWastage = 100.0 - host.getRamPercentUtilization();
+        double ramWastage = 100.0 - host.getRam().getPercentUtilization();
         
         return (cpuWastage + ramWastage) / 2.0;
     }
@@ -407,6 +424,6 @@ public class FirstFitVmAllocation extends VmAllocationPolicyAbstract {
         return String.format("FirstFitVmAllocation{successfulAllocations=%d, failedAllocations=%d, " +
                            "avgAllocationTime=%.2f ms}", 
                            successfulAllocations, failedAllocations, 
-                           detailedMetrics.get("averageAllocationTime"));
+                           detailedMetrics.get(METRIC_AVERAGE_ALLOCATION_TIME));
     }
 }

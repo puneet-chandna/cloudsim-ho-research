@@ -98,8 +98,8 @@ public class BatchExperimentExecutor {
         
         private String formatDuration(Duration duration) {
             long hours = duration.toHours();
-            long minutes = duration.toMinutesPart();
-            long seconds = duration.toSecondsPart();
+            long minutes = duration.toMinutes() % 60;
+            long seconds = duration.getSeconds() % 60;
             return String.format("%02d:%02d:%02d", hours, minutes, seconds);
         }
     }
@@ -126,7 +126,7 @@ public class BatchExperimentExecutor {
         );
         this.completedExperiments = new ConcurrentHashMap<>();
         this.failedExperiments = new ConcurrentHashMap<>();
-        this.resourceMonitor = new ResourceMonitor();
+        this.resourceMonitor = ResourceMonitor.getInstance();
     }
     
     /**
@@ -135,7 +135,9 @@ public class BatchExperimentExecutor {
     public BatchExecutionResult executeBatch(List<ExperimentConfig> configs) {
         try {
             ValidationUtils.validateNotNull(configs, "Experiment configurations cannot be null");
-            ValidationUtils.validateNotEmpty(configs, "Experiment configurations cannot be empty");
+            if (configs == null || configs.isEmpty()) {
+                throw new ExperimentException("Experiment configurations cannot be empty");
+            }
             
             LoggingManager.logInfo("Starting batch execution of " + configs.size() + " experiments");
             
@@ -147,7 +149,7 @@ public class BatchExperimentExecutor {
             failedExperiments.clear();
             
             // Start resource monitoring
-            resourceMonitor.startMonitoring();
+            resourceMonitor.startMonitoring("batch_execution");
             
             // Start progress monitoring
             ScheduledExecutorService progressExecutor = Executors.newSingleThreadScheduledExecutor();
@@ -163,7 +165,7 @@ public class BatchExperimentExecutor {
             try {
                 // Check if parallel execution is enabled
                 boolean parallelEnabled = configs.stream()
-                    .anyMatch(config -> config.isParallelExecutionEnabled());
+                    .anyMatch(config -> config.getReplicationSettings().isEnableParallelExecution());
                 
                 if (parallelEnabled) {
                     batchResult = parallelExecution(configs);
@@ -173,7 +175,7 @@ public class BatchExperimentExecutor {
             } finally {
                 // Stop progress monitoring
                 progressExecutor.shutdown();
-                resourceMonitor.stopMonitoring();
+                resourceMonitor.stopMonitoring("batch_execution");
                 
                 // Final progress report
                 reportProgress();
@@ -316,7 +318,7 @@ public class BatchExperimentExecutor {
                 }
             } finally {
                 if (runner != null) {
-                    runner.cleanup();
+                    // Cleanup is handled internally by ExperimentRunner
                 }
             }
         }
@@ -335,7 +337,7 @@ public class BatchExperimentExecutor {
         
         // Copy all settings from original
         repConfig.setExperimentName(original.getExperimentName() + "_rep" + replicationNumber);
-        repConfig.setAlgorithmConfig(original.getAlgorithmConfig());
+        repConfig.setAlgorithmParameters(original.getAlgorithmParameters());
         repConfig.setScenarioConfig(original.getScenarioConfig());
         repConfig.setMeasurementSettings(original.getMeasurementSettings());
         repConfig.setOutputSettings(original.getOutputSettings());
@@ -467,13 +469,13 @@ public class BatchExperimentExecutor {
         monitor.scheduleAtFixedRate(() -> {
             try {
                 double cpuUsage = resourceMonitor.monitorCPUUsage();
-                double memoryUsage = resourceMonitor.monitorMemoryUsage();
+                ResourceMonitor.MemoryUsage memoryUsage = resourceMonitor.monitorMemoryUsage();
                 
                 LoggingManager.logInfo(String.format(
                     "Batch Progress: %s | System Resources - CPU: %.1f%%, Memory: %.1f%%",
                     progressMonitor.getProgressReport(),
                     cpuUsage,
-                    memoryUsage
+                    memoryUsage.getUsagePercentage()
                 ));
             } catch (Exception e) {
                 LoggingManager.logError("Error monitoring batch progress", e);
@@ -559,7 +561,18 @@ public class BatchExperimentExecutor {
                 ComprehensiveStatisticalAnalyzer analyzer = new ComprehensiveStatisticalAnalyzer();
                 List<ExperimentalResult> results = new ArrayList<>(completedExperiments.values());
                 
-                analyzer.performInferentialAnalysis(results);
+                // Group results by algorithm for inferential analysis
+                Map<String, List<ExperimentalResult>> algorithmResults = new HashMap<>();
+                for (ExperimentalResult result : results) {
+                    String algorithmName = result.getExperimentConfig().getAlgorithmType();
+                    algorithmResults.computeIfAbsent(algorithmName, k -> new ArrayList<>()).add(result);
+                }
+                
+                // Perform inferential analysis if we have multiple algorithms
+                if (algorithmResults.size() > 1) {
+                    String baselineAlgorithm = algorithmResults.keySet().iterator().next();
+                    analyzer.performInferentialAnalysis(algorithmResults, baselineAlgorithm);
+                }
                 
                 // Calculate batch-level statistics
                 calculateBatchStatistics(batchResult);

@@ -2,9 +2,6 @@ package org.cloudbus.cloudsim.analyzer;
 
 import org.cloudbus.cloudsim.experiment.ExperimentalResult;
 import org.cloudbus.cloudsim.util.LoggingManager;
-import org.cloudbus.cloudsim.util.MetricsCalculator;
-import org.cloudbus.cloudsim.util.ValidationUtils;
-import org.cloudbus.cloudsim.reporting.VisualizationGenerator;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
@@ -22,7 +19,6 @@ import org.jfree.data.xy.XYSeriesCollection;
 import java.awt.*;
 import java.util.*;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * ScalabilityAnalyzer - Analyzes algorithm scalability characteristics
@@ -40,11 +36,24 @@ public class ScalabilityAnalyzer {
     private final Map<String, Map<Integer, List<ExperimentalResult>>> scalabilityData;
     private final Map<String, ScalabilityResults> analysisResults;
     private final Map<String, ComplexityModel> complexityModels;
+    private final LoggingManager loggingManager;
     
     // Scalability dimensions
     public static final String VM_COUNT_DIMENSION = "vm_count";
     public static final String HOST_COUNT_DIMENSION = "host_count";
     public static final String COMBINED_DIMENSION = "combined_scale";
+    
+    // Constants for string literals
+    private static final String EXECUTION_TIME = "execution_time";
+    private static final String MEMORY_USAGE = "memory_usage";
+    private static final String RESOURCE_UTILIZATION = "resource_utilization";
+    private static final String SLA_VIOLATIONS = "sla_violations";
+    private static final String POWER_CONSUMPTION = "power_consumption";
+    private static final String PRACTICAL_LIMIT = "practical_limit";
+    private static final String PROBLEM_SIZE_VMS = "Problem Size (VMs)";
+    private static final String TIME_BASED_LIMIT = "time_based_limit";
+    private static final String MEMORY_BASED_LIMIT = "memory_based_limit";
+    private static final String SLA_BASED_LIMIT = "sla_based_limit";
     
     // Complexity models
     public enum ComplexityClass {
@@ -69,23 +78,46 @@ public class ScalabilityAnalyzer {
     }
     
     public static class ComplexityModel {
-        public ComplexityClass timeComplexity;
-        public ComplexityClass spaceComplexity;
-        public double rSquaredTime;
-        public double rSquaredSpace;
-        public PolynomialFunction timeModel;
-        public PolynomialFunction spaceModel;
-        public Map<String, Double> coefficients;
+        private ComplexityClass timeComplexity;
+        private ComplexityClass spaceComplexity;
+        private double rSquaredTime;
+        private double rSquaredSpace;
+        private PolynomialFunction timeModel;
+        private PolynomialFunction spaceModel;
+        private Map<String, Double> coefficients;
         
         public ComplexityModel() {
             this.coefficients = new HashMap<>();
         }
-    }
+        
+        // Getters and setters
+        public ComplexityClass getTimeComplexity() { return timeComplexity; }
+        public void setTimeComplexity(ComplexityClass timeComplexity) { this.timeComplexity = timeComplexity; }
+        
+        public ComplexityClass getSpaceComplexity() { return spaceComplexity; }
+        public void setSpaceComplexity(ComplexityClass spaceComplexity) { this.spaceComplexity = spaceComplexity; }
+        
+        public double getRSquaredTime() { return rSquaredTime; }
+        public void setRSquaredTime(double rSquaredTime) { this.rSquaredTime = rSquaredTime; }
+        
+        public double getRSquaredSpace() { return rSquaredSpace; }
+        public void setRSquaredSpace(double rSquaredSpace) { this.rSquaredSpace = rSquaredSpace; }
+        
+        public PolynomialFunction getTimeModel() { return timeModel; }
+        public void setTimeModel(PolynomialFunction timeModel) { this.timeModel = timeModel; }
+        
+        public PolynomialFunction getSpaceModel() { return spaceModel; }
+        public void setSpaceModel(PolynomialFunction spaceModel) { this.spaceModel = spaceModel; }
+        
+        public Map<String, Double> getCoefficients() { return coefficients; }
+        public void setCoefficients(Map<String, Double> coefficients) { this.coefficients = coefficients; }
+    }  
     
     public ScalabilityAnalyzer() {
         this.scalabilityData = new HashMap<>();
         this.analysisResults = new HashMap<>();
         this.complexityModels = new HashMap<>();
+        this.loggingManager = new LoggingManager();
     }
     
     /**
@@ -94,7 +126,7 @@ public class ScalabilityAnalyzer {
     public ScalabilityResults performScalabilityAnalysis(
             List<ExperimentalResult> results, String algorithm) {
         
-        LoggingManager.logInfo("Performing scalability analysis for: " + algorithm);
+        loggingManager.logInfo("Performing scalability analysis for: " + algorithm);
         
         try {
             // Organize results by scale
@@ -122,7 +154,7 @@ public class ScalabilityAnalyzer {
             
             // Generate scalability report
             Map<String, Object> report = generateScalabilityReport(
-                algorithm, vmScaling, hostScaling, combinedScaling, 
+                algorithm, vmScaling, 
                 complexity, trends, limits);
             
             // Populate results
@@ -140,7 +172,7 @@ public class ScalabilityAnalyzer {
             return scalabilityResults;
             
         } catch (Exception e) {
-            LoggingManager.logError("Error in scalability analysis", e);
+            loggingManager.logError("Error in scalability analysis", e);
             throw new ExperimentException("Failed to perform scalability analysis", e);
         }
     }
@@ -149,7 +181,7 @@ public class ScalabilityAnalyzer {
      * Calculate computational complexity metrics
      */
     public ComplexityModel calculateComplexityMetrics(String algorithm) {
-        LoggingManager.logInfo("Calculating complexity metrics for: " + algorithm);
+        loggingManager.logInfo("Calculating complexity metrics for: " + algorithm);
         
         ComplexityModel model = new ComplexityModel();
         
@@ -185,26 +217,26 @@ public class ScalabilityAnalyzer {
             }
             
             // Fit complexity models
-            model.timeComplexity = determineComplexityClass(
-                problemSizes, executionTimes, true);
-            model.spaceComplexity = determineComplexityClass(
-                problemSizes, memoryUsage, false);
+            model.setTimeComplexity(determineComplexityClass(
+                problemSizes, executionTimes));
+            model.setSpaceComplexity(determineComplexityClass(
+                problemSizes, memoryUsage));
             
             // Fit polynomial models
-            model.timeModel = fitPolynomialModel(problemSizes, executionTimes);
-            model.spaceModel = fitPolynomialModel(problemSizes, memoryUsage);
+            model.setTimeModel(fitPolynomialModel(problemSizes, executionTimes));
+            model.setSpaceModel(fitPolynomialModel(problemSizes, memoryUsage));
             
             // Calculate R-squared values
-            model.rSquaredTime = calculateRSquared(
-                problemSizes, executionTimes, model.timeModel);
-            model.rSquaredSpace = calculateRSquared(
-                problemSizes, memoryUsage, model.spaceModel);
+            model.setRSquaredTime(calculateRSquared(
+                problemSizes, executionTimes, model.getTimeModel()));
+            model.setRSquaredSpace(calculateRSquared(
+                problemSizes, memoryUsage, model.getSpaceModel()));
             
             // Extract coefficients
             extractCoefficients(model);
             
         } catch (Exception e) {
-            LoggingManager.logError("Error calculating complexity metrics", e);
+            loggingManager.logError("Error calculating complexity metrics", e);
             throw new ExperimentException("Failed to calculate complexity", e);
         }
         
@@ -217,7 +249,7 @@ public class ScalabilityAnalyzer {
     public Map<String, List<PerformanceTrend>> analyzePerformanceTrends(
             String algorithm) {
         
-        LoggingManager.logInfo("Analyzing performance trends for: " + algorithm);
+        loggingManager.logInfo("Analyzing performance trends for: " + algorithm);
         
         Map<String, List<PerformanceTrend>> trends = new HashMap<>();
         
@@ -226,14 +258,14 @@ public class ScalabilityAnalyzer {
                 scalabilityData.get(algorithm);
             
             // Analyze trends for each metric
-            trends.put("execution_time", analyzeExecutionTimeTrend(data));
-            trends.put("memory_usage", analyzeMemoryUsageTrend(data));
-            trends.put("resource_utilization", analyzeUtilizationTrend(data));
-            trends.put("sla_violations", analyzeSLATrend(data));
-            trends.put("power_consumption", analyzePowerTrend(data));
+            trends.put(EXECUTION_TIME, analyzeExecutionTimeTrend(data));
+            trends.put(MEMORY_USAGE, analyzeMemoryUsageTrend(data));
+            trends.put(RESOURCE_UTILIZATION, analyzeUtilizationTrend(data));
+            trends.put(SLA_VIOLATIONS, analyzeSLATrend(data));
+            trends.put(POWER_CONSUMPTION, analyzePowerTrend(data));
             
         } catch (Exception e) {
-            LoggingManager.logError("Error analyzing trends", e);
+            loggingManager.logError("Error analyzing trends", e);
         }
         
         return trends;
@@ -243,7 +275,7 @@ public class ScalabilityAnalyzer {
      * Predict scalability limits based on trends
      */
     public Map<String, Integer> predictScalabilityLimits(String algorithm) {
-        LoggingManager.logInfo("Predicting scalability limits for: " + algorithm);
+        loggingManager.logInfo("Predicting scalability limits for: " + algorithm);
         
         Map<String, Integer> limits = new HashMap<>();
         
@@ -260,21 +292,21 @@ public class ScalabilityAnalyzer {
             
             // Predict limits based on models
             int timeLimit = predictLimitForMetric(
-                model.timeModel, MAX_EXECUTION_TIME);
+                model.getTimeModel(), MAX_EXECUTION_TIME);
             int memoryLimit = predictLimitForMetric(
-                model.spaceModel, MAX_MEMORY_GB * 1024);
+                model.getSpaceModel(), MAX_MEMORY_GB * 1024);
             
             // Analyze SLA violation trends
             int slaLimit = predictSLALimit(algorithm, MAX_SLA_VIOLATIONS);
             
-            limits.put("time_based_limit", timeLimit);
-            limits.put("memory_based_limit", memoryLimit);
-            limits.put("sla_based_limit", slaLimit);
-            limits.put("practical_limit", Math.min(timeLimit, 
+            limits.put(TIME_BASED_LIMIT, timeLimit);
+            limits.put(MEMORY_BASED_LIMIT, memoryLimit);
+            limits.put(SLA_BASED_LIMIT, slaLimit);
+            limits.put(PRACTICAL_LIMIT, Math.min(timeLimit, 
                 Math.min(memoryLimit, slaLimit)));
             
         } catch (Exception e) {
-            LoggingManager.logError("Error predicting limits", e);
+            loggingManager.logError("Error predicting limits", e);
         }
         
         return limits;
@@ -290,10 +322,9 @@ public class ScalabilityAnalyzer {
         for (ExperimentalResult result : results) {
             Map<String, Object> scenario = result.getScenarioDetails();
             if (scenario != null) {
-                // Use total problem size (VMs * Hosts) as scale metric
-                int vmCount = (Integer) scenario.getOrDefault("vm_count", 0);
-                int hostCount = (Integer) scenario.getOrDefault("host_count", 0);
-                int scale = vmCount; // Can be changed to vmCount * hostCount
+                // Use total problem size (VMs) as scale metric
+                int vmCount = (Integer) scenario.getOrDefault(VM_COUNT_DIMENSION, 0);
+                int scale = vmCount; // Can be changed to vmCount * hostCount if needed
                 
                 byScale.computeIfAbsent(scale, k -> new ArrayList<>()).add(result);
             }
@@ -312,7 +343,7 @@ public class ScalabilityAnalyzer {
         for (List<ExperimentalResult> results : data.values()) {
             for (ExperimentalResult result : results) {
                 Map<String, Object> scenario = result.getScenarioDetails();
-                int vmCount = (Integer) scenario.getOrDefault("vm_count", 0);
+                int vmCount = (Integer) scenario.getOrDefault(VM_COUNT_DIMENSION, 0);
                 byVMCount.computeIfAbsent(vmCount, k -> new ArrayList<>()).add(result);
             }
         }
@@ -324,9 +355,6 @@ public class ScalabilityAnalyzer {
             point.scale = entry.getKey();
             point.avgExecutionTime = entry.getValue().stream()
                 .mapToDouble(r -> r.getExecutionTime())
-                .average().orElse(0.0);
-            point.avgMemoryUsage = entry.getValue().stream()
-                .mapToDouble(r -> r.getMemoryUsage())
                 .average().orElse(0.0);
             scalingPoints.add(point);
         }
@@ -348,7 +376,7 @@ public class ScalabilityAnalyzer {
         for (List<ExperimentalResult> results : data.values()) {
             for (ExperimentalResult result : results) {
                 Map<String, Object> scenario = result.getScenarioDetails();
-                int hostCount = (Integer) scenario.getOrDefault("host_count", 0);
+                int hostCount = (Integer) scenario.getOrDefault(HOST_COUNT_DIMENSION, 0);
                 byHostCount.computeIfAbsent(hostCount, k -> new ArrayList<>()).add(result);
             }
         }
@@ -381,8 +409,8 @@ public class ScalabilityAnalyzer {
         for (List<ExperimentalResult> results : data.values()) {
             for (ExperimentalResult result : results) {
                 Map<String, Object> scenario = result.getScenarioDetails();
-                int vmCount = (Integer) scenario.getOrDefault("vm_count", 0);
-                int hostCount = (Integer) scenario.getOrDefault("host_count", 0);
+                int vmCount = (Integer) scenario.getOrDefault(VM_COUNT_DIMENSION, 0);
+                int hostCount = (Integer) scenario.getOrDefault(HOST_COUNT_DIMENSION, 0);
                 String key = vmCount + "x" + hostCount;
                 
                 ScalingPoint point = new ScalingPoint();
@@ -402,11 +430,10 @@ public class ScalabilityAnalyzer {
     }
     
     private ComplexityClass determineComplexityClass(List<Double> sizes, 
-                                                    List<Double> measurements,
-                                                    boolean isTime) {
+                                                    List<Double> measurements) {
         
         // Try fitting different complexity models
-        Map<ComplexityClass, Double> fitScores = new HashMap<>();
+        Map<ComplexityClass, Double> fitScores = new EnumMap<>(ComplexityClass.class);
         
         // Convert to arrays for regression
         double[] x = sizes.stream().mapToDouble(Double::doubleValue).toArray();
@@ -524,21 +551,21 @@ public class ScalabilityAnalyzer {
             ssResidual += Math.pow(actual - predicted, 2);
         }
         
-        return 1.0 - (ssResidual / ssTotal);
+        return ssTotal > 0 ? 1.0 - (ssResidual / ssTotal) : 0.0;
     }
     
     private void extractCoefficients(ComplexityModel model) {
-        if (model.timeModel != null) {
-            double[] timeCoeffs = model.timeModel.getCoefficients();
+        if (model.getTimeModel() != null) {
+            double[] timeCoeffs = model.getTimeModel().getCoefficients();
             for (int i = 0; i < timeCoeffs.length; i++) {
-                model.coefficients.put("time_c" + i, timeCoeffs[i]);
+                model.getCoefficients().put("time_c" + i, timeCoeffs[i]);
             }
         }
         
-        if (model.spaceModel != null) {
-            double[] spaceCoeffs = model.spaceModel.getCoefficients();
+        if (model.getSpaceModel() != null) {
+            double[] spaceCoeffs = model.getSpaceModel().getCoefficients();
             for (int i = 0; i < spaceCoeffs.length; i++) {
-                model.coefficients.put("space_c" + i, spaceCoeffs[i]);
+                model.getCoefficients().put("space_c" + i, spaceCoeffs[i]);
             }
         }
     }
@@ -565,7 +592,7 @@ public class ScalabilityAnalyzer {
             PerformanceTrend trend = new PerformanceTrend();
             trend.fromScale = prevSize;
             trend.toScale = currSize;
-            trend.metricName = "execution_time";
+            trend.metricName = EXECUTION_TIME;
             trend.percentChange = ((currTime - prevTime) / prevTime) * 100;
             trend.absoluteChange = currTime - prevTime;
             trend.scaleFactor = (double) currSize / prevSize;
@@ -598,7 +625,7 @@ public class ScalabilityAnalyzer {
             PerformanceTrend trend = new PerformanceTrend();
             trend.fromScale = prevSize;
             trend.toScale = currSize;
-            trend.metricName = "memory_usage";
+            trend.metricName = MEMORY_USAGE;
             trend.percentChange = ((currMemory - prevMemory) / prevMemory) * 100;
             trend.absoluteChange = currMemory - prevMemory;
             
@@ -630,7 +657,7 @@ public class ScalabilityAnalyzer {
             PerformanceTrend trend = new PerformanceTrend();
             trend.fromScale = prevSize;
             trend.toScale = currSize;
-            trend.metricName = "resource_utilization";
+            trend.metricName = RESOURCE_UTILIZATION;
             trend.percentChange = ((currUtil - prevUtil) / prevUtil) * 100;
             trend.absoluteChange = currUtil - prevUtil;
             
@@ -662,7 +689,7 @@ public class ScalabilityAnalyzer {
             PerformanceTrend trend = new PerformanceTrend();
             trend.fromScale = prevSize;
             trend.toScale = currSize;
-            trend.metricName = "sla_violations";
+            trend.metricName = SLA_VIOLATIONS;
             trend.percentChange = prevSLA > 0 ? 
                 ((currSLA - prevSLA) / prevSLA) * 100 : 0;
             trend.absoluteChange = currSLA - prevSLA;
@@ -695,7 +722,7 @@ public class ScalabilityAnalyzer {
             PerformanceTrend trend = new PerformanceTrend();
             trend.fromScale = prevSize;
             trend.toScale = currSize;
-            trend.metricName = "power_consumption";
+            trend.metricName = POWER_CONSUMPTION;
             trend.percentChange = ((currPower - prevPower) / prevPower) * 100;
             trend.absoluteChange = currPower - prevPower;
             
@@ -841,8 +868,6 @@ public class ScalabilityAnalyzer {
     private Map<String, Object> generateScalabilityReport(
             String algorithm,
             Map<String, Object> vmScaling,
-            Map<String, Object> hostScaling,
-            Map<String, Object> combinedScaling,
             ComplexityModel complexity,
             Map<String, List<PerformanceTrend>> trends,
             Map<String, Integer> limits) {
@@ -852,16 +877,16 @@ public class ScalabilityAnalyzer {
         // Summary
         Map<String, Object> summary = new HashMap<>();
         summary.put("algorithm", algorithm);
-        summary.put("time_complexity", complexity.timeComplexity.getNotation());
-        summary.put("space_complexity", complexity.spaceComplexity.getNotation());
-        summary.put("practical_limit", limits.get("practical_limit"));
+        summary.put("time_complexity", complexity.getTimeComplexity().getNotation());
+        summary.put("space_complexity", complexity.getSpaceComplexity().getNotation());
+        summary.put(PRACTICAL_LIMIT, limits.get(PRACTICAL_LIMIT));
         
         // Detailed findings
         List<String> findings = new ArrayList<>();
         
         // Complexity findings
         findings.add(String.format("%s exhibits %s time complexity with R²=%.3f",
-            algorithm, complexity.timeComplexity.getNotation(), complexity.rSquaredTime));
+            algorithm, complexity.getTimeComplexity().getNotation(), complexity.getRSquaredTime()));
         
         // Scalability findings
         double scalingFactor = (Double) vmScaling.get("scaling_factor");
@@ -873,7 +898,7 @@ public class ScalabilityAnalyzer {
         
         // Limit findings
         findings.add(String.format("Practical scalability limit: %d VMs",
-            limits.get("practical_limit")));
+            limits.get(PRACTICAL_LIMIT)));
         
         // Performance trend findings
         analyzeTrendFindings(trends, findings);
@@ -889,7 +914,7 @@ public class ScalabilityAnalyzer {
                                      List<String> findings) {
         
         // Check execution time trends
-        List<PerformanceTrend> timeTrends = trends.get("execution_time");
+        List<PerformanceTrend> timeTrends = trends.get(EXECUTION_TIME);
         if (timeTrends != null && !timeTrends.isEmpty()) {
             double avgIncrease = timeTrends.stream()
                 .mapToDouble(t -> t.percentChange)
@@ -901,7 +926,7 @@ public class ScalabilityAnalyzer {
         }
         
         // Check SLA trends
-        List<PerformanceTrend> slaTrends = trends.get("sla_violations");
+        List<PerformanceTrend> slaTrends = trends.get(SLA_VIOLATIONS);
         if (slaTrends != null && !slaTrends.isEmpty()) {
             boolean degrading = slaTrends.stream()
                 .allMatch(t -> t.absoluteChange > 0);
@@ -929,7 +954,7 @@ public class ScalabilityAnalyzer {
             charts.put("metrics_scaling", metricsChart);
             
         } catch (Exception e) {
-            LoggingManager.logError("Error generating charts", e);
+            loggingManager.logError("Error generating charts", e);
         }
         
         return charts;
@@ -953,8 +978,8 @@ public class ScalabilityAnalyzer {
             
             actualSeries.add(size, avgTime);
             
-            if (model != null && model.timeModel != null) {
-                double predicted = model.timeModel.value(size);
+            if (model != null && model.getTimeModel() != null) {
+                double predicted = model.getTimeModel().value(size);
                 predictedSeries.add(size, predicted);
             }
         }
@@ -964,7 +989,7 @@ public class ScalabilityAnalyzer {
         
         JFreeChart chart = ChartFactory.createXYLineChart(
             "Execution Time Scaling - " + algorithm,
-            "Problem Size (VMs)",
+            PROBLEM_SIZE_VMS,
             "Execution Time (ms)",
             dataset,
             PlotOrientation.VERTICAL,
@@ -1006,7 +1031,7 @@ public class ScalabilityAnalyzer {
         
         return ChartFactory.createXYLineChart(
             "Memory Usage Scaling - " + algorithm,
-            "Problem Size (VMs)",
+            PROBLEM_SIZE_VMS,
             "Memory Usage (GB)",
             dataset,
             PlotOrientation.VERTICAL,
@@ -1041,7 +1066,7 @@ public class ScalabilityAnalyzer {
         
         return ChartFactory.createXYLineChart(
             "Performance Metrics Scaling - " + algorithm,
-            "Problem Size (VMs)",
+            PROBLEM_SIZE_VMS,
             "Metric Value",
             dataset,
             PlotOrientation.VERTICAL,
@@ -1056,7 +1081,6 @@ public class ScalabilityAnalyzer {
         public int vmCount;
         public int hostCount;
         public double avgExecutionTime;
-        public double avgMemoryUsage;
     }
     
     public static class PerformanceTrend {

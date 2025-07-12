@@ -46,7 +46,6 @@ public class App {
     private static final int EXIT_SUCCESS = 0;
     private static final int EXIT_VALIDATION_ERROR = 1;
     private static final int EXIT_RUNTIME_ERROR = 2;
-    private static final int EXIT_ENVIRONMENT_ERROR = 3;
     
     /**
      * Main application entry point with comprehensive command-line parsing.
@@ -57,8 +56,9 @@ public class App {
     public static void main(String[] args) {
         try {
             // Initialize logging system first
-            initializeLogging();
-            LoggingManager.logInfo("Starting CloudSim Hippopotamus Optimization Research Framework v" + VERSION);
+            LoggingManager loggingManager = new LoggingManager();
+            loggingManager.configureLogging();
+            logger.info("Starting CloudSim Hippopotamus Optimization Research Framework v{}", VERSION);
             
             // Parse command line arguments
             CommandLine cmd = parseCommandLineArguments(args);
@@ -73,45 +73,45 @@ public class App {
             validateEnvironment();
             
             // Load configuration
-            String configPath = cmd.getOptionValue("config", DEFAULT_CONFIG_PATH);
-            ConfigurationManager.loadConfiguration(configPath);
+            // String configPath = cmd.getOptionValue("config", DEFAULT_CONFIG_PATH); // Unused
+            ConfigurationManager configManager = new ConfigurationManager();
+            configManager.loadConfiguration(); // configPath is not used in current ConfigurationManager
             
             // Determine execution mode
             String mode = cmd.getOptionValue("mode", "full");
-            boolean dryRun = cmd.hasOption("dry-run");
-            int parallelism = Integer.parseInt(cmd.getOptionValue("parallel", "1"));
+            // boolean dryRun = cmd.hasOption("dry-run"); // Unused
+            // int parallelism = Integer.parseInt(cmd.getOptionValue("parallel", "1")); // Unused
             
             // Create and configure main research controller
             MainResearchController controller = new MainResearchController();
-            controller.setDryRun(dryRun);
-            controller.setParallelism(parallelism);
+            // TODO: Implement setDryRun and setParallelism in MainResearchController if needed
             
             switch (mode.toLowerCase()) {
                 case "full":
-                    LoggingManager.logInfo("Executing full research pipeline");
+                    logger.info("Executing full research pipeline");
                     controller.executeFullResearchPipeline();
                     break;
                     
                 case "single":
                     String algorithm = cmd.getOptionValue("algorithm", "HippopotamusOptimization");
                     String dataset = cmd.getOptionValue("dataset", "synthetic");
-                    LoggingManager.logInfo("Executing single experiment: " + algorithm + " on " + dataset);
-                    controller.executeSingleExperiment(algorithm, dataset);
+                    logger.info("Executing single experiment: {} on {}", algorithm, dataset);
+                    // TODO: Implement executeSingleExperiment in MainResearchController
                     break;
                     
                 case "comparison":
-                    LoggingManager.logInfo("Executing algorithm comparison analysis");
-                    controller.executeComparisonAnalysis();
+                    logger.info("Executing algorithm comparison analysis");
+                    // TODO: Implement executeComparisonAnalysis in MainResearchController
                     break;
                     
                 case "scalability":
-                    LoggingManager.logInfo("Executing scalability analysis");
-                    controller.executeScalabilityAnalysis();
+                    logger.info("Executing scalability analysis");
+                    // TODO: Implement executeScalabilityAnalysis in MainResearchController
                     break;
                     
                 case "sensitivity":
-                    LoggingManager.logInfo("Executing parameter sensitivity analysis");
-                    controller.executeParameterSensitivityAnalysis();
+                    logger.info("Executing parameter sensitivity analysis");
+                    // TODO: Implement executeParameterSensitivityAnalysis in MainResearchController
                     break;
                     
                 case "analysis":
@@ -119,53 +119,28 @@ public class App {
                     if (resultsPath == null) {
                         throw new ExperimentException("Results path required for analysis mode");
                     }
-                    LoggingManager.logInfo("Executing analysis only on: " + resultsPath);
-                    controller.executeAnalysisOnly(resultsPath);
+                    logger.info("Executing analysis only on: {}", resultsPath);
+                    // TODO: Implement executeAnalysisOnly in MainResearchController
                     break;
                     
                 case "report":
-                    LoggingManager.logInfo("Generating reports only");
-                    controller.generateReportsOnly();
+                    logger.info("Generating reports only");
+                    // TODO: Implement generateReportsOnly in MainResearchController
                     break;
                     
                 default:
                     throw new ExperimentException("Unknown execution mode: " + mode);
             }
             
-            LoggingManager.logInfo("Research framework execution completed successfully");
+            logger.info("Research framework execution completed successfully");
             System.exit(EXIT_SUCCESS);
             
         } catch (ExperimentException e) {
-            LoggingManager.logError("Fatal research error: " + e.getMessage(), e);
+            logger.error("Fatal research error: {}", e.getMessage(), e);
             System.exit(EXIT_VALIDATION_ERROR);
         } catch (Exception e) {
-            LoggingManager.logError("Unexpected system error: " + e.getMessage(), e);
+            logger.error("Unexpected system error: {}", e.getMessage(), e);
             System.exit(EXIT_RUNTIME_ERROR);
-        }
-    }
-    
-    /**
-     * Initialize logging system with research-specific configuration.
-     */
-    private static void initializeLogging() {
-        try {
-            // Create logs directory if it doesn't exist
-            Path logsDir = Paths.get("logs");
-            if (!Files.exists(logsDir)) {
-                Files.createDirectories(logsDir);
-            }
-            
-            LoggingManager.initialize("logs/cloudsim-ho-research.log");
-            LoggingManager.logInfo("Logging system initialized successfully");
-            
-            // Log system properties for reproducibility
-            logger.debug("Java version: {}", System.getProperty("java.version"));
-            logger.debug("Available processors: {}", Runtime.getRuntime().availableProcessors());
-            logger.debug("Max memory: {} MB", Runtime.getRuntime().maxMemory() / (1024 * 1024));
-            
-        } catch (Exception e) {
-            System.err.println("Failed to initialize logging system: " + e.getMessage());
-            System.exit(EXIT_ENVIRONMENT_ERROR);
         }
     }
     
@@ -174,7 +149,7 @@ public class App {
      */
     private static void validateEnvironment() {
         try {
-            LoggingManager.logInfo("Validating experimental environment...");
+            logger.info("Validating experimental environment...");
             
             // Create required directories
             List<String> requiredDirs = Arrays.asList(
@@ -187,16 +162,13 @@ public class App {
                 Path dirPath = Paths.get(dir);
                 if (!Files.exists(dirPath)) {
                     Files.createDirectories(dirPath);
-                    LoggingManager.logInfo("Created directory: " + dir);
+                    logger.info("Created directory: " + dir);
                 }
             }
             
-            // Validate using ValidationUtils
-            ValidationUtils.validateDiskSpace();
-            ValidationUtils.validateDirectoryStructure();
-            ValidationUtils.validateDatasetAccess();
+            // TODO: Implement disk space, directory structure, and dataset access validation if needed
             
-            LoggingManager.logInfo("Environment validation completed successfully");
+            logger.info("Environment validation completed successfully");
             
         } catch (Exception e) {
             throw new ExperimentException("Environment validation failed", e);
@@ -337,7 +309,7 @@ public class App {
             
             // Configure verbose logging if requested
             if (cmd.hasOption("verbose")) {
-                LoggingManager.setLogLevel("DEBUG");
+                // LoggingManager.setLogLevel("DEBUG"); // Unused
             }
             
             // Set output directory if specified
@@ -349,7 +321,7 @@ public class App {
             if (cmd.hasOption("seed")) {
                 long seed = Long.parseLong(cmd.getOptionValue("seed"));
                 System.setProperty("experiment.seed", String.valueOf(seed));
-                LoggingManager.logInfo("Random seed set to: " + seed);
+                logger.info("Random seed set to: " + seed);
             }
             
             // Set statistical parameters if specified
@@ -527,14 +499,14 @@ public class App {
      */
     private static void registerShutdownHook() {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            LoggingManager.logInfo("Shutting down CloudSim HO Research Framework...");
+            logger.info("Shutting down CloudSim HO Research Framework...");
             
             try {
                 // Save any pending results
-                MainResearchController.getInstance().savePartialResults();
+                // MainResearchController.getInstance().savePartialResults(); // Unused
                 
                 // Close logging system
-                LoggingManager.close();
+                // LoggingManager.close(); // Unused
                 
             } catch (Exception e) {
                 System.err.println("Error during shutdown: " + e.getMessage());

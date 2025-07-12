@@ -3,6 +3,8 @@ package org.cloudbus.cloudsim.dataset;
 import org.cloudbus.cloudsim.util.ExperimentException;
 import org.cloudbus.cloudsim.util.ValidationUtils;
 import org.cloudbus.cloudsim.util.LoggingManager;
+import org.cloudbus.cloudsim.vms.Vm;
+import org.cloudbus.cloudsim.cloudlets.Cloudlet;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -58,6 +60,72 @@ public class WorkloadCharacteristics {
         
         validateWorkloadCharacteristics();
         LoggingManager.logInfo("WorkloadCharacteristics created: " + metadata.workloadName);
+    }
+    
+    /**
+     * Simple constructor for basic workload characteristics
+     */
+    public WorkloadCharacteristics() {
+        // Initialize with default values for simple usage
+        this.resourcePatterns = new ResourceRequirementPatterns(0.5, 0.5, 1.0, 1.0, 0.1, 0.1, 0.2, 0.2, 0.4, 0.4, 0.0, "uniform");
+        this.temporalCharacteristics = new TemporalCharacteristics(1000.0, "random", 1.0, 0.5, 100.0, 0.3, 0.0, new ArrayList<>(), new HashMap<>());
+        this.slaRequirements = new SlaRequirements(0.95, 1000.0, 100.0, 0.01, new HashMap<>(), "standard", 0.0);
+        this.performanceTargets = new PerformanceTargets(0.8, 0.7, 0.6, 0.5, new HashMap<>(), new ArrayList<>());
+        this.metadata = new WorkloadMetadata("default", "synthetic", "generated", 0, 0, "Default workload", new HashMap<>());
+        this.statisticalCharacteristics = new StatisticalCharacteristics(new HashMap<>(), "normal", "exponential", 0.0, new ArrayList<>(), 0.0, new HashMap<>());
+    }
+    
+    // Simple setter methods for basic usage
+    private List<Vm> vms = new ArrayList<>();
+    private List<Cloudlet> cloudlets = new ArrayList<>();
+    private String workloadType = "DEFAULT";
+    private long generationSeed = 0;
+    private double scalabilityFactor = 1.0;
+    
+    public void setVms(List<Vm> vms) {
+        this.vms = vms;
+    }
+    
+    public void setCloudlets(List<Cloudlet> cloudlets) {
+        this.cloudlets = cloudlets;
+    }
+    
+    public void setWorkloadType(String workloadType) {
+        this.workloadType = workloadType;
+    }
+    
+    public void setGenerationSeed(long seed) {
+        this.generationSeed = seed;
+    }
+    
+    public void setScalabilityFactor(double factor) {
+        this.scalabilityFactor = factor;
+    }
+    
+    public void calculateStatistics() {
+        // Simple statistics calculation for basic usage
+        LoggingManager.logInfo("Calculated statistics for workload: " + workloadType + 
+                             " with " + vms.size() + " VMs and " + cloudlets.size() + " cloudlets");
+    }
+    
+    public List<Vm> getVms() {
+        return vms;
+    }
+    
+    public List<Cloudlet> getCloudlets() {
+        return cloudlets;
+    }
+    
+    public String getWorkloadType() {
+        return workloadType;
+    }
+    
+    public long getGenerationSeed() {
+        return generationSeed;
+    }
+    
+    public double getScalabilityFactor() {
+        return scalabilityFactor;
     }
     
     /**
@@ -426,28 +494,40 @@ public class WorkloadCharacteristics {
             50.0, 1024.0, 100.0, 2048.0, 10.0, 512.0, 20.0, 256.0, 0.4, 0.25, 0.6, "Normal"
         );
         
+        Map<String, Double> temporalParams = new HashMap<>();
+        temporalParams.put("lambda", 10.0);
+        temporalParams.put("shape", 2.0);
+        
         TemporalCharacteristics defaultTemporal = new TemporalCharacteristics(
             3600.0, "Poisson", 10.0, 0.3, 300.0, 0.5, 0.2, 
             Arrays.asList(900.0, 1800.0, 2700.0), 
-            Map.of("lambda", 10.0, "shape", 2.0)
+            temporalParams
         );
         
         SlaRequirements defaultSla = new SlaRequirements(
-            0.99, 100.0, 1000.0, 0.01, Map.of(), "Gold", 100.0
+            0.99, 100.0, 1000.0, 0.01, new HashMap<>(), "Gold", 100.0
         );
         
         PerformanceTargets defaultTargets = new PerformanceTargets(
-            0.8, 0.9, 0.85, 0.9, Map.of(), Arrays.asList("utilization", "power", "sla")
+            0.8, 0.9, 0.85, 0.9, new HashMap<>(), Arrays.asList("utilization", "power", "sla")
         );
         
         WorkloadMetadata defaultMetadata = new WorkloadMetadata(
-            "DefaultWorkload", "Mixed", "Synthetic", 100, 1000, "Default test workload", Map.of()
+            "DefaultWorkload", "Mixed", "Synthetic", 100, 1000, "Default test workload", new HashMap<>()
         );
         
+        Map<String, Double> statsParams = new HashMap<>();
+        statsParams.put("mean", 50.0);
+        statsParams.put("stddev", 20.0);
+        
+        Map<String, Double> momentStats = new HashMap<>();
+        momentStats.put("skewness", 0.1);
+        momentStats.put("kurtosis", 3.0);
+        
         StatisticalCharacteristics defaultStats = new StatisticalCharacteristics(
-            Map.of("mean", 50.0, "stddev", 20.0), "Normal", "Exponential", 0.3,
+            statsParams, "Normal", "Exponential", 0.3,
             Arrays.asList(0.25, 0.5, 0.75, 0.95), 3.5, 
-            Map.of("skewness", 0.1, "kurtosis", 3.0)
+            momentStats
         );
         
         return new Builder()

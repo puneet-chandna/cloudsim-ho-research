@@ -325,6 +325,56 @@ public class ExperimentConfig {
         this.timeoutSeconds = timeoutSeconds; 
     }
     
+    // Additional methods needed by the codebase
+    public String getExperimentId() { 
+        return experimentName != null ? experimentName : "experiment_" + System.currentTimeMillis(); 
+    }
+    
+    public void setExperimentId(String experimentId) { 
+        this.experimentName = experimentId; 
+    }
+    
+    public int getReplications() { 
+        return replicationSettings != null ? replicationSettings.getNumberOfReplications() : 30; 
+    }
+    
+    public void setReplications(int replications) { 
+        if (replicationSettings == null) {
+            replicationSettings = new ReplicationSettings();
+        }
+        replicationSettings.setNumberOfReplications(replications); 
+    }
+    
+    public Map<String, Object> getParameters() { 
+        return algorithmParameters != null ? algorithmParameters : new HashMap<>(); 
+    }
+    
+    public void setParameters(Map<String, Object> parameters) { 
+        this.algorithmParameters = parameters != null ? parameters : new HashMap<>(); 
+    }
+    
+    public String getAlgorithmName() { 
+        return algorithmType != null ? algorithmType : "Unknown"; 
+    }
+    
+    public void setAlgorithmName(String algorithmName) { 
+        this.algorithmType = algorithmName; 
+    }
+    
+    public ExperimentConfig getScenarioConfig() { 
+        return this; // For simplicity, return self as scenario config
+    }
+    
+    public void setScenarioConfig(ExperimentConfig scenarioConfig) { 
+        // Copy relevant fields from scenarioConfig
+        if (scenarioConfig != null) {
+            this.vmCount = scenarioConfig.getVmCount();
+            this.hostCount = scenarioConfig.getHostCount();
+            this.datasetName = scenarioConfig.getDatasetName();
+            this.scenarioType = scenarioConfig.getScenarioType();
+        }
+    }
+    
     @Override
     public String toString() {
         return String.format("ExperimentConfig[name=%s, algorithm=%s, vms=%d, hosts=%d, replications=%d]",
