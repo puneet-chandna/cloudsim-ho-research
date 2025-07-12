@@ -1,0 +1,14 @@
+---
+hippopotamus:
+  alpha: 0.5
+  delta: 0.7
+  beta: 0.5
+  gamma: 0.3
+genetic_algorithm:
+  mutation_rate: 0.1
+  elitism_rate: 0.1
+  crossover_rate: 0.8
+particle_swarm:
+  social_coefficient: 2.0
+  inertia_weight: 0.7
+  cognitive_coefficient: 2.0

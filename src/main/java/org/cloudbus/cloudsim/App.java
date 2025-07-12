@@ -55,10 +55,33 @@ public class App {
      */
     public static void main(String[] args) {
         try {
+            int exitCode = runApplication(args);
+            System.exit(exitCode);
+        } catch (Exception e) {
+            logger.error("Fatal error in main: {}", e.getMessage(), e);
+            System.exit(EXIT_RUNTIME_ERROR);
+        }
+    }
+    
+    /**
+     * Main application logic without System.exit() calls.
+     * This method can be called from tests without terminating the JVM.
+     * 
+     * @param args Command line arguments for experiment configuration
+     * @return Exit code (0 for success, non-zero for errors)
+     */
+    public static int runApplication(String[] args) {
+        try {
             // Initialize logging system first
             LoggingManager loggingManager = new LoggingManager();
             loggingManager.configureLogging();
             logger.info("Starting CloudSim Hippopotamus Optimization Research Framework v{}", VERSION);
+            
+            // Show help if no arguments provided
+            if (args == null || args.length == 0) {
+                printHelp();
+                return EXIT_SUCCESS;
+            }
             
             // Parse command line arguments
             CommandLine cmd = parseCommandLineArguments(args);
@@ -66,25 +89,27 @@ public class App {
             // Handle help request
             if (cmd.hasOption("help")) {
                 printHelp();
-                System.exit(EXIT_SUCCESS);
+                return EXIT_SUCCESS;
+            }
+            
+            // Handle version request
+            if (cmd.hasOption("version")) {
+                printVersion();
+                return EXIT_SUCCESS;
             }
             
             // Validate environment before proceeding
             validateEnvironment();
             
             // Load configuration
-            // String configPath = cmd.getOptionValue("config", DEFAULT_CONFIG_PATH); // Unused
             ConfigurationManager configManager = new ConfigurationManager();
-            configManager.loadConfiguration(); // configPath is not used in current ConfigurationManager
+            configManager.loadConfiguration();
             
             // Determine execution mode
             String mode = cmd.getOptionValue("mode", "full");
-            // boolean dryRun = cmd.hasOption("dry-run"); // Unused
-            // int parallelism = Integer.parseInt(cmd.getOptionValue("parallel", "1")); // Unused
             
             // Create and configure main research controller
             MainResearchController controller = new MainResearchController();
-            // TODO: Implement setDryRun and setParallelism in MainResearchController if needed
             
             switch (mode.toLowerCase()) {
                 case "full":
@@ -133,14 +158,14 @@ public class App {
             }
             
             logger.info("Research framework execution completed successfully");
-            System.exit(EXIT_SUCCESS);
+            return EXIT_SUCCESS;
             
         } catch (ExperimentException e) {
             logger.error("Fatal research error: {}", e.getMessage(), e);
-            System.exit(EXIT_VALIDATION_ERROR);
+            return EXIT_VALIDATION_ERROR;
         } catch (Exception e) {
             logger.error("Unexpected system error: {}", e.getMessage(), e);
-            System.exit(EXIT_RUNTIME_ERROR);
+            return EXIT_RUNTIME_ERROR;
         }
     }
     
@@ -175,8 +200,7 @@ public class App {
         }
     }
     
-    // ... (rest of the implementation combining best features from both)
-        /**
+    /**
      * Parse command line arguments for experiment configuration.
      * Supports various options for controlling experiment execution.
      * 
@@ -184,128 +208,11 @@ public class App {
      * @return Parsed command line options
      */
     private static CommandLine parseCommandLineArguments(String[] args) {
-        Options options = new Options();
-        
-        // Execution mode options
-        options.addOption(Option.builder("m")
-                .longOpt("mode")
-                .hasArg()
-                .argName("MODE")
-                .desc("Execution mode: full, single, comparison, scalability, sensitivity, analysis, report")
-                .build());
-        
-        // Configuration file option
-        options.addOption(Option.builder("c")
-                .longOpt("config")
-                .hasArg()
-                .argName("FILE")
-                .desc("Path to experiment configuration file (default: " + DEFAULT_CONFIG_PATH + ")")
-                .build());
-        
-        // Algorithm selection for single mode
-        options.addOption(Option.builder("a")
-                .longOpt("algorithm")
-                .hasArg()
-                .argName("NAME")
-                .desc("Algorithm to test: HippopotamusOptimization, GeneticAlgorithm, ParticleSwarm, etc.")
-                .build());
-        
-        // Dataset selection for single mode
-        options.addOption(Option.builder("d")
-                .longOpt("dataset")
-                .hasArg()
-                .argName("NAME")
-                .desc("Dataset to use: google_traces, azure_traces, synthetic")
-                .build());
-        
-        // Results path for analysis mode
-        options.addOption(Option.builder("r")
-                .longOpt("results")
-                .hasArg()
-                .argName("PATH")
-                .desc("Results path for analysis-only mode")
-                .build());
-        
-        // Output directory option
-        options.addOption(Option.builder("o")
-                .longOpt("output")
-                .hasArg()
-                .argName("DIR")
-                .desc("Output directory for results (default: results/)")
-                .build());
-        
-        // Parallel execution option
-        options.addOption(Option.builder("p")
-                .longOpt("parallel")
-                .hasArg()
-                .argName("N")
-                .desc("Number of parallel threads (default: 1)")
-                .build());
-        
-        // Dry run option
-        options.addOption(Option.builder("dry")
-                .longOpt("dry-run")
-                .desc("Perform dry run without actual execution")
-                .build());
-        
-        // Verbose logging option
-        options.addOption(Option.builder("v")
-                .longOpt("verbose")
-                .desc("Enable verbose logging")
-                .build());
-        
-        // Version option
-        options.addOption(Option.builder("V")
-                .longOpt("version")
-                .desc("Show version information")
-                .build());
-        
-        // Help option
-        options.addOption(Option.builder("h")
-                .longOpt("help")
-                .desc("Show help message")
-                .build());
-        
-        // Statistical options
-        options.addOption(Option.builder("rep")
-                .longOpt("replications")
-                .hasArg()
-                .argName("N")
-                .desc("Number of replications for statistical analysis (default: 30)")
-                .build());
-        
-        options.addOption(Option.builder("conf")
-                .longOpt("confidence")
-                .hasArg()
-                .argName("LEVEL")
-                .desc("Confidence level for statistical tests (default: 0.95)")
-                .build());
-        
-        // Experiment-specific options
-        options.addOption(Option.builder("seed")
-                .longOpt("random-seed")
-                .hasArg()
-                .argName("SEED")
-                .desc("Random seed for reproducibility")
-                .build());
-        
-        options.addOption(Option.builder("timeout")
-                .longOpt("experiment-timeout")
-                .hasArg()
-                .argName("MINUTES")
-                .desc("Timeout for individual experiments in minutes")
-                .build());
-        
+        Options options = getOptions();
         CommandLineParser parser = new DefaultParser();
         
         try {
             CommandLine cmd = parser.parse(options, args);
-            
-            // Handle version request
-            if (cmd.hasOption("version")) {
-                printVersion();
-                System.exit(EXIT_SUCCESS);
-            }
             
             // Configure verbose logging if requested
             if (cmd.hasOption("verbose")) {

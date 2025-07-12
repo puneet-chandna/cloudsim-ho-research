@@ -91,6 +91,11 @@
       <artifactId>logback-classic</artifactId>
       <version>1.4.8</version>
     </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-core</artifactId>
+      <version>1.4.8</version>
+    </dependency>
 
     <!-- JUnit for testing -->
     <dependency>
