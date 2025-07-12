@@ -185,6 +185,8 @@ public class ExperimentConfig {
         this.slaRequirements = new SLARequirements();
         this.randomSeed = System.currentTimeMillis();
         this.timeoutSeconds = 3600; // 1 hour default
+        this.vmCount = 10; // Default VM count
+        this.hostCount = 5; // Default host count
     }
     
     // Factory methods

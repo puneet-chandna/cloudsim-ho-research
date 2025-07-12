@@ -105,37 +105,12 @@ datasets:
 
 # Performance metrics to track
 metrics:
-  resource_utilization:
-    enabled: true
-    track_cpu: true
-    track_memory: true
-    track_bandwidth: true
-    track_storage: true
-    
-  power_consumption:
-    enabled: true
-    power_models: ["linear", "cubic", "sqrt"]
-    idle_power_ratio: 0.7
-    dynamic_power_ratio: 0.3
-    
-  sla_violations:
-    enabled: true
-    violation_types: ["response_time", "availability", "throughput"]
-    penalty_weights: [1.0, 2.0, 1.5]
-    
-  response_time:
-    enabled: true
-    percentiles: [50, 90, 95, 99]
-    
-  throughput:
-    enabled: true
-    measurement_interval: 60  # seconds
-    
-  cost_metrics:
-    enabled: true
-    cost_per_cpu_hour: 0.1
-    cost_per_gb_hour: 0.05
-    migration_cost: 0.01
+  - resource_utilization
+  - power_consumption
+  - sla_violations
+  - response_time
+  - throughput
+  - cost_metrics
 
 # Scalability testing configuration
 scalability_tests:

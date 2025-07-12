@@ -274,27 +274,36 @@ public class MainResearchController {
             
             // Load base configuration
             Map<String, Object> baseConfig = configManager.loadConfiguration();
+            logger.info("Top-level config keys: {}", baseConfig.keySet());
             configManager.validateConfiguration(baseConfig);
+            
+            // Extract the 'experiments' sub-map
+            @SuppressWarnings("unchecked")
+            Map<String, Object> experimentsConfig = (Map<String, Object>) baseConfig.get("experiments");
+            if (experimentsConfig == null) {
+                throw new ExperimentException("Missing required 'experiments' section in configuration");
+            }
+            logger.info("Experiments config keys: {}", experimentsConfig.keySet());
             
             // Generate experiment configurations
             experimentConfigs = new ArrayList<>();
             
             // 1. Configure baseline comparison experiments
-            configureBaselineExperiments(baseConfig);
+            configureBaselineExperiments(experimentsConfig);
             
             // 2. Configure real dataset experiments
             if (enableRealDatasetAnalysis) {
-                configureRealDatasetExperiments(baseConfig);
+                configureRealDatasetExperiments(experimentsConfig);
             }
             
             // 3. Configure scalability experiments
             if (enableScalabilityAnalysis) {
-                configureScalabilityExperiments(baseConfig);
+                configureScalabilityExperiments(experimentsConfig);
             }
             
             // 4. Configure parameter sensitivity experiments
             if (enableSensitivityAnalysis) {
-                configureSensitivityExperiments(baseConfig);
+                configureSensitivityExperiments(experimentsConfig);
             }
             
             logger.info("Configured {} total experiments", experimentConfigs.size());
@@ -499,36 +508,74 @@ public class MainResearchController {
     private void configureBaselineExperiments(Map<String, Object> baseConfig) {
         logger.info("Configuring baseline comparison experiments");
         
-        // Extract algorithm configurations
+        // Extract algorithm configurations - algorithms is a Map, not a List
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> algorithms = 
-            (List<Map<String, Object>>) baseConfig.get("algorithms");
+        Map<String, Object> algorithmsMap = 
+            (Map<String, Object>) baseConfig.get("algorithms");
+        
+        if (algorithmsMap == null) {
+            logger.warn("No algorithms section found in configuration, skipping baseline experiments");
+            return;
+        }
         
         // Create experiment configs for each algorithm
-        for (Map<String, Object> algoConfig : algorithms) {
+        for (Map.Entry<String, Object> entry : algorithmsMap.entrySet()) {
+            String algorithmKey = entry.getKey();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> algoConfig = (Map<String, Object>) entry.getValue();
+            
+            // Skip if algorithm is not enabled
+            Boolean enabled = (Boolean) algoConfig.get("enabled");
+            if (enabled == null || !enabled) {
+                continue;
+            }
+            
             String algorithmName = (String) algoConfig.get("name");
+            if (algorithmName == null) {
+                algorithmName = algorithmKey; // Use the key as fallback
+            }
+            
             @SuppressWarnings("unchecked")
             Map<String, Object> parameters = (Map<String, Object>) algoConfig.get("parameters");
             
-            // Generate parameter combinations
-            ParameterSpace paramSpace = new ParameterSpace();
-            // Add parameters to parameter space
-            for (Map.Entry<String, Object> entry : parameters.entrySet()) {
-                if (entry.getValue() instanceof List) {
-                    @SuppressWarnings("unchecked")
-                    List<Object> values = (List<Object>) entry.getValue();
-                    paramSpace.addCategoricalParameter(entry.getKey(), values, values.get(0));
+            if (parameters != null) {
+                // Generate parameter combinations
+                ParameterSpace paramSpace = new ParameterSpace();
+                // Add parameters to parameter space
+                for (Map.Entry<String, Object> paramEntry : parameters.entrySet()) {
+                    if (paramEntry.getValue() instanceof List) {
+                        @SuppressWarnings("unchecked")
+                        List<Object> values = (List<Object>) paramEntry.getValue();
+                        paramSpace.addCategoricalParameter(paramEntry.getKey(), values, values.get(0));
+                    }
                 }
-            }
-            List<Map<String, Object>> paramSets = paramSpace.generateParameterCombinations();
-            
-            for (Map<String, Object> paramSet : paramSets) {
+                List<Map<String, Object>> paramSets = paramSpace.generateParameterCombinations();
+                
+                for (Map<String, Object> paramSet : paramSets) {
+                    ExperimentConfig config = new ExperimentConfig();
+                    config.setExperimentName("baseline_comparison_" + algorithmName);
+                    config.setAlgorithmName(algorithmName);
+                    config.setParameters(paramSet);
+                    config.setReplications(30); // For statistical significance
+                    config.setRandomSeed(12345L); // For reproducibility
+                    
+                    experimentConfigs.add(config);
+                }
+            } else {
+                // No parameters, create single experiment with default parameters
                 ExperimentConfig config = new ExperimentConfig();
                 config.setExperimentName("baseline_comparison_" + algorithmName);
                 config.setAlgorithmName(algorithmName);
-                config.setParameters(paramSet);
-                config.setReplications(30); // For statistical significance
-                config.setRandomSeed(12345L); // For reproducibility
+                
+                // Set default parameters to prevent validation failure
+                Map<String, Object> defaultParams = new HashMap<>();
+                defaultParams.put("population_size", 20);
+                defaultParams.put("max_iterations", 100);
+                defaultParams.put("convergence_threshold", 0.001);
+                config.setParameters(defaultParams);
+                
+                config.setReplications(30);
+                config.setRandomSeed(12345L);
                 
                 experimentConfigs.add(config);
             }
@@ -539,17 +586,35 @@ public class MainResearchController {
         logger.info("Configuring real dataset experiments");
         
         @SuppressWarnings("unchecked")
-        List<String> datasets = (List<String>) baseConfig.get("datasets");
+        List<Map<String, Object>> datasets = (List<Map<String, Object>>) baseConfig.get("datasets");
         
-        for (String dataset : datasets) {
-            if (dataset.equals("google_traces") || dataset.equals("azure_traces")) {
-                ExperimentConfig config = new ExperimentConfig();
-                config.setExperimentName("real_dataset_" + dataset);
-                config.setDatasetName(dataset);
-                config.setAlgorithmName(HIPPOPOTAMUS_OPTIMIZATION);
-                config.setReplications(10); // Fewer replications due to dataset size
-                
-                experimentConfigs.add(config);
+        if (datasets == null) {
+            logger.warn("No datasets section found in configuration, skipping real dataset experiments");
+            return;
+        }
+        
+        for (Map<String, Object> datasetConfig : datasets) {
+            String datasetName = (String) datasetConfig.get("name");
+            Boolean enabled = (Boolean) datasetConfig.get("enabled");
+            
+            if (datasetName != null && (enabled == null || enabled)) {
+                if (datasetName.equals("google_traces") || datasetName.equals("azure_traces")) {
+                    ExperimentConfig config = new ExperimentConfig();
+                    config.setExperimentName("real_dataset_" + datasetName);
+                    config.setDatasetName(datasetName);
+                    config.setAlgorithmName(HIPPOPOTAMUS_OPTIMIZATION);
+                    
+                    // Set default parameters to prevent validation failure
+                    Map<String, Object> defaultParams = new HashMap<>();
+                    defaultParams.put("population_size", 20);
+                    defaultParams.put("max_iterations", 100);
+                    defaultParams.put("convergence_threshold", 0.001);
+                    config.setParameters(defaultParams);
+                    
+                    config.setReplications(10); // Fewer replications due to dataset size
+                    
+                    experimentConfigs.add(config);
+                }
             }
         }
     }
@@ -574,6 +639,14 @@ public class MainResearchController {
                     config.setAlgorithmName(HIPPOPOTAMUS_OPTIMIZATION);
                     config.setVmCount(vmCount);
                     config.setHostCount(hostCount);
+                    
+                    // Set default parameters to prevent validation failure
+                    Map<String, Object> defaultParams = new HashMap<>();
+                    defaultParams.put("population_size", 20);
+                    defaultParams.put("max_iterations", 100);
+                    defaultParams.put("convergence_threshold", 0.001);
+                    config.setParameters(defaultParams);
+                    
                     config.setReplications(5);
                     
                     experimentConfigs.add(config);

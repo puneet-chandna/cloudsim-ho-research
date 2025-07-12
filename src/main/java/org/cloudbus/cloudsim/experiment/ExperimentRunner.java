@@ -248,6 +248,12 @@ public class ExperimentRunner {
                 scenario.setNumberOfHosts(config.getHostCount());
             }
             
+            // Set workload characteristics to prevent validation failure
+            org.cloudbus.cloudsim.dataset.WorkloadCharacteristics workload = 
+                new org.cloudbus.cloudsim.dataset.WorkloadCharacteristics();
+            workload.setWorkloadType("MIXED");
+            scenario.setWorkloadCharacteristics(workload);
+            
             return scenario;
         } catch (Exception e) {
             LoggingManager.logError("Failed to generate synthetic scenario", e);

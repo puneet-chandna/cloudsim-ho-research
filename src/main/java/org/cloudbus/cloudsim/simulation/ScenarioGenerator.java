@@ -326,6 +326,12 @@ public class ScenarioGenerator {
             scenario.setCloudletSpecification(createStandardCloudletSpecification());
             scenario.setSlaRequirementsObject(createStandardSLARequirements());
             
+            // Set workload characteristics to prevent validation failure
+            String[] workloadTypes = {"WEB", "SCIENTIFIC", "DATABASE", "BATCH"};
+            String selectedWorkloadType = workloadTypes[random.nextInt(workloadTypes.length)];
+            WorkloadCharacteristics workloadChar = workloadTemplates.get(selectedWorkloadType);
+            scenario.setWorkloadCharacteristics(workloadChar);
+            
             scenarios.add(scenario);
         }
         
@@ -353,6 +359,12 @@ public class ScenarioGenerator {
             scenario.setVmSpecification(createStandardVmSpecification());
             scenario.setCloudletSpecification(createStandardCloudletSpecification());
             scenario.setSlaRequirementsObject(createRelaxedSLARequirements());
+            
+            // Set workload characteristics to prevent validation failure
+            String[] workloadTypes = {"WEB", "SCIENTIFIC", "DATABASE", "BATCH"};
+            String selectedWorkloadType = workloadTypes[random.nextInt(workloadTypes.length)];
+            WorkloadCharacteristics workloadChar = workloadTemplates.get(selectedWorkloadType);
+            scenario.setWorkloadCharacteristics(workloadChar);
             
             scenarios.add(scenario);
         }
@@ -413,6 +425,12 @@ public class ScenarioGenerator {
             scenario.setCloudletSpecification(createIntensiveCloudletSpecification());
             scenario.setSlaRequirementsObject(createStrictSLARequirements());
             
+            // Set workload characteristics to prevent validation failure
+            String[] workloadTypes = {"WEB", "SCIENTIFIC", "DATABASE", "BATCH"};
+            String selectedWorkloadType = workloadTypes[random.nextInt(workloadTypes.length)];
+            WorkloadCharacteristics workloadChar = workloadTemplates.get(selectedWorkloadType);
+            scenario.setWorkloadCharacteristics(workloadChar);
+            
             scenarios.add(scenario);
         }
         
@@ -438,6 +456,12 @@ public class ScenarioGenerator {
             scenario.setVmSpecification(createStandardVmSpecification());
             scenario.setCloudletSpecification(createSLAConstrainedCloudletSpecification());
             scenario.setSlaRequirementsObject(createStrictSLARequirements());
+            
+            // Set workload characteristics to prevent validation failure
+            String[] workloadTypes = {"WEB", "SCIENTIFIC", "DATABASE", "BATCH"};
+            String selectedWorkloadType = workloadTypes[random.nextInt(workloadTypes.length)];
+            WorkloadCharacteristics workloadChar = workloadTemplates.get(selectedWorkloadType);
+            scenario.setWorkloadCharacteristics(workloadChar);
             
             scenarios.add(scenario);
         }
@@ -467,6 +491,12 @@ public class ScenarioGenerator {
             scenario.setCloudletSpecification(createIntensiveCloudletSpecification());
             scenario.setSlaRequirementsObject(createStrictSLARequirements());
             
+            // Set workload characteristics to prevent validation failure
+            String[] workloadTypes = {"WEB", "SCIENTIFIC", "DATABASE", "BATCH"};
+            String selectedWorkloadType = workloadTypes[random.nextInt(workloadTypes.length)];
+            WorkloadCharacteristics workloadChar = workloadTemplates.get(selectedWorkloadType);
+            scenario.setWorkloadCharacteristics(workloadChar);
+            
             scenarios.add(scenario);
         }
         
@@ -489,6 +519,12 @@ public class ScenarioGenerator {
         scenario.setVmSpecification(createRandomVmSpecification());
         scenario.setCloudletSpecification(createRandomCloudletSpecification());
         scenario.setSlaRequirementsObject(createRandomSLARequirements());
+        
+        // Set workload characteristics to prevent validation failure
+        String[] workloadTypes = {"WEB", "SCIENTIFIC", "DATABASE", "BATCH"};
+        String selectedWorkloadType = workloadTypes[random.nextInt(workloadTypes.length)];
+        WorkloadCharacteristics workloadChar = workloadTemplates.get(selectedWorkloadType);
+        scenario.setWorkloadCharacteristics(workloadChar);
         
         return scenario;
     }

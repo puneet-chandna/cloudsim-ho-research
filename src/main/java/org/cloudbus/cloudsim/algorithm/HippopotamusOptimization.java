@@ -215,13 +215,13 @@ public class HippopotamusOptimization {
             int bestHost = globalBest.getPosition()[vm];
             
             // Random hippopotamus for social behavior
-            Hippopotamus randomHippo = population.get(random.nextInt(population.size()));
+            Hippopotamus randomHippo = population.get(ThreadLocalRandom.current().nextInt(population.size()));
             int randomHost = randomHippo.getPosition()[vm];
             
             // HO position update equation with research parameters
-            double r1 = random.nextDouble();
-            double r2 = random.nextDouble();
-            double r3 = random.nextDouble();
+            double r1 = ThreadLocalRandom.current().nextDouble();
+            double r2 = ThreadLocalRandom.current().nextDouble();
+            double r3 = ThreadLocalRandom.current().nextDouble();
             
             // Adaptive coefficient based on iteration
             double H = 2 * (1 - t); // Decreases over time
@@ -245,13 +245,14 @@ public class HippopotamusOptimization {
         }
         
         hippo.setPosition(newPosition);
+        hippo.validateAndRepair();
     }
     
     /**
      * Evaluate fitness for all hippos with comprehensive metrics
      */
     private void evaluatePopulation(int vmCount, int hostCount, HippopotamusParameters params) {
-        population.parallelStream().forEach(hippo -> {
+        population.stream().forEach(hippo -> {
             double fitness = evaluateFitness(hippo, params.getObjectiveWeights());
             hippo.setFitness(fitness);
             synchronized (this) {
@@ -386,7 +387,7 @@ public class HippopotamusOptimization {
     private double calculateCommunicationCost(Hippopotamus hippo) {
         // Simplified: assume random communication patterns
         // In real implementation, this would consider actual VM communication
-        return random.nextDouble() * 0.1; // Random small cost
+        return ThreadLocalRandom.current().nextDouble() * 0.1; // Thread-safe random small cost
     }
     
     /**

@@ -1,0 +1,11 @@
+Research Pipeline Failure Report
+================================
+Timestamp: 2025-07-13T00:00:41.352446713
+Failed after: PT0.025069102S
+Completed experiments: 0
+Exception: Failed to configure experiments
+Stack trace:
+  at org.cloudbus.cloudsim.MainResearchController.configureExperiments(MainResearchController.java:318)
+  at org.cloudbus.cloudsim.MainResearchController.executeFullResearchPipeline(MainResearchController.java:234)
+  at org.cloudbus.cloudsim.App.runApplication(App.java:117)
+  at org.cloudbus.cloudsim.App.main(App.java:58)

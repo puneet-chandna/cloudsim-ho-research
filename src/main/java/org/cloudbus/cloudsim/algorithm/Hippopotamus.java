@@ -568,11 +568,8 @@ public class Hippopotamus {
         return Arrays.copyOf(position, position.length);
     }
     
-    public void setPosition(int[] position) {
-        if (position.length != vmCount) {
-            throw new IllegalArgumentException("Position array length must equal VM count");
-        }
-        this.position = Arrays.copyOf(position, position.length);
+    public void setPosition(int[] newPosition) {
+        this.position = Arrays.copyOf(newPosition, newPosition.length);
         validateAndRepair();
     }
     

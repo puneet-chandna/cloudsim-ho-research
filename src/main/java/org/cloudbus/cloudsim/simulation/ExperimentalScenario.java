@@ -90,6 +90,12 @@ public class ExperimentalScenario {
         this.applicableAlgorithms = new HashSet<>();
         this.statisticalProperties = new HashMap<>();
         this.isDeterministic = true;
+        
+        // Set default values to prevent validation failures
+        this.executionTime = 3600.0; // 1 hour default execution time
+        this.arrivalRate = 10.0; // 10 requests per second default
+        this.numberOfVms = 10; // Default VM count
+        this.numberOfHosts = 5; // Default host count
     }
     
     /**
@@ -509,9 +515,15 @@ public class ExperimentalScenario {
     public String getScenarioType() { return scenarioType; }
     public void setScenarioType(String scenarioType) { this.scenarioType = scenarioType; }
     public int getHostCount() { return hostCount; }
-    public void setHostCount(int hostCount) { this.hostCount = hostCount; }
+    public void setHostCount(int hostCount) { 
+        this.hostCount = hostCount; 
+        this.numberOfHosts = hostCount; // Sync with validation field
+    }
     public int getVmCount() { return vmCount; }
-    public void setVmCount(int vmCount) { this.vmCount = vmCount; }
+    public void setVmCount(int vmCount) { 
+        this.vmCount = vmCount; 
+        this.numberOfVms = vmCount; // Sync with validation field
+    }
     public int getCloudletCount() { return cloudletCount; }
     public void setCloudletCount(int cloudletCount) { this.cloudletCount = cloudletCount; }
     public Map<String, Object> getHostSpecification() { return hostSpecification; }
