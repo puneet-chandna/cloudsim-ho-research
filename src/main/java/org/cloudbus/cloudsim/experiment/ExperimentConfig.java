@@ -325,6 +325,14 @@ public class ExperimentConfig {
         this.timeoutSeconds = timeoutSeconds; 
     }
     
+    /**
+     * Get simulation duration in seconds
+     * @return simulation duration
+     */
+    public int getSimulationDuration() {
+        return timeoutSeconds; // Use timeout as simulation duration
+    }
+    
     // Additional methods needed by the codebase
     public String getExperimentId() { 
         return experimentName != null ? experimentName : "experiment_" + System.currentTimeMillis(); 

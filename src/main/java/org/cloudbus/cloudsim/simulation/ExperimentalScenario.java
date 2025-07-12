@@ -61,6 +61,20 @@ public class ExperimentalScenario {
     private int replicationSeed;
     private boolean isDeterministic;
     
+    // New fields for ScenarioGenerator
+    private String scenarioType;
+    private int hostCount;
+    private int vmCount;
+    private int cloudletCount;
+    private Map<String, Object> hostSpecification;
+    private Map<String, Object> vmSpecification;
+    private Map<String, Object> cloudletSpecification;
+    private Map<String, Object> slaRequirementsObject;
+    private Map<String, Object> temporalCharacteristics;
+    private Map<String, Object> utilizationPatterns;
+    private Map<String, Object> failurePatterns;
+    private Map<String, Object> performanceTargetsObject;
+    
     /**
      * Default constructor for ExperimentalScenario
      */
@@ -491,6 +505,31 @@ public class ExperimentalScenario {
     
     public boolean isDeterministic() { return isDeterministic; }
     public void setDeterministic(boolean isDeterministic) { this.isDeterministic = isDeterministic; }
+    
+    public String getScenarioType() { return scenarioType; }
+    public void setScenarioType(String scenarioType) { this.scenarioType = scenarioType; }
+    public int getHostCount() { return hostCount; }
+    public void setHostCount(int hostCount) { this.hostCount = hostCount; }
+    public int getVmCount() { return vmCount; }
+    public void setVmCount(int vmCount) { this.vmCount = vmCount; }
+    public int getCloudletCount() { return cloudletCount; }
+    public void setCloudletCount(int cloudletCount) { this.cloudletCount = cloudletCount; }
+    public Map<String, Object> getHostSpecification() { return hostSpecification; }
+    public void setHostSpecification(Map<String, Object> hostSpecification) { this.hostSpecification = hostSpecification; }
+    public Map<String, Object> getVmSpecification() { return vmSpecification; }
+    public void setVmSpecification(Map<String, Object> vmSpecification) { this.vmSpecification = vmSpecification; }
+    public Map<String, Object> getCloudletSpecification() { return cloudletSpecification; }
+    public void setCloudletSpecification(Map<String, Object> cloudletSpecification) { this.cloudletSpecification = cloudletSpecification; }
+    public Map<String, Object> getSlaRequirementsObject() { return slaRequirementsObject; }
+    public void setSlaRequirementsObject(Map<String, Object> slaRequirementsObject) { this.slaRequirementsObject = slaRequirementsObject; }
+    public Map<String, Object> getTemporalCharacteristics() { return temporalCharacteristics; }
+    public void setTemporalCharacteristics(Map<String, Object> temporalCharacteristics) { this.temporalCharacteristics = temporalCharacteristics; }
+    public Map<String, Object> getUtilizationPatterns() { return utilizationPatterns; }
+    public void setUtilizationPatterns(Map<String, Object> utilizationPatterns) { this.utilizationPatterns = utilizationPatterns; }
+    public Map<String, Object> getFailurePatterns() { return failurePatterns; }
+    public void setFailurePatterns(Map<String, Object> failurePatterns) { this.failurePatterns = failurePatterns; }
+    public Map<String, Object> getPerformanceTargetsObject() { return performanceTargetsObject; }
+    public void setPerformanceTargetsObject(Map<String, Object> performanceTargetsObject) { this.performanceTargetsObject = performanceTargetsObject; }
     
     // Inner classes for configuration components
     

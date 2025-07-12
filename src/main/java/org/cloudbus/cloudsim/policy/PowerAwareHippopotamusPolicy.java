@@ -2,15 +2,14 @@ package org.cloudbus.cloudsim.policy;
 
 import org.cloudbus.cloudsim.algorithm.HippopotamusOptimization;
 import org.cloudbus.cloudsim.algorithm.HippopotamusParameters;
-import org.cloudbus.cloudsim.algorithm.OptimizationResult;
+import org.cloudbus.cloudsim.algorithm.SimpleOptimizationResult;
 import org.cloudbus.cloudsim.util.MetricsCalculator;
 import org.cloudbus.cloudsim.util.ExperimentException;
 import org.cloudbus.cloudsim.util.LoggingManager;
 import org.cloudbus.cloudsim.util.ValidationUtils;
 import org.cloudbus.cloudsim.hosts.Host;
 import org.cloudbus.cloudsim.vms.Vm;
-import org.cloudbus.cloudsim.power.models.PowerModel;
-import org.cloudbus.cloudsim.power.models.PowerModelHost;
+
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -64,9 +63,17 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
     private long totalPowerOptimizationTime;
     
     // Power models and thresholds
-    private final Map<Host, PowerModel> hostPowerModels;
+    private final Map<Host, Object> hostPowerModels;
     private double carbonEmissionFactor; // kg CO2 per kWh
     private double energyCostPerKwh; // Cost per kWh
+    
+    // Power-aware optimizer
+    private final HippopotamusOptimization powerOptimizer;
+    
+    // Constants for metric names
+    private static final String METRIC_TOTAL_POWER_CONSUMPTION = "totalPowerConsumption";
+    private static final String METRIC_AVERAGE_POWER_CONSUMPTION = "averagePowerConsumption";
+    private static final String METRIC_PEAK_POWER_DEMAND = "peakPowerDemand";
     
     /**
      * Constructs a PowerAwareHippopotamusPolicy with default power optimization parameters.
@@ -89,6 +96,7 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
         this.powerMetrics = new HashMap<>();
         this.hostLastUpdateTime = new HashMap<>();
         this.hostPowerModels = new HashMap<>();
+        this.powerOptimizer = new HippopotamusOptimization();
         
         initializePowerMetrics();
         configurePowerOptimization();
@@ -106,8 +114,8 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
         params.setPopulationSize(30); // Larger population for power optimization
         params.setMaxIterations(150); // More iterations for convergence
         params.setConvergenceThreshold(0.0005); // Tighter convergence for power efficiency
-        params.setPowerWeight(POWER_WEIGHT);
-        params.setPerformanceWeight(PERFORMANCE_WEIGHT);
+        params.setPowerConsumptionWeight(POWER_WEIGHT);
+        params.setResourceUtilizationWeight(PERFORMANCE_WEIGHT);
         return params;
     }
     
@@ -115,9 +123,9 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
      * Initialize power-specific metrics tracking.
      */
     private void initializePowerMetrics() {
-        powerMetrics.put("totalPowerConsumption", 0.0);
-        powerMetrics.put("averagePowerConsumption", 0.0);
-        powerMetrics.put("peakPowerDemand", 0.0);
+        powerMetrics.put(METRIC_TOTAL_POWER_CONSUMPTION, 0.0);
+        powerMetrics.put(METRIC_AVERAGE_POWER_CONSUMPTION, 0.0);
+        powerMetrics.put(METRIC_PEAK_POWER_DEMAND, 0.0);
         powerMetrics.put("powerEfficiencyRatio", 0.0);
         powerMetrics.put("energyPerTask", 0.0);
         powerMetrics.put("carbonEmissions", 0.0);
@@ -139,9 +147,10 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
      * Configure power optimization settings.
      */
     private void configurePowerOptimization() {
-        // Set power optimization objectives
-        getParameters().addObjective("powerConsumption", POWER_WEIGHT);
-        getParameters().addObjective("performanceMetrics", PERFORMANCE_WEIGHT);
+        // Set power optimization objectives using ObjectiveWeights
+        HippopotamusParameters params = getParameters();
+        params.setPowerConsumptionWeight(POWER_WEIGHT);
+        params.setResourceUtilizationWeight(PERFORMANCE_WEIGHT);
         
         LoggingManager.logDebug("Power optimization configured with weights - Power: " + 
                               POWER_WEIGHT + ", Performance: " + PERFORMANCE_WEIGHT);
@@ -186,7 +195,7 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
                 Host host = selectedHost.get();
                 
                 // Update power tracking
-                updateHostPowerTracking(host, vm, true);
+                updateHostPowerTracking(host);
                 
                 // Calculate power impact
                 double powerImpact = calculatePowerImpact(host, vm);
@@ -231,9 +240,9 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
             // Create power-aware optimization parameters
             HippopotamusParameters powerParams = createPowerOptimizedParameters();
             
-            // Perform power-aware global optimization
-            OptimizationResult result = getHippopotamusOptimizer().optimizeForPower(
-                vmList, hostList, powerParams);
+            // Perform power-aware global optimization using the power optimizer
+            SimpleOptimizationResult result = powerOptimizer.optimize(
+                vmList.size(), hostList.size(), powerParams);
             
             long optimizationTime = System.currentTimeMillis() - startTime;
             updatePowerOptimizationStats(optimizationTime);
@@ -297,8 +306,8 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
         powerConsumptionHistory.add(totalPower);
         
         // Update metrics
-        powerMetrics.put("totalPowerConsumption", totalPower);
-        powerMetrics.put("peakPowerDemand", peakPowerDemand);
+        powerMetrics.put(METRIC_TOTAL_POWER_CONSUMPTION, totalPower);
+        powerMetrics.put(METRIC_PEAK_POWER_DEMAND, peakPowerDemand);
     }
     
     /**
@@ -310,23 +319,23 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
      */
     private List<Host> filterPowerEfficientHosts(List<Host> hostList, Vm vm) {
         return hostList.stream()
-                .filter(host -> canHostVm(host, vm))
-                .filter(host -> isPowerEfficient(host))
+                .filter(host -> canHostVmPowerAware(host, vm))
+                .filter(this::isPowerEfficient)
                 .filter(host -> !exceedsPowerLimit(host, vm))
                 .sorted(Comparator.comparingDouble(this::calculatePowerEfficiency).reversed())
                 .collect(Collectors.toList());
     }
     
     /**
-     * Check if host can accommodate VM.
+     * Check if host can accommodate VM (power-aware version).
      * 
      * @param host Host to check
      * @param vm VM to allocate
      * @return true if host can accommodate VM
      */
-    private boolean canHostVm(Host host, Vm vm) {
+    private boolean canHostVmPowerAware(Host host, Vm vm) {
         return host.isSuitableForVm(vm) && 
-               host.getAvailableMips() >= vm.getMips() &&
+               host.getTotalMipsCapacity() - host.getTotalAllocatedMips() >= vm.getTotalMipsCapacity() &&
                host.getRam().getAvailableResource() >= vm.getRam().getCapacity() &&
                host.getBw().getAvailableResource() >= vm.getBw().getCapacity() &&
                host.getStorage().getAvailableResource() >= vm.getStorage().getCapacity();
@@ -449,12 +458,7 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
      * @return Power consumption in watts
      */
     private double calculateHostPowerConsumption(Host host) {
-        PowerModel powerModel = hostPowerModels.get(host);
-        if (powerModel != null) {
-            return powerModel.getPower(host.getCpuPercentUtilization());
-        }
-        
-        // Fallback calculation based on utilization
+        // Use fallback calculation based on utilization since PowerModel interface is not available
         double maxPower = getHostMaxPower(host);
         double idlePower = maxPower * IDLE_POWER_THRESHOLD;
         double utilization = host.getCpuPercentUtilization();
@@ -501,12 +505,7 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
      * @return Maximum power in watts
      */
     private double getHostMaxPower(Host host) {
-        PowerModel powerModel = hostPowerModels.get(host);
-        if (powerModel != null) {
-            return powerModel.getPower(1.0); // Max power at 100% utilization
-        }
-        
-        // Fallback: estimate based on MIPS capacity
+        // Fallback: estimate based on MIPS capacity since PowerModel interface is not available
         return host.getTotalMipsCapacity() * 0.001; // 1W per MIPS (rough estimate)
     }
     
@@ -518,20 +517,15 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
      * @return Power impact in watts
      */
     private double calculatePowerImpact(Host host, Vm vm) {
-        double currentPower = calculateHostPowerConsumption(host);
-        double additionalPower = estimateVmPowerConsumption(vm, host);
-        
-        return additionalPower;
+        return estimateVmPowerConsumption(vm, host);
     }
     
     /**
      * Update power tracking for host after VM allocation.
      * 
      * @param host Host that received VM
-     * @param vm Allocated VM
-     * @param isAllocation true for allocation, false for deallocation
      */
-    private void updateHostPowerTracking(Host host, Vm vm, boolean isAllocation) {
+    private void updateHostPowerTracking(Host host) {
         double currentPower = calculateHostPowerConsumption(host);
         hostPowerConsumption.put(host, currentPower);
         
@@ -565,8 +559,9 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
         powerOptimizationCalls++;
         totalPowerOptimizationTime += optimizationTime;
         
-        powerMetrics.put("averageOptimizationTime", 
-                        (double) totalPowerOptimizationTime / powerOptimizationCalls);
+        double averageOptimizationTime = powerOptimizationCalls > 0 ? 
+            (double) totalPowerOptimizationTime / powerOptimizationCalls : 0.0;
+        powerMetrics.put("averageOptimizationTime", averageOptimizationTime);
         powerMetrics.put("totalOptimizationCalls", (double) powerOptimizationCalls);
     }
     
@@ -577,12 +572,9 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
      */
     private void updateAllHostPowerModels(List<Host> hostList) {
         for (Host host : hostList) {
-            if (host instanceof PowerModelHost) {
-                PowerModelHost powerHost = (PowerModelHost) host;
-                PowerModel powerModel = powerHost.getPowerModel();
-                if (powerModel != null) {
-                    hostPowerModels.put(host, powerModel);
-                }
+            Object powerModel = host.getPowerModel();
+            if (powerModel != null) {
+                hostPowerModels.put(host, powerModel);
             }
         }
     }
@@ -597,8 +589,8 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
         params.setPopulationSize(40); // Larger population for global optimization
         params.setMaxIterations(200); // More iterations for global convergence
         params.setConvergenceThreshold(0.0001); // Very tight convergence
-        params.setPowerWeight(POWER_WEIGHT);
-        params.setPerformanceWeight(PERFORMANCE_WEIGHT);
+        params.setPowerConsumptionWeight(POWER_WEIGHT);
+        params.setResourceUtilizationWeight(PERFORMANCE_WEIGHT);
         return params;
     }
     
@@ -610,7 +602,7 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
      * @param hostList List of hosts
      * @return Power-optimal allocation mapping
      */
-    private Map<Vm, Host> extractPowerOptimalAllocation(OptimizationResult result, 
+    private Map<Vm, Host> extractPowerOptimalAllocation(SimpleOptimizationResult result, 
                                                        List<Vm> vmList, 
                                                        List<Host> hostList) {
         Map<Vm, Host> allocation = new HashMap<>();
@@ -637,7 +629,7 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
      */
     private void updateGlobalPowerTracking(Map<Vm, Host> allocation) {
         for (Map.Entry<Vm, Host> entry : allocation.entrySet()) {
-            updateHostPowerTracking(entry.getValue(), entry.getKey(), true);
+            updateHostPowerTracking(entry.getValue());
         }
     }
     
@@ -651,11 +643,11 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
                                                    List<Host> hostList) {
         // Calculate total power consumption
         double totalPower = calculateTotalPowerConsumption(allocation);
-        powerMetrics.put("totalPowerConsumption", totalPower);
+        powerMetrics.put(METRIC_TOTAL_POWER_CONSUMPTION, totalPower);
         
         // Calculate average power consumption
-        double avgPower = totalPower / hostList.size();
-        powerMetrics.put("averagePowerConsumption", avgPower);
+        double avgPower = hostList.isEmpty() ? 0.0 : totalPower / hostList.size();
+        powerMetrics.put(METRIC_AVERAGE_POWER_CONSUMPTION, avgPower);
         
         // Calculate power efficiency ratio
         double totalPerformance = allocation.keySet().stream()
@@ -716,11 +708,10 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
         }
         
         double mean = values.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
-        double variance = values.stream()
-                               .mapToDouble(v -> Math.pow(v - mean, 2))
-                               .average()
-                               .orElse(0.0);
-        return variance;
+        return values.stream()
+                    .mapToDouble(v -> Math.pow(v - mean, 2))
+                    .average()
+                    .orElse(0.0);
     }
     
     /**
@@ -733,7 +724,7 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
         
         // Add additional computed metrics
         metrics.put("totalEnergyConsumed", totalEnergyConsumed);
-        metrics.put("peakPowerDemand", peakPowerDemand);
+        metrics.put(METRIC_PEAK_POWER_DEMAND, peakPowerDemand);
         metrics.put("averagePowerEfficiency", averagePowerEfficiency);
         metrics.put("powerOptimizationCalls", (double) powerOptimizationCalls);
         metrics.put("totalOptimizationTime", (double) totalPowerOptimizationTime);
@@ -769,7 +760,7 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
         LoggingManager.logDebug("Carbon emission factor set to: " + factor + " kg CO2/kWh");
     }
     
-        /**
+    /**
      * Set energy cost per kWh for cost calculation.
      * 
      * @param costPerKwh Energy cost per kWh in dollars
@@ -818,9 +809,9 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
                                                    .average()
                                                    .orElse(0.0);
             
-            detailedMetrics.put("totalPowerConsumption", totalPower);
-            detailedMetrics.put("averagePowerConsumption", avgPower);
-            detailedMetrics.put("peakPowerDemand", peakPowerDemand);
+            detailedMetrics.put(METRIC_TOTAL_POWER_CONSUMPTION, totalPower);
+            detailedMetrics.put(METRIC_AVERAGE_POWER_CONSUMPTION, avgPower);
+            detailedMetrics.put(METRIC_PEAK_POWER_DEMAND, peakPowerDemand);
             detailedMetrics.put("totalEnergyConsumed", totalEnergyConsumed);
             
             // Statistical measures
@@ -907,7 +898,17 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
             
             trendAnalysis.put("powerTrendSlope", slope);
             trendAnalysis.put("powerTrendCorrelation", correlation);
-            trendAnalysis.put("trendDirection", slope > 0 ? 1.0 : (slope < 0 ? -1.0 : 0.0));
+            
+            // Determine trend direction
+            double trendDirection;
+            if (slope > 0) {
+                trendDirection = 1.0;
+            } else if (slope < 0) {
+                trendDirection = -1.0;
+            } else {
+                trendDirection = 0.0;
+            }
+            trendAnalysis.put("trendDirection", trendDirection);
             
             // Recent vs. historical comparison
             int recentPeriod = Math.min(10, powerConsumptionHistory.size() / 2);
@@ -945,7 +946,10 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
             return 0.0;
         }
         
-        double sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+        double sumX = 0;
+        double sumY = 0;
+        double sumXY = 0;
+        double sumXX = 0;
         int n = xValues.length;
         
         for (int i = 0; i < n; i++) {
@@ -975,7 +979,8 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
             return 0.0;
         }
         
-        double meanX = 0, meanY = 0;
+        double meanX = 0;
+        double meanY = 0;
         for (int i = 0; i < xValues.length; i++) {
             meanX += xValues[i];
             meanY += yValues[i];
@@ -983,7 +988,9 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
         meanX /= xValues.length;
         meanY /= yValues.length;
         
-        double numerator = 0, sumXX = 0, sumYY = 0;
+        double numerator = 0;
+        double sumXX = 0;
+        double sumYY = 0;
         for (int i = 0; i < xValues.length; i++) {
             double dx = xValues[i] - meanX;
             double dy = yValues[i] - meanY;
@@ -1029,20 +1036,20 @@ public class PowerAwareHippopotamusPolicy extends HippopotamusVmAllocationPolicy
      */
     public String getPowerOptimizationSummary() {
         StringBuilder summary = new StringBuilder();
-        summary.append("Power Optimization Summary:\n");
-        summary.append("==========================\n");
-        summary.append(String.format("Total Energy Consumed: %.2f Wh\n", totalEnergyConsumed));
-        summary.append(String.format("Peak Power Demand: %.2f W\n", peakPowerDemand));
-        summary.append(String.format("Average Power Efficiency: %.4f\n", averagePowerEfficiency));
-        summary.append(String.format("Optimization Calls: %d\n", powerOptimizationCalls));
-        summary.append(String.format("Average Optimization Time: %.2f ms\n", 
+        summary.append("Power Optimization Summary:%n");
+        summary.append("==========================%n");
+        summary.append(String.format("Total Energy Consumed: %.2f Wh%n", totalEnergyConsumed));
+        summary.append(String.format("Peak Power Demand: %.2f W%n", peakPowerDemand));
+        summary.append(String.format("Average Power Efficiency: %.4f%n", averagePowerEfficiency));
+        summary.append(String.format("Optimization Calls: %d%n", powerOptimizationCalls));
+        summary.append(String.format("Average Optimization Time: %.2f ms%n", 
                       powerOptimizationCalls > 0 ? (double) totalPowerOptimizationTime / powerOptimizationCalls : 0));
         
         double totalCarbonEmissions = totalEnergyConsumed * carbonEmissionFactor / 1000.0;
         double totalEnergyCost = totalEnergyConsumed * energyCostPerKwh / 1000.0;
         
-        summary.append(String.format("Total Carbon Emissions: %.3f kg CO2\n", totalCarbonEmissions));
-        summary.append(String.format("Total Energy Cost: $%.2f\n", totalEnergyCost));
+        summary.append(String.format("Total Carbon Emissions: %.3f kg CO2%n", totalCarbonEmissions));
+        summary.append(String.format("Total Energy Cost: $%.2f%n", totalEnergyCost));
         
         return summary.toString();
     }

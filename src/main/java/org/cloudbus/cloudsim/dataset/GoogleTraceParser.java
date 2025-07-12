@@ -23,11 +23,6 @@ import java.util.stream.Collectors;
  * Handles task usage and task events traces.
  */
 public class GoogleTraceParser {
-    // Private constructor to prevent instantiation
-    private GoogleTraceParser() {
-        // Utility class - no instantiation needed
-    }
-    
     // Google trace column indices (based on trace format)
     private static final int TIMESTAMP_COL = 0;
     private static final int JOB_ID_COL = 1;

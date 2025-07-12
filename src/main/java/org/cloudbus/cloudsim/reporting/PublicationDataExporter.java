@@ -32,6 +32,31 @@ public class PublicationDataExporter {
     private static final String EXPORT_DIRECTORY = "results/exported_data/";
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
     
+    // Constants for directory names
+    private static final String CSV_DIR = "csv";
+    private static final String R_DIR = "r";
+    private static final String MATLAB_DIR = "matlab";
+    private static final String SPSS_DIR = "spss";
+    private static final String JSON_DIR = "json";
+    
+    // Constants for file names
+    private static final String EXPERIMENT_DATA_CSV_FORMAT = "experiment_data_%s.csv";
+    private static final String DETAILED_METRICS_CSV_FORMAT = "detailed_metrics_%s.csv";
+    private static final String EXPERIMENT_DATA_JSON_FORMAT = "experiment_data_%s.json";
+    
+    // Constants for metric names
+    private static final String ALGORITHM = "algorithm";
+    private static final String RESOURCE_UTILIZATION = "resourceUtilization";
+    private static final String POWER_CONSUMPTION = "powerConsumption";
+    private static final String SLA_VIOLATIONS = "slaViolations";
+    private static final String RESPONSE_TIME = "responseTime";
+    private static final String THROUGHPUT = "throughput";
+    private static final String EXECUTION_TIME = "executionTime";
+    
+    // Constants for MATLAB script
+    private static final String MATLAB_XLABEL = "xlabel('Algorithm');\n";
+    private static final String MATLAB_GRID_ON = "grid on;\n\n";
+    
     private final List<ExperimentalResult> experimentalResults;
     private final Map<String, Object> metadata;
     private String exportTimestamp;
@@ -46,11 +71,11 @@ public class PublicationDataExporter {
         
         try {
             Files.createDirectories(Paths.get(EXPORT_DIRECTORY));
-            Files.createDirectories(Paths.get(EXPORT_DIRECTORY, "csv"));
-            Files.createDirectories(Paths.get(EXPORT_DIRECTORY, "r"));
-            Files.createDirectories(Paths.get(EXPORT_DIRECTORY, "matlab"));
-            Files.createDirectories(Paths.get(EXPORT_DIRECTORY, "spss"));
-            Files.createDirectories(Paths.get(EXPORT_DIRECTORY, "json"));
+            Files.createDirectories(Paths.get(EXPORT_DIRECTORY, CSV_DIR));
+            Files.createDirectories(Paths.get(EXPORT_DIRECTORY, R_DIR));
+            Files.createDirectories(Paths.get(EXPORT_DIRECTORY, MATLAB_DIR));
+            Files.createDirectories(Paths.get(EXPORT_DIRECTORY, SPSS_DIR));
+            Files.createDirectories(Paths.get(EXPORT_DIRECTORY, JSON_DIR));
         } catch (IOException e) {
             throw new ExperimentException("Failed to create export directories", e);
         }
@@ -90,15 +115,15 @@ public class PublicationDataExporter {
         LoggingManager.logInfo("Exporting data to CSV format");
         
         try {
-            String filename = String.format("experiment_data_%s.csv", exportTimestamp);
-            Path outputPath = Paths.get(EXPORT_DIRECTORY, "csv", filename);
+            String filename = String.format(EXPERIMENT_DATA_CSV_FORMAT, exportTimestamp);
+            Path outputPath = Paths.get(EXPORT_DIRECTORY, CSV_DIR, filename);
             
             try (BufferedWriter writer = Files.newBufferedWriter(outputPath);
-                 CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT.withHeader(
-                    "experiment_id", "algorithm", "run_number", "vm_count", "host_count",
+                 CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT.builder()
+                    .setHeader("experiment_id", ALGORITHM, "run_number", "vm_count", "host_count",
                     "resource_utilization", "power_consumption", "sla_violations",
-                    "response_time", "throughput", "execution_time", "convergence_iterations"
-                 ))) {
+                    "response_time", THROUGHPUT, "execution_time", "convergence_iterations")
+                    .build())) {
                 
                 int experimentId = 1;
                 for (ExperimentalResult result : experimentalResults) {
@@ -108,12 +133,12 @@ public class PublicationDataExporter {
                         result.getRunNumber(),
                         result.getExperimentConfig().getVmCount(),
                         result.getExperimentConfig().getHostCount(),
-                        result.getMetric("resourceUtilization"),
-                        result.getMetric("powerConsumption"),
-                        result.getMetric("slaViolations"),
-                        result.getMetric("responseTime"),
-                        result.getMetric("throughput"),
-                        result.getMetric("executionTime"),
+                        result.getMetric(RESOURCE_UTILIZATION),
+                        result.getMetric(POWER_CONSUMPTION),
+                        result.getMetric(SLA_VIOLATIONS),
+                        result.getMetric(RESPONSE_TIME),
+                        result.getMetric(THROUGHPUT),
+                        result.getMetric(EXECUTION_TIME),
                         result.getConvergenceData() != null ? result.getConvergenceData().size() : 0
                     );
                 }
@@ -144,7 +169,7 @@ public class PublicationDataExporter {
             
             // Generate R script for loading and analyzing data
             String scriptFilename = String.format("analysis_script_%s.R", exportTimestamp);
-            Path scriptPath = Paths.get(EXPORT_DIRECTORY, "r", scriptFilename);
+            Path scriptPath = Paths.get(EXPORT_DIRECTORY, R_DIR, scriptFilename);
             
             StringBuilder rScript = new StringBuilder();
             rScript.append("# R Analysis Script for Hippopotamus Optimization Results\n");
@@ -208,7 +233,7 @@ public class PublicationDataExporter {
             
             // Also create RData format file
             String rdataFilename = String.format("experiment_data_%s.RData", exportTimestamp);
-            Path rdataPath = Paths.get(EXPORT_DIRECTORY, "r", rdataFilename);
+            Path rdataPath = Paths.get(EXPORT_DIRECTORY, R_DIR, rdataFilename);
             
             // Note: Actual RData export would require R integration
             // For now, we'll create a CSV that R can easily import
@@ -233,12 +258,12 @@ public class PublicationDataExporter {
         try {
             // Create MATLAB script
             String scriptFilename = String.format("analysis_script_%s.m", exportTimestamp);
-            Path scriptPath = Paths.get(EXPORT_DIRECTORY, "matlab", scriptFilename);
+            Path scriptPath = Paths.get(EXPORT_DIRECTORY, MATLAB_DIR, scriptFilename);
             
             // Export data as CSV for MATLAB to read
             Path csvPath = exportToCSV();
-            String dataFilename = String.format("experiment_data_%s.csv", exportTimestamp);
-            Path matlabCsvPath = Paths.get(EXPORT_DIRECTORY, "matlab", dataFilename);
+            String dataFilename = String.format(EXPERIMENT_DATA_CSV_FORMAT, exportTimestamp);
+            Path matlabCsvPath = Paths.get(EXPORT_DIRECTORY, MATLAB_DIR, dataFilename);
             Files.copy(csvPath, matlabCsvPath, StandardCopyOption.REPLACE_EXISTING);
             
             StringBuilder matlabScript = new StringBuilder();
@@ -278,28 +303,28 @@ public class PublicationDataExporter {
             matlabScript.append("bar(categorical(algorithms), mean_utilization);\n");
             matlabScript.append("hold on;\n");
             matlabScript.append("errorbar(1:num_algorithms, mean_utilization, std_utilization, 'k.');\n");
-            matlabScript.append("xlabel('Algorithm');\n");
+            matlabScript.append(MATLAB_XLABEL);
             matlabScript.append("ylabel('Resource Utilization (%)');\n");
             matlabScript.append("title('Average Resource Utilization');\n");
-            matlabScript.append("grid on;\n\n");
+            matlabScript.append(MATLAB_GRID_ON);
             
             matlabScript.append("% Power consumption subplot\n");
             matlabScript.append("subplot(2, 2, 2);\n");
             matlabScript.append("bar(categorical(algorithms), mean_power);\n");
             matlabScript.append("hold on;\n");
             matlabScript.append("errorbar(1:num_algorithms, mean_power, std_power, 'k.');\n");
-            matlabScript.append("xlabel('Algorithm');\n");
+            matlabScript.append(MATLAB_XLABEL);
             matlabScript.append("ylabel('Power Consumption (kWh)');\n");
             matlabScript.append("title('Average Power Consumption');\n");
-            matlabScript.append("grid on;\n\n");
+            matlabScript.append(MATLAB_GRID_ON);
             
             matlabScript.append("% Box plots\n");
             matlabScript.append("subplot(2, 2, 3);\n");
             matlabScript.append("boxplot(data.resource_utilization, data.algorithm);\n");
-            matlabScript.append("xlabel('Algorithm');\n");
+            matlabScript.append(MATLAB_XLABEL);
             matlabScript.append("ylabel('Resource Utilization (%)');\n");
             matlabScript.append("title('Resource Utilization Distribution');\n");
-            matlabScript.append("grid on;\n\n");
+            matlabScript.append(MATLAB_GRID_ON);
             
             matlabScript.append("% Statistical tests\n");
             matlabScript.append("% ANOVA test\n");
@@ -342,12 +367,12 @@ public class PublicationDataExporter {
         try {
             // SPSS syntax file
             String syntaxFilename = String.format("analysis_syntax_%s.sps", exportTimestamp);
-            Path syntaxPath = Paths.get(EXPORT_DIRECTORY, "spss", syntaxFilename);
+            Path syntaxPath = Paths.get(EXPORT_DIRECTORY, SPSS_DIR, syntaxFilename);
             
             // Export data as CSV for SPSS to import
             Path csvPath = exportToCSV();
-            String dataFilename = String.format("experiment_data_%s.csv", exportTimestamp);
-            Path spssCsvPath = Paths.get(EXPORT_DIRECTORY, "spss", dataFilename);
+            String dataFilename = String.format(EXPERIMENT_DATA_CSV_FORMAT, exportTimestamp);
+            Path spssCsvPath = Paths.get(EXPORT_DIRECTORY, SPSS_DIR, dataFilename);
             Files.copy(csvPath, spssCsvPath, StandardCopyOption.REPLACE_EXISTING);
             
             StringBuilder spssSyntax = new StringBuilder();
@@ -454,12 +479,12 @@ public class PublicationDataExporter {
                 
                 // Metrics
                 Map<String, Double> metrics = new HashMap<>();
-                metrics.put("resourceUtilization", result.getMetric("resourceUtilization"));
-                metrics.put("powerConsumption", result.getMetric("powerConsumption"));
-                metrics.put("slaViolations", result.getMetric("slaViolations"));
-                metrics.put("responseTime", result.getMetric("responseTime"));
-                metrics.put("throughput", result.getMetric("throughput"));
-                metrics.put("executionTime", result.getMetric("executionTime"));
+                metrics.put(RESOURCE_UTILIZATION, result.getMetric(RESOURCE_UTILIZATION));
+                metrics.put(POWER_CONSUMPTION, result.getMetric(POWER_CONSUMPTION));
+                metrics.put(SLA_VIOLATIONS, result.getMetric(SLA_VIOLATIONS));
+                metrics.put(RESPONSE_TIME, result.getMetric(RESPONSE_TIME));
+                metrics.put(THROUGHPUT, result.getMetric(THROUGHPUT));
+                metrics.put(EXECUTION_TIME, result.getMetric(EXECUTION_TIME));
                 resultMap.put("metrics", metrics);
                 
                 // Convergence data (if available)
@@ -478,8 +503,8 @@ public class PublicationDataExporter {
             ObjectMapper mapper = new ObjectMapper();
             mapper.enable(SerializationFeature.INDENT_OUTPUT);
             
-            String filename = String.format("experiment_data_%s.json", exportTimestamp);
-            Path outputPath = Paths.get(EXPORT_DIRECTORY, "json", filename);
+            String filename = String.format(EXPERIMENT_DATA_JSON_FORMAT, exportTimestamp);
+            Path outputPath = Paths.get(EXPORT_DIRECTORY, JSON_DIR, filename);
             mapper.writeValue(outputPath.toFile(), exportData);
             
             LoggingManager.logInfo("JSON export completed: " + outputPath);
@@ -501,21 +526,21 @@ public class PublicationDataExporter {
     }
     
     private void exportDetailedMetricsCSV() throws IOException {
-        String filename = String.format("detailed_metrics_%s.csv", exportTimestamp);
-        Path outputPath = Paths.get(EXPORT_DIRECTORY, "csv", filename);
+        String filename = String.format(DETAILED_METRICS_CSV_FORMAT, exportTimestamp);
+        Path outputPath = Paths.get(EXPORT_DIRECTORY, CSV_DIR, filename);
         
         try (BufferedWriter writer = Files.newBufferedWriter(outputPath);
-             CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT.withHeader(
-                "algorithm", "metric_name", "mean", "std_dev", "min", "max", "median", "q1", "q3"
-             ))) {
+             CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT.builder()
+                .setHeader(ALGORITHM, "metric_name", "mean", "std_dev", "min", "max", "median", "q1", "q3")
+                .build())) {
             
             // Group results by algorithm
             Map<String, List<ExperimentalResult>> algorithmGroups = 
                 experimentalResults.stream()
                     .collect(Collectors.groupingBy(ExperimentalResult::getAlgorithmName));
             
-            String[] metrics = {"resourceUtilization", "powerConsumption", "slaViolations", 
-                              "responseTime", "throughput", "executionTime"};
+            String[] metrics = {RESOURCE_UTILIZATION, POWER_CONSUMPTION, SLA_VIOLATIONS, 
+                              RESPONSE_TIME, THROUGHPUT, EXECUTION_TIME};
             
             for (Map.Entry<String, List<ExperimentalResult>> entry : algorithmGroups.entrySet()) {
                 String algorithm = entry.getKey();
@@ -523,7 +548,7 @@ public class PublicationDataExporter {
                 
                 for (String metric : metrics) {
                     List<Double> values = results.stream()
-                        .map(r -> r.getMetric(metric))
+                        .<Double>map(r -> r.getMetric(metric))
                         .filter(Objects::nonNull)
                         .collect(Collectors.toList());
                     
@@ -565,13 +590,13 @@ public class PublicationDataExporter {
             Map<String, Object> algorithmStats = new HashMap<>();
             algorithmStats.put("sampleSize", results.size());
             
-            // Calculate statistics for each metric
-            String[] metrics = {"resourceUtilization", "powerConsumption", "slaViolations", "responseTime"};
-            
-            for (String metric : metrics) {
-                Map<String, Double> metricStats = calculateMetricStatistics(results, metric);
-                algorithmStats.put(metric + "_stats", metricStats);
-            }
+                    // Calculate statistics for each metric
+        String[] metrics = {RESOURCE_UTILIZATION, POWER_CONSUMPTION, SLA_VIOLATIONS, RESPONSE_TIME};
+        
+        for (String metric : metrics) {
+            Map<String, Double> metricStats = calculateMetricStatistics(results, metric);
+            algorithmStats.put(metric + "_stats", metricStats);
+        }
             
             algorithmSummaries.put(algorithm, algorithmStats);
         }
@@ -587,7 +612,7 @@ public class PublicationDataExporter {
         Map<String, Double> stats = new HashMap<>();
         
         List<Double> values = results.stream()
-            .map(r -> r.getMetric(metric))
+            .<Double>map(r -> r.getMetric(metric))
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
         

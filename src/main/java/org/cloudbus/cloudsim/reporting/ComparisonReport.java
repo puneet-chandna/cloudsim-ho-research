@@ -46,9 +46,15 @@ public class ComparisonReport {
     private static final String CHART_DIRECTORY = "results/visualizations/comparison/";
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
     
+    // Constants for metric names
+    private static final String ALGORITHM = "Algorithm";
+    private static final String RESOURCE_UTILIZATION = "resourceUtilization";
+    private static final String POWER_CONSUMPTION = "powerConsumption";
+    private static final String SLA_VIOLATIONS = "slaViolations";
+    private static final String RESPONSE_TIME = "responseTime";
+    
     private final Map<String, List<ExperimentalResult>> algorithmResults;
     private final StatisticalTestSuite statisticalTestSuite;
-    private final MetricsCalculator metricsCalculator;
     private String reportTimestamp;
     
     /**
@@ -57,7 +63,6 @@ public class ComparisonReport {
     public ComparisonReport() {
         this.algorithmResults = new HashMap<>();
         this.statisticalTestSuite = new StatisticalTestSuite();
-        this.metricsCalculator = new MetricsCalculator();
         this.reportTimestamp = LocalDateTime.now().format(DATE_FORMAT);
         
         // Create directories if they don't exist
@@ -227,7 +232,7 @@ public class ComparisonReport {
         
         // Header
         XSSFRow headerRow = sheet.createRow(rowNum++);
-        String[] headers = {"Algorithm", "Avg Resource Util (%)", "Avg Power (kWh)", 
+        String[] headers = {ALGORITHM, "Avg Resource Util (%)", "Avg Power (kWh)", 
                           "Total SLA Violations", "Avg Response Time (ms)", "Rank"};
         for (int i = 0; i < headers.length; i++) {
             headerRow.createCell(i).setCellValue(headers[i]);
@@ -245,10 +250,10 @@ public class ComparisonReport {
             XSSFRow dataRow = sheet.createRow(rowNum++);
             
             dataRow.createCell(0).setCellValue(algorithm);
-            dataRow.createCell(1).setCellValue(calculateAverageMetric(algorithm, "resourceUtilization"));
-            dataRow.createCell(2).setCellValue(calculateAverageMetric(algorithm, "powerConsumption"));
-            dataRow.createCell(3).setCellValue(calculateTotalMetric(algorithm, "slaViolations"));
-            dataRow.createCell(4).setCellValue(calculateAverageMetric(algorithm, "responseTime"));
+            dataRow.createCell(1).setCellValue(calculateAverageMetric(algorithm, RESOURCE_UTILIZATION));
+            dataRow.createCell(2).setCellValue(calculateAverageMetric(algorithm, POWER_CONSUMPTION));
+            dataRow.createCell(3).setCellValue(calculateTotalMetric(algorithm, SLA_VIOLATIONS));
+            dataRow.createCell(4).setCellValue(calculateAverageMetric(algorithm, RESPONSE_TIME));
             dataRow.createCell(5).setCellValue(rank++);
         }
         
@@ -259,13 +264,13 @@ public class ComparisonReport {
     }
     
     private void createDetailedComparisonSheet(XSSFWorkbook workbook, String metricName) {
-        XSSFSheet sheet = workbook.createSheet(metricName);
+        workbook.createSheet(metricName);
         // Implementation for detailed metric comparison
         // Similar structure to summary sheet but with more detailed metrics
     }
     
     private void createStatisticalSignificanceSheet(XSSFWorkbook workbook) {
-        XSSFSheet sheet = workbook.createSheet("Statistical_Tests");
+        workbook.createSheet("Statistical_Tests");
         // Implementation for statistical test results
     }
     
@@ -274,13 +279,13 @@ public class ComparisonReport {
         
         for (Map.Entry<String, List<ExperimentalResult>> entry : algorithmResults.entrySet()) {
             String algorithm = entry.getKey();
-            double avgUtilization = calculateAverageMetric(algorithm, "resourceUtilization");
+            double avgUtilization = calculateAverageMetric(algorithm, RESOURCE_UTILIZATION);
             dataset.addValue(avgUtilization, "Resource Utilization", algorithm);
         }
         
         JFreeChart chart = ChartFactory.createBarChart(
             "Resource Utilization Comparison",
-            "Algorithm",
+            ALGORITHM,
             "Average Utilization (%)",
             dataset,
             PlotOrientation.VERTICAL,
@@ -320,13 +325,13 @@ public class ComparisonReport {
         // Create box plot data for each algorithm
         for (Map.Entry<String, List<ExperimentalResult>> entry : algorithmResults.entrySet()) {
             String algorithm = entry.getKey();
-            List<Double> values = extractMetricValues(entry.getValue(), "resourceUtilization");
+            List<Double> values = extractMetricValues(entry.getValue(), RESOURCE_UTILIZATION);
             dataset.add(values, "Resource Utilization", algorithm);
         }
         
         JFreeChart chart = ChartFactory.createBoxAndWhiskerChart(
             "Algorithm Performance Distribution",
-            "Algorithm",
+            ALGORITHM,
             "Resource Utilization (%)",
             dataset,
             true
@@ -355,16 +360,16 @@ public class ComparisonReport {
         List<ExperimentalResult> results2 = algorithmResults.get(algo2);
         
         // Extract metric values
-        double[] utilization1 = extractMetricArray(results1, "resourceUtilization");
-        double[] utilization2 = extractMetricArray(results2, "resourceUtilization");
+        double[] utilization1 = extractMetricArray(results1, RESOURCE_UTILIZATION);
+        double[] utilization2 = extractMetricArray(results2, RESOURCE_UTILIZATION);
         
         // Perform statistical tests
-        Map<String, Double> testResults = statisticalTestSuite.performTTest(utilization1, utilization2);
+        StatisticalTestSuite.TTestResult testResults = statisticalTestSuite.performTTest(utilization1, utilization2, false);
         
         report.append("### Resource Utilization\n");
-        report.append("- T-statistic: ").append(String.format("%.4f", testResults.get("t-statistic"))).append("\n");
-        report.append("- P-value: ").append(String.format("%.4f", testResults.get("p-value"))).append("\n");
-        report.append("- Significant: ").append(testResults.get("p-value") < 0.05 ? "Yes" : "No").append("\n\n");
+        report.append("- T-statistic: ").append(String.format("%.4f", testResults.tStatistic)).append("\n");
+        report.append("- P-value: ").append(String.format("%.4f", testResults.pValue)).append("\n");
+        report.append("- Significant: ").append(testResults.significant ? "Yes" : "No").append("\n\n");
         
         // Add more metrics and tests as needed
     }
@@ -374,10 +379,10 @@ public class ComparisonReport {
         
         for (String algorithm : algorithmResults.keySet()) {
             double score = 0.0;
-            score += normalizeMetric(calculateAverageMetric(algorithm, "resourceUtilization"), true);
-            score += normalizeMetric(calculateAverageMetric(algorithm, "powerConsumption"), false);
-            score += normalizeMetric(calculateTotalMetric(algorithm, "slaViolations"), false);
-            score += normalizeMetric(calculateAverageMetric(algorithm, "responseTime"), false);
+            score += normalizeMetric(calculateAverageMetric(algorithm, RESOURCE_UTILIZATION), true);
+            score += normalizeMetric(calculateAverageMetric(algorithm, POWER_CONSUMPTION), false);
+            score += normalizeMetric(calculateTotalMetric(algorithm, SLA_VIOLATIONS), false);
+            score += normalizeMetric(calculateAverageMetric(algorithm, RESPONSE_TIME), false);
             scores.put(algorithm, score / 4.0);
         }
         
@@ -406,7 +411,8 @@ public class ComparisonReport {
         
         DescriptiveStatistics stats = new DescriptiveStatistics();
         for (ExperimentalResult result : results) {
-            Double value = result.getMetric(metricName);
+            Map<String, Double> metrics = result.getMetrics();
+            Double value = metrics.get(metricName);
             if (value != null) {
                 stats.addValue(value);
             }
@@ -423,7 +429,8 @@ public class ComparisonReport {
         
         double total = 0.0;
         for (ExperimentalResult result : results) {
-            Double value = result.getMetric(metricName);
+            Map<String, Double> metrics = result.getMetrics();
+            Double value = metrics.get(metricName);
             if (value != null) {
                 total += value;
             }
@@ -435,7 +442,8 @@ public class ComparisonReport {
     private List<Double> extractMetricValues(List<ExperimentalResult> results, String metricName) {
         List<Double> values = new ArrayList<>();
         for (ExperimentalResult result : results) {
-            Double value = result.getMetric(metricName);
+            Map<String, Double> metrics = result.getMetrics();
+            Double value = metrics.get(metricName);
             if (value != null) {
                 values.add(value);
             }
@@ -452,7 +460,7 @@ public class ComparisonReport {
     private Path exportToCSV(String baseFilename) throws IOException {
         Path outputPath = Paths.get(REPORT_DIRECTORY, baseFilename + ".csv");
         
-        try (var writer = Files.newBufferedWriter(outputPath)) {
+        try (java.io.BufferedWriter writer = Files.newBufferedWriter(outputPath)) {
             // Write header
             writer.write("Algorithm,Experiment_ID,Resource_Utilization,Power_Consumption,SLA_Violations,Response_Time\n");
             
@@ -463,13 +471,14 @@ public class ComparisonReport {
                 
                 for (int i = 0; i < results.size(); i++) {
                     ExperimentalResult result = results.get(i);
+                    Map<String, Double> metrics = result.getMetrics();
                     writer.write(String.format("%s,%d,%.4f,%.4f,%.0f,%.4f\n",
                         algorithm,
                         i + 1,
-                        result.getMetric("resourceUtilization"),
-                        result.getMetric("powerConsumption"),
-                        result.getMetric("slaViolations"),
-                        result.getMetric("responseTime")
+                        metrics.get(RESOURCE_UTILIZATION),
+                        metrics.get(POWER_CONSUMPTION),
+                        metrics.get(SLA_VIOLATIONS),
+                        metrics.get(RESPONSE_TIME)
                     ));
                 }
             }
@@ -492,10 +501,11 @@ public class ComparisonReport {
             
             for (ExperimentalResult result : entry.getValue()) {
                 Map<String, Object> resultMap = new HashMap<>();
-                resultMap.put("resourceUtilization", result.getMetric("resourceUtilization"));
-                resultMap.put("powerConsumption", result.getMetric("powerConsumption"));
-                resultMap.put("slaViolations", result.getMetric("slaViolations"));
-                resultMap.put("responseTime", result.getMetric("responseTime"));
+                Map<String, Double> metrics = result.getMetrics();
+                resultMap.put("resourceUtilization", metrics.get(RESOURCE_UTILIZATION));
+                resultMap.put("powerConsumption", metrics.get(POWER_CONSUMPTION));
+                resultMap.put("slaViolations", metrics.get(SLA_VIOLATIONS));
+                resultMap.put("responseTime", metrics.get(RESPONSE_TIME));
                 algorithmData.add(resultMap);
             }
             

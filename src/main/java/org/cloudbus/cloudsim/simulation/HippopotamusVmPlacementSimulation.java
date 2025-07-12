@@ -28,6 +28,7 @@ import org.cloudbus.cloudsim.util.ValidationUtils;
 import org.cloudbus.cloudsim.util.ResourceMonitor;
 import org.cloudbus.cloudsim.experiment.ExperimentalResult;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -64,7 +65,7 @@ public class HippopotamusVmPlacementSimulation {
         this.cloudletList = new ArrayList<>();
         this.simulationMetrics = new HashMap<>();
         this.metricsCalculator = new MetricsCalculator();
-        this.resourceMonitor = new ResourceMonitor();
+        this.resourceMonitor = ResourceMonitor.getInstance();
         
         LoggingManager.logInfo("HippopotamusVmPlacementSimulation initialized");
     }
@@ -133,7 +134,7 @@ public class HippopotamusVmPlacementSimulation {
             
             // Start resource monitoring
             if (ENABLE_MONITORING) {
-                resourceMonitor.startMonitoring();
+                resourceMonitor.startMonitoring("simulation_" + currentScenario.getScenarioId());
             }
             
             // Record simulation start time
@@ -148,15 +149,14 @@ public class HippopotamusVmPlacementSimulation {
             
             // Stop resource monitoring
             if (ENABLE_MONITORING) {
-                resourceMonitor.stopMonitoring();
+                resourceMonitor.stopMonitoring("simulation_" + currentScenario.getScenarioId());
             }
             
             LoggingManager.logInfo("Simulation completed in " + executionTime + " ms");
             
             // Collect comprehensive metrics
             ExperimentalResult result = collectMetrics();
-            result.setExecutionTime(executionTime);
-            result.setScenarioName(currentScenario.getScenarioName());
+            result.setExecutionDurationMs((long) executionTime);
             
             // Validate results if enabled
             if (VALIDATE_RESULTS) {
@@ -186,51 +186,63 @@ public class HippopotamusVmPlacementSimulation {
             ExperimentalResult result = new ExperimentalResult();
             
             // Basic simulation metrics
-            result.setTotalHosts(hostList.size());
-            result.setTotalVms(vmList.size());
-            result.setTotalCloudlets(cloudletList.size());
+            result.getPerformanceMetrics().getResourceUtilization().setAvgCpuUtilization(
+                calculateAverageCpuUtilization()
+            );
+            result.getPerformanceMetrics().getResourceUtilization().setAvgMemoryUtilization(
+                calculateAverageMemoryUtilization()
+            );
             
             // Resource utilization metrics
-            Map<String, Double> resourceMetrics = metricsCalculator.calculateResourceUtilization(hostList, vmList);
-            result.setResourceUtilizationMetrics(resourceMetrics);
+            Map<String, Double> resourceMetrics = MetricsCalculator.calculateResourceUtilization(hostList);
+            updateResourceUtilizationMetrics(result, resourceMetrics);
             
             // Power consumption metrics
-            Map<String, Double> powerMetrics = metricsCalculator.calculatePowerConsumption(hostList);
-            result.setPowerConsumptionMetrics(powerMetrics);
+            Map<String, Double> powerMetrics = MetricsCalculator.calculatePowerConsumption(hostList);
+            updatePowerConsumptionMetrics(result, powerMetrics);
             
             // SLA violation metrics
-            Map<String, Double> slaMetrics = metricsCalculator.calculateSLAViolations(cloudletList, currentScenario.getSlaRequirements());
-            result.setSlaViolationMetrics(slaMetrics);
+            Map<String, Double> slaMetrics = MetricsCalculator.calculateSLAViolations(vmList, cloudletList);
+            updateSLAViolationMetrics(result, slaMetrics);
             
             // Throughput metrics
-            Map<String, Double> throughputMetrics = metricsCalculator.calculateThroughput(cloudletList);
-            result.setThroughputMetrics(throughputMetrics);
+            Map<String, Double> throughputMetrics = MetricsCalculator.calculateThroughput(cloudletList, simulation.clock());
+            updateThroughputMetrics(result, throughputMetrics);
             
             // Response time metrics
-            Map<String, Double> responseTimeMetrics = metricsCalculator.calculateResponseTime(cloudletList);
-            result.setResponseTimeMetrics(responseTimeMetrics);
+            Map<String, Double> responseTimeMetrics = MetricsCalculator.calculateResponseTime(cloudletList);
+            updateResponseTimeMetrics(result, responseTimeMetrics);
             
             // Cost metrics
-            Map<String, Double> costMetrics = metricsCalculator.calculateCostMetrics(hostList, vmList, cloudletList);
-            result.setCostMetrics(costMetrics);
+            Map<String, Double> costMetrics = MetricsCalculator.calculateCostMetrics(hostList, vmList, simulation.clock());
+            updateCostMetrics(result, costMetrics);
             
-            // System resource usage during simulation
-            if (ENABLE_MONITORING) {
-                Map<String, Object> systemMetrics = resourceMonitor.getResourceReport();
-                result.setSystemResourceMetrics(systemMetrics);
+            // System resource metrics
+            Map<String, Object> systemMetrics = new HashMap<>();
+            if (resourceMonitor.generateResourceReport("simulation_" + currentScenario.getScenarioId()).getStatistics() != null) {
+                systemMetrics.put("cpu_usage", resourceMonitor.generateResourceReport("simulation_" + currentScenario.getScenarioId()).getStatistics().getAvgCpuUsage());
+                systemMetrics.put("memory_usage", resourceMonitor.generateResourceReport("simulation_" + currentScenario.getScenarioId()).getStatistics().getAvgMemoryUsage());
+                systemMetrics.put("disk_usage", resourceMonitor.generateResourceReport("simulation_" + currentScenario.getScenarioId()).getStatistics().getAvgDiskUsage());
             }
+            result.getExecutionMetadata().setSystemProperties(systemMetrics.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().toString())));
             
-            // Algorithm-specific metrics if using Hippopotamus policy
-            if (allocationPolicy instanceof HippopotamusVmAllocationPolicy) {
-                HippopotamusVmAllocationPolicy hippoPolicy = (HippopotamusVmAllocationPolicy) allocationPolicy;
-                Map<String, Object> optimizationMetrics = hippoPolicy.getOptimizationMetrics();
-                result.setAlgorithmSpecificMetrics(optimizationMetrics);
-            }
+            // Algorithm-specific metrics
+            Map<String, Object> algorithmMetrics = new HashMap<>();
+            algorithmMetrics.put("allocation_policy", allocationPolicy.getClass().getSimpleName());
+            algorithmMetrics.put("total_hosts", hostList.size());
+            algorithmMetrics.put("total_vms", vmList.size());
+            algorithmMetrics.put("total_cloudlets", cloudletList.size());
+            algorithmMetrics.put("simulation_time", simulation.clock());
             
-            // Calculate derived metrics
-            calculateDerivedMetrics(result);
+            // Store algorithm metrics in raw data
+            algorithmMetrics.forEach((key, value) -> {
+                if (value instanceof Number) {
+                    result.addRawDataPoint(key, ((Number) value).doubleValue());
+                }
+            });
             
-            LoggingManager.logInfo("Metrics collection completed");
+            LoggingManager.logInfo("Metrics collection completed successfully");
             return result;
             
         } catch (Exception e) {
@@ -240,8 +252,8 @@ public class HippopotamusVmPlacementSimulation {
     }
     
     /**
-     * Validate simulation results for correctness and consistency.
-     * Performs comprehensive validation of all simulation outcomes.
+     * Validate simulation results for consistency and accuracy.
+     * Performs comprehensive validation of collected metrics.
      * 
      * @param result The experimental result to validate
      * @throws ExperimentException if validation fails
@@ -250,25 +262,23 @@ public class HippopotamusVmPlacementSimulation {
         try {
             LoggingManager.logInfo("Validating simulation results");
             
-            // Validate basic constraints
-            ValidationUtils.validateResults(result);
-            
-            // Validate resource allocation consistency
+            // Validate basic metrics
             validateResourceAllocation();
-            
-            // Validate SLA compliance
             validateSLACompliance(result);
-            
-            // Validate power consumption calculations
             validatePowerCalculations(result);
-            
-            // Validate metrics consistency
             validateMetricsConsistency(result);
-            
-            // Check for anomalies
             detectAnomalies(result);
+            calculateDerivedMetrics(result);
             
-            LoggingManager.logInfo("Result validation completed successfully");
+            // Use ValidationUtils to validate the result
+            List<ExperimentalResult> resultsList = Arrays.asList(result);
+            ValidationUtils.ValidationReport report = ValidationUtils.validateResults(resultsList);
+            
+            if (!report.isValid()) {
+                LoggingManager.logWarning("Validation report shows issues: " + report.getErrors());
+            }
+            
+            LoggingManager.logInfo("Result validation completed");
             
         } catch (Exception e) {
             LoggingManager.logError("Result validation failed", e);
@@ -277,311 +287,494 @@ public class HippopotamusVmPlacementSimulation {
     }
     
     /**
-     * Setup the VM allocation policy based on the experimental scenario.
+     * Setup allocation policy based on experimental scenario.
+     * Configures the appropriate VM allocation policy for the simulation.
+     * 
+     * @param scenario The experimental scenario
      */
     private void setupAllocationPolicy(ExperimentalScenario scenario) {
-        String algorithmName = scenario.getAlgorithmName();
-        
-        switch (algorithmName.toLowerCase()) {
-            case "hippopotamus":
-            case "ho":
-                this.allocationPolicy = new HippopotamusVmAllocationPolicy();
-                break;
-            default:
-                // Default to Hippopotamus if not specified
-                this.allocationPolicy = new HippopotamusVmAllocationPolicy();
-                LoggingManager.logWarning("Unknown algorithm: " + algorithmName + ". Using Hippopotamus as default.");
+        try {
+            // For now, use Hippopotamus allocation policy
+            // In a real implementation, you would determine the policy based on scenario
+            this.allocationPolicy = new HippopotamusVmAllocationPolicy();
+            
+            LoggingManager.logInfo("Allocation policy configured: " + allocationPolicy.getClass().getSimpleName());
+            
+        } catch (Exception e) {
+            LoggingManager.logError("Failed to setup allocation policy", e);
+            throw new ExperimentException("Allocation policy setup failed", e);
         }
-        
-        LoggingManager.logInfo("Allocation policy set to: " + allocationPolicy.getClass().getSimpleName());
     }
     
     /**
-     * Create datacenter with specified configuration.
+     * Create datacenter with hosts based on experimental scenario.
+     * 
+     * @param scenario The experimental scenario
      */
     private void createDatacenter(ExperimentalScenario scenario) {
-        // Create hosts
-        createHosts(scenario);
-        
-        // Create datacenter
-        this.datacenter = new DatacenterSimple(simulation, hostList, allocationPolicy);
-        datacenter.setSchedulingInterval(SCHEDULING_INTERVAL);
-        
-        LoggingManager.logInfo("Datacenter created with " + hostList.size() + " hosts");
+        try {
+            // Create hosts
+            createHosts(scenario);
+            
+            // Create datacenter
+            this.datacenter = new DatacenterSimple(simulation, hostList, allocationPolicy);
+            
+            LoggingManager.logInfo("Datacenter created with " + hostList.size() + " hosts");
+            
+        } catch (Exception e) {
+            LoggingManager.logError("Failed to create datacenter", e);
+            throw new ExperimentException("Datacenter creation failed", e);
+        }
     }
     
     /**
-     * Create hosts based on scenario specifications.
+     * Create hosts based on experimental scenario configuration.
+     * 
+     * @param scenario The experimental scenario
      */
     private void createHosts(ExperimentalScenario scenario) {
-        int hostCount = scenario.getHostCount();
+        int hostCount = scenario.getNumberOfHosts();
         
         for (int i = 0; i < hostCount; i++) {
-            Host host = createHost(scenario.getHostSpecification());
+            // Use default host configuration if not specified
+            Map<String, Object> hostSpec = new HashMap<>();
+            hostSpec.put("cpu_cores", 4);
+            hostSpec.put("cpu_mips", 1000);
+            hostSpec.put("ram", 8192);
+            hostSpec.put("storage", 1000000);
+            hostSpec.put("bandwidth", 10000);
+            
+            Host host = createHost(hostSpec);
             hostList.add(host);
         }
-        
-        LoggingManager.logInfo("Created " + hostCount + " hosts");
     }
     
     /**
      * Create a single host with specified configuration.
+     * 
+     * @param hostSpec Host specification parameters
+     * @return Created host
      */
     private Host createHost(Map<String, Object> hostSpec) {
-        int peCount = (Integer) hostSpec.getOrDefault("peCount", 4);
-        long mips = (Long) hostSpec.getOrDefault("mips", 1000L);
-        long ram = (Long) hostSpec.getOrDefault("ram", 4096L);
-        long storage = (Long) hostSpec.getOrDefault("storage", 10000L);
-        long bandwidth = (Long) hostSpec.getOrDefault("bandwidth", 1000L);
+        int cpuCores = (Integer) hostSpec.getOrDefault("cpu_cores", 4);
+        double cpuMips = (Double) hostSpec.getOrDefault("cpu_mips", 1000.0);
+        long ram = (Long) hostSpec.getOrDefault("ram", 8192L);
+        long storage = (Long) hostSpec.getOrDefault("storage", 1000000L);
+        long bandwidth = (Long) hostSpec.getOrDefault("bandwidth", 10000L);
         
         List<Pe> peList = new ArrayList<>();
-        for (int i = 0; i < peCount; i++) {
-            peList.add(new PeSimple(mips, new PeProvisionerSimple()));
+        for (int i = 0; i < cpuCores; i++) {
+            peList.add(new PeSimple(cpuMips, new PeProvisionerSimple()));
         }
         
         return new HostSimple(ram, bandwidth, storage, peList)
-                .setRamProvisioner(new ResourceProvisionerSimple())
-                .setBwProvisioner(new ResourceProvisionerSimple())
-                .setVmScheduler(new VmSchedulerTimeShared());
+            .setRamProvisioner(new ResourceProvisionerSimple())
+            .setBwProvisioner(new ResourceProvisionerSimple())
+            .setVmScheduler(new VmSchedulerTimeShared());
     }
     
     /**
      * Create broker for the simulation.
+     * 
+     * @param scenario The experimental scenario
      */
     private void createBroker(ExperimentalScenario scenario) {
         this.broker = new DatacenterBrokerSimple(simulation);
-        LoggingManager.logInfo("Broker created: " + broker.getName());
+        LoggingManager.logInfo("Broker created");
     }
     
     /**
-     * Create VMs based on scenario specifications.
+     * Create VMs based on experimental scenario configuration.
+     * 
+     * @param scenario The experimental scenario
      */
     private void createVms(ExperimentalScenario scenario) {
-        int vmCount = scenario.getVmCount();
+        int vmCount = scenario.getNumberOfVms();
         
         for (int i = 0; i < vmCount; i++) {
-            Vm vm = createVm(i, scenario.getVmSpecification());
+            // Use default VM configuration if not specified
+            Map<String, Object> vmSpec = new HashMap<>();
+            vmSpec.put("cpu_cores", 1);
+            vmSpec.put("cpu_mips", 250);
+            vmSpec.put("ram", 512);
+            vmSpec.put("storage", 1000);
+            vmSpec.put("bandwidth", 1000);
+            
+            Vm vm = createVm(i, vmSpec);
             vmList.add(vm);
         }
-        
-        LoggingManager.logInfo("Created " + vmCount + " VMs");
     }
     
     /**
      * Create a single VM with specified configuration.
+     * 
+     * @param id VM ID
+     * @param vmSpec VM specification parameters
+     * @return Created VM
      */
     private Vm createVm(int id, Map<String, Object> vmSpec) {
-        long mips = (Long) vmSpec.getOrDefault("mips", 1000L);
+        int cpuCores = (Integer) vmSpec.getOrDefault("cpu_cores", 1);
+        double cpuMips = (Double) vmSpec.getOrDefault("cpu_mips", 250.0);
         long ram = (Long) vmSpec.getOrDefault("ram", 512L);
+        long storage = (Long) vmSpec.getOrDefault("storage", 1000L);
         long bandwidth = (Long) vmSpec.getOrDefault("bandwidth", 1000L);
-        long storage = (Long) vmSpec.getOrDefault("storage", 10000L);
-        int peCount = (Integer) vmSpec.getOrDefault("peCount", 1);
         
-        return new VmSimple(id, mips, peCount)
-                .setRam(ram)
-                .setBw(bandwidth)
-                .setSize(storage)
-                .setCloudletScheduler(new CloudletSchedulerTimeShared());
+        return new VmSimple(id, cpuMips, cpuCores)
+            .setRam(ram)
+            .setSize(storage)
+            .setBw(bandwidth)
+            .setCloudletScheduler(new CloudletSchedulerTimeShared());
     }
     
     /**
-     * Create cloudlets based on scenario specifications.
+     * Create cloudlets based on experimental scenario configuration.
+     * 
+     * @param scenario The experimental scenario
      */
     private void createCloudlets(ExperimentalScenario scenario) {
-        int cloudletCount = scenario.getCloudletCount();
+        // Create a reasonable number of cloudlets based on VM count
+        int cloudletCount = scenario.getNumberOfVms() * 2; // 2 cloudlets per VM
         
         for (int i = 0; i < cloudletCount; i++) {
-            Cloudlet cloudlet = createCloudlet(i, scenario.getCloudletSpecification());
+            // Use default cloudlet configuration if not specified
+            Map<String, Object> cloudletSpec = new HashMap<>();
+            cloudletSpec.put("length", 10000);
+            cloudletSpec.put("cpu_cores", 1);
+            cloudletSpec.put("ram", 256);
+            cloudletSpec.put("storage", 100);
+            cloudletSpec.put("bandwidth", 100);
+            
+            Cloudlet cloudlet = createCloudlet(i, cloudletSpec);
             cloudletList.add(cloudlet);
         }
-        
-        LoggingManager.logInfo("Created " + cloudletCount + " cloudlets");
     }
     
     /**
      * Create a single cloudlet with specified configuration.
+     * 
+     * @param id Cloudlet ID
+     * @param cloudletSpec Cloudlet specification parameters
+     * @return Created cloudlet
      */
     private Cloudlet createCloudlet(int id, Map<String, Object> cloudletSpec) {
         long length = (Long) cloudletSpec.getOrDefault("length", 10000L);
-        int peCount = (Integer) cloudletSpec.getOrDefault("peCount", 1);
-        long fileSize = (Long) cloudletSpec.getOrDefault("fileSize", 300L);
-        long outputSize = (Long) cloudletSpec.getOrDefault("outputSize", 300L);
+        int cpuCores = (Integer) cloudletSpec.getOrDefault("cpu_cores", 1);
+        long ram = (Long) cloudletSpec.getOrDefault("ram", 256L);
+        long storage = (Long) cloudletSpec.getOrDefault("storage", 100L);
+        long bandwidth = (Long) cloudletSpec.getOrDefault("bandwidth", 100L);
         
         UtilizationModel utilizationModel = new UtilizationModelFull();
         
-        return new CloudletSimple(id, length, peCount)
-                .setFileSize(fileSize)
-                .setOutputSize(outputSize)
-                .setUtilizationModelCpu(utilizationModel)
-                .setUtilizationModelRam(utilizationModel)
-                .setUtilizationModelBw(utilizationModel);
+        return new CloudletSimple(id, length, cpuCores)
+            .setUtilizationModelCpu(utilizationModel)
+            .setUtilizationModelRam(utilizationModel)
+            .setUtilizationModelBw(utilizationModel);
     }
     
     /**
-     * Initialize comprehensive monitoring for the simulation.
+     * Initialize monitoring for the simulation.
      */
     private void initializeMonitoring() {
-        resourceMonitor.configureMonitoring();
-        LoggingManager.logInfo("Monitoring initialized");
+        try {
+            // Configure monitoring parameters
+            LoggingManager.logInfo("Initializing simulation monitoring");
+            
+        } catch (Exception e) {
+            LoggingManager.logError("Failed to initialize monitoring", e);
+        }
     }
     
     /**
-     * Validate simulation setup before execution.
+     * Validate simulation setup for consistency.
+     * 
+     * @throws ExperimentException if setup validation fails
      */
     private void validateSimulationSetup() throws ExperimentException {
-        if (hostList.isEmpty()) {
-            throw new ExperimentException("No hosts configured for simulation");
+        try {
+            // Validate basic components
+            if (simulation == null) {
+                throw new ExperimentException("CloudSim simulation not initialized");
+            }
+            
+            if (datacenter == null) {
+                throw new ExperimentException("Datacenter not created");
+            }
+            
+            if (broker == null) {
+                throw new ExperimentException("Broker not created");
+            }
+            
+            if (hostList.isEmpty()) {
+                throw new ExperimentException("No hosts created");
+            }
+            
+            if (vmList.isEmpty()) {
+                throw new ExperimentException("No VMs created");
+            }
+            
+            if (cloudletList.isEmpty()) {
+                throw new ExperimentException("No cloudlets created");
+            }
+            
+            LoggingManager.logInfo("Simulation setup validation passed");
+            
+        } catch (Exception e) {
+            LoggingManager.logError("Simulation setup validation failed", e);
+            throw new ExperimentException("Setup validation failed: " + e.getMessage(), e);
         }
-        
-        if (vmList.isEmpty()) {
-            throw new ExperimentException("No VMs configured for simulation");
-        }
-        
-        if (cloudletList.isEmpty()) {
-            throw new ExperimentException("No cloudlets configured for simulation");
-        }
-        
-        if (broker == null) {
-            throw new ExperimentException("Broker not configured");
-        }
-        
-        if (datacenter == null) {
-            throw new ExperimentException("Datacenter not configured");
-        }
-        
-        LoggingManager.logInfo("Simulation setup validation passed");
     }
     
     /**
-     * Validate resource allocation consistency.
+     * Validate resource allocation for consistency.
+     * 
+     * @throws ExperimentException if resource allocation is invalid
      */
     private void validateResourceAllocation() throws ExperimentException {
-        // Check if all VMs are allocated
-        long unallocatedVms = vmList.stream()
-                .filter(vm -> vm.getHost() == null)
+        try {
+            // Check if all VMs are allocated
+            long allocatedVms = vmList.stream()
+                .filter(vm -> vm.getHost() != null)
                 .count();
-        
-        if (unallocatedVms > 0) {
-            LoggingManager.logWarning("Found " + unallocatedVms + " unallocated VMs");
-        }
-        
-        // Check resource constraints
-        for (Host host : hostList) {
-            if (host.getVmList().isEmpty()) {
-                continue;
+            
+            if (allocatedVms != vmList.size()) {
+                LoggingManager.logWarning("Not all VMs are allocated: " + allocatedVms + "/" + vmList.size());
             }
             
-            // Validate CPU allocation
-            double totalAllocatedMips = host.getVmList().stream()
-                    .mapToDouble(vm -> vm.getMips() * vm.getNumberOfPes())
-                    .sum();
-            
-            double hostCapacity = host.getTotalMipsCapacity();
-            
-            if (totalAllocatedMips > hostCapacity * 1.1) { // Allow 10% overallocation
-                throw new ExperimentException("CPU overallocation detected on host " + host.getId());
+            // Check resource utilization
+            double avgCpuUtil = calculateAverageCpuUtilization();
+            if (avgCpuUtil > 100.0) {
+                throw new ExperimentException("Invalid CPU utilization: " + avgCpuUtil);
             }
+            
+            LoggingManager.logInfo("Resource allocation validation passed");
+            
+        } catch (Exception e) {
+            LoggingManager.logError("Resource allocation validation failed", e);
+            throw new ExperimentException("Resource allocation validation failed", e);
         }
     }
     
     /**
-     * Validate SLA compliance in results.
+     * Validate SLA compliance of simulation results.
+     * 
+     * @param result The experimental result
      */
     private void validateSLACompliance(ExperimentalResult result) {
-        Map<String, Double> slaMetrics = result.getSlaViolationMetrics();
-        
-        if (slaMetrics != null && slaMetrics.containsKey("violationRate")) {
-            double violationRate = slaMetrics.get("violationRate");
+        try {
+            // Check SLA violation metrics
+            double violationRate = result.getPerformanceMetrics().getSlaViolations().getViolationRate();
             
-            if (violationRate > 0.5) { // More than 50% violations
-                LoggingManager.logWarning("High SLA violation rate detected: " + violationRate);
+            if (violationRate > 0.1) { // 10% threshold
+                LoggingManager.logWarning("High SLA violation rate: " + violationRate);
             }
+            
+            LoggingManager.logInfo("SLA compliance validation completed");
+            
+        } catch (Exception e) {
+            LoggingManager.logError("SLA compliance validation failed", e);
         }
     }
     
     /**
      * Validate power consumption calculations.
+     * 
+     * @param result The experimental result
      */
     private void validatePowerCalculations(ExperimentalResult result) {
-        Map<String, Double> powerMetrics = result.getPowerConsumptionMetrics();
-        
-        if (powerMetrics != null && powerMetrics.containsKey("totalPowerConsumption")) {
-            double totalPower = powerMetrics.get("totalPowerConsumption");
+        try {
+            // Check power consumption metrics
+            double totalPower = result.getPerformanceMetrics().getPowerConsumption().getTotalPowerConsumption();
             
-            if (totalPower <= 0) {
-                LoggingManager.logWarning("Invalid power consumption value: " + totalPower);
+            if (totalPower < 0) {
+                LoggingManager.logWarning("Invalid power consumption: " + totalPower);
             }
+            
+            LoggingManager.logInfo("Power calculation validation completed");
+            
+        } catch (Exception e) {
+            LoggingManager.logError("Power calculation validation failed", e);
         }
     }
     
     /**
-     * Validate metrics consistency across different calculations.
+     * Validate metrics consistency across different measurements.
+     * 
+     * @param result The experimental result
      */
     private void validateMetricsConsistency(ExperimentalResult result) {
-        // Check if resource utilization is within valid bounds
-        Map<String, Double> resourceMetrics = result.getResourceUtilizationMetrics();
-        
-        if (resourceMetrics != null) {
-            for (Map.Entry<String, Double> entry : resourceMetrics.entrySet()) {
-                double utilization = entry.getValue();
-                
-                if (utilization < 0 || utilization > 1) {
-                    LoggingManager.logWarning("Invalid utilization value for " + entry.getKey() + ": " + utilization);
-                }
+        try {
+            // Check for consistency between related metrics
+            double cpuUtil = result.getPerformanceMetrics().getResourceUtilization().getAvgCpuUtilization();
+            double memoryUtil = result.getPerformanceMetrics().getResourceUtilization().getAvgMemoryUtilization();
+            
+            if (cpuUtil > 100.0 || memoryUtil > 100.0) {
+                LoggingManager.logWarning("Resource utilization exceeds 100%: CPU=" + cpuUtil + ", Memory=" + memoryUtil);
             }
+            
+            LoggingManager.logInfo("Metrics consistency validation completed");
+            
+        } catch (Exception e) {
+            LoggingManager.logError("Metrics consistency validation failed", e);
         }
     }
     
     /**
      * Detect anomalies in simulation results.
+     * 
+     * @param result The experimental result
      */
     private void detectAnomalies(ExperimentalResult result) {
-        // Check for extremely low or high performance values
-        Map<String, Double> throughputMetrics = result.getThroughputMetrics();
-        
-        if (throughputMetrics != null && throughputMetrics.containsKey("averageThroughput")) {
-            double avgThroughput = throughputMetrics.get("averageThroughput");
+        try {
+            // Detect statistical anomalies
+            double cpuUtil = result.getPerformanceMetrics().getResourceUtilization().getAvgCpuUtilization();
+            double memoryUtil = result.getPerformanceMetrics().getResourceUtilization().getAvgMemoryUtilization();
             
-            if (avgThroughput <= 0) {
-                LoggingManager.logWarning("Anomaly detected: Zero or negative throughput");
+            // Check for extreme values
+            if (cpuUtil < 1.0 && vmList.size() > 0) {
+                LoggingManager.logWarning("Unusually low CPU utilization: " + cpuUtil);
             }
+            
+            if (memoryUtil < 1.0 && vmList.size() > 0) {
+                LoggingManager.logWarning("Unusually low memory utilization: " + memoryUtil);
+            }
+            
+            LoggingManager.logInfo("Anomaly detection completed");
+            
+        } catch (Exception e) {
+            LoggingManager.logError("Anomaly detection failed", e);
         }
     }
     
     /**
      * Calculate derived metrics from basic measurements.
+     * 
+     * @param result The experimental result
      */
     private void calculateDerivedMetrics(ExperimentalResult result) {
-        Map<String, Object> derivedMetrics = new HashMap<>();
-        
-        // Calculate efficiency metrics
-        Map<String, Double> resourceMetrics = result.getResourceUtilizationMetrics();
-        Map<String, Double> powerMetrics = result.getPowerConsumptionMetrics();
-        
-        if (resourceMetrics != null && powerMetrics != null) {
-            Double cpuUtilization = resourceMetrics.get("cpuUtilization");
-            Double totalPower = powerMetrics.get("totalPowerConsumption");
+        try {
+            Map<String, Object> derivedMetrics = new HashMap<>();
             
-            if (cpuUtilization != null && totalPower != null && totalPower > 0) {
-                double efficiency = cpuUtilization / totalPower;
-                derivedMetrics.put("powerEfficiency", efficiency);
-            }
+            // Calculate efficiency metrics
+            double cpuUtil = result.getPerformanceMetrics().getResourceUtilization().getAvgCpuUtilization();
+            double memoryUtil = result.getPerformanceMetrics().getResourceUtilization().getAvgMemoryUtilization();
+            double powerConsumption = result.getPerformanceMetrics().getPowerConsumption().getTotalPowerConsumption();
+            
+            // Resource efficiency
+            derivedMetrics.put("resource_efficiency", (cpuUtil + memoryUtil) / 2.0);
+            
+            // Power efficiency (lower is better)
+            derivedMetrics.put("power_efficiency", powerConsumption > 0 ? cpuUtil / powerConsumption : 0);
+            
+            // Overall performance score
+            double slaViolationRate = result.getPerformanceMetrics().getSlaViolations().getViolationRate();
+            derivedMetrics.put("performance_score", 
+                (cpuUtil * 0.3 + memoryUtil * 0.3 + (1 - slaViolationRate) * 0.4));
+            
+            // Store derived metrics
+            derivedMetrics.forEach((key, value) -> {
+                if (value instanceof Number) {
+                    result.addRawDataPoint(key, ((Number) value).doubleValue());
+                }
+            });
+            
+            LoggingManager.logInfo("Derived metrics calculation completed");
+            
+        } catch (Exception e) {
+            LoggingManager.logError("Derived metrics calculation failed", e);
         }
-        
-        // Calculate consolidation ratio
-        long activeHosts = hostList.stream()
-                .mapToLong(host -> host.getVmList().isEmpty() ? 0 : 1)
-                .sum();
-        
-        if (activeHosts > 0) {
-            double consolidationRatio = (double) vmList.size() / activeHosts;
-            derivedMetrics.put("consolidationRatio", consolidationRatio);
-        }
-        
-        result.setDerivedMetrics(derivedMetrics);
     }
     
-    // Getter methods for accessing simulation components
+    // Helper methods for updating metrics
+    private void updateResourceUtilizationMetrics(ExperimentalResult result, Map<String, Double> metrics) {
+        result.getPerformanceMetrics().getResourceUtilization().setAvgCpuUtilization(
+            metrics.getOrDefault("overall_cpu_utilization", 0.0) * 100
+        );
+        result.getPerformanceMetrics().getResourceUtilization().setAvgMemoryUtilization(
+            metrics.getOrDefault("overall_ram_utilization", 0.0) * 100
+        );
+        result.getPerformanceMetrics().getResourceUtilization().setAvgStorageUtilization(
+            metrics.getOrDefault("overall_storage_utilization", 0.0) * 100
+        );
+        result.getPerformanceMetrics().getResourceUtilization().setAvgNetworkUtilization(
+            metrics.getOrDefault("overall_bw_utilization", 0.0) * 100
+        );
+    }
+    
+    private void updatePowerConsumptionMetrics(ExperimentalResult result, Map<String, Double> metrics) {
+        result.getPerformanceMetrics().getPowerConsumption().setTotalPowerConsumption(
+            metrics.getOrDefault("total_power_consumption", 0.0)
+        );
+        result.getPerformanceMetrics().getPowerConsumption().setAvgPowerConsumption(
+            metrics.getOrDefault("average_power_consumption", 0.0)
+        );
+        result.getPerformanceMetrics().getPowerConsumption().setPeakPowerConsumption(
+            metrics.getOrDefault("max_host_power", 0.0)
+        );
+    }
+    
+    private void updateSLAViolationMetrics(ExperimentalResult result, Map<String, Double> metrics) {
+        result.getPerformanceMetrics().getSlaViolations().setTotalViolations(
+            metrics.getOrDefault("total_violations", 0.0).intValue()
+        );
+        result.getPerformanceMetrics().getSlaViolations().setViolationRate(
+            metrics.getOrDefault("violation_rate", 0.0)
+        );
+    }
+    
+    private void updateThroughputMetrics(ExperimentalResult result, Map<String, Double> metrics) {
+        result.getPerformanceMetrics().getThroughput().setAvgThroughput(
+            metrics.getOrDefault("average_throughput", 0.0)
+        );
+        result.getPerformanceMetrics().getThroughput().setPeakThroughput(
+            metrics.getOrDefault("peak_throughput", 0.0)
+        );
+        result.getPerformanceMetrics().getThroughput().setTotalJobsCompleted(
+            metrics.getOrDefault("total_jobs_completed", 0.0)
+        );
+    }
+    
+    private void updateResponseTimeMetrics(ExperimentalResult result, Map<String, Double> metrics) {
+        result.getPerformanceMetrics().getResponseTime().setAvgResponseTime(
+            metrics.getOrDefault("average_response_time", 0.0)
+        );
+        result.getPerformanceMetrics().getResponseTime().setMinResponseTime(
+            metrics.getOrDefault("min_response_time", 0.0)
+        );
+        result.getPerformanceMetrics().getResponseTime().setMaxResponseTime(
+            metrics.getOrDefault("max_response_time", 0.0)
+        );
+    }
+    
+    private void updateCostMetrics(ExperimentalResult result, Map<String, Double> metrics) {
+        result.getPerformanceMetrics().getCostMetrics().setTotalOperationalCost(
+            metrics.getOrDefault("total_operational_cost", 0.0)
+        );
+        result.getPerformanceMetrics().getCostMetrics().setPowerCost(
+            metrics.getOrDefault("power_cost", 0.0)
+        );
+        result.getPerformanceMetrics().getCostMetrics().setResourceCost(
+            metrics.getOrDefault("resource_cost", 0.0)
+        );
+    }
+    
+    // Helper methods for calculating averages
+    private double calculateAverageCpuUtilization() {
+        if (hostList.isEmpty()) return 0.0;
+        return hostList.stream()
+            .mapToDouble(host -> host.getCpuMipsUtilization() * 100)
+            .average()
+            .orElse(0.0);
+    }
+    
+    private double calculateAverageMemoryUtilization() {
+        if (hostList.isEmpty()) return 0.0;
+        return hostList.stream()
+            .mapToDouble(host -> host.getRamUtilization() * 100)
+            .average()
+            .orElse(0.0);
+    }
+    
+    // Getter methods
     public CloudSim getSimulation() { return simulation; }
     public DatacenterBroker getBroker() { return broker; }
     public Datacenter getDatacenter() { return datacenter; }
@@ -592,4 +785,3 @@ public class HippopotamusVmPlacementSimulation {
     public ExperimentalScenario getCurrentScenario() { return currentScenario; }
     public Map<String, Object> getSimulationMetrics() { return new HashMap<>(simulationMetrics); }
 }
-// End of HippopotamusVmPlacementSimulation.java

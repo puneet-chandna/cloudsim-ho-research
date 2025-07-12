@@ -255,7 +255,7 @@ public class ScenarioGenerator {
             
             // Set realistic SLA requirements
             Map<String, Object> slaRequirements = createRealisticSLARequirements();
-            scenario.setSlaRequirements(slaRequirements);
+            scenario.setSlaRequirementsObject(slaRequirements);
             
             // Configure workload characteristics
             String[] workloadTypes = {"WEB", "SCIENTIFIC", "DATABASE", "BATCH"};
@@ -294,7 +294,7 @@ public class ScenarioGenerator {
             performanceTargets.put("target_throughput_ops_per_sec", 100 + random.nextInt(1900)); // 100-2000 ops/sec
             performanceTargets.put("target_availability_percent", 95.0 + random.nextDouble() * 4.5); // 95-99.5%
             performanceTargets.put("target_resource_efficiency", 0.7 + random.nextDouble() * 0.25); // 70-95%
-            scenario.setPerformanceTargets(performanceTargets);
+            scenario.setPerformanceTargetsObject(performanceTargets);
             
             LoggingManager.logInfo("Realistic workload scenario created: " + scenario.getScenarioName());
             return scenario;
@@ -324,7 +324,7 @@ public class ScenarioGenerator {
             scenario.setHostSpecification(createStandardHostSpecification());
             scenario.setVmSpecification(createStandardVmSpecification());
             scenario.setCloudletSpecification(createStandardCloudletSpecification());
-            scenario.setSlaRequirements(createStandardSLARequirements());
+            scenario.setSlaRequirementsObject(createStandardSLARequirements());
             
             scenarios.add(scenario);
         }
@@ -352,7 +352,7 @@ public class ScenarioGenerator {
             scenario.setHostSpecification(createHighCapacityHostSpecification());
             scenario.setVmSpecification(createStandardVmSpecification());
             scenario.setCloudletSpecification(createStandardCloudletSpecification());
-            scenario.setSlaRequirements(createRelaxedSLARequirements());
+            scenario.setSlaRequirementsObject(createRelaxedSLARequirements());
             
             scenarios.add(scenario);
         }
@@ -383,7 +383,7 @@ public class ScenarioGenerator {
             scenario.setHostSpecification(createHeterogeneousHostSpecification());
             scenario.setVmSpecification(createHeterogeneousVmSpecification());
             scenario.setCloudletSpecification(createVariedCloudletSpecification());
-            scenario.setSlaRequirements(createStandardSLARequirements());
+            scenario.setSlaRequirementsObject(createStandardSLARequirements());
             
             scenarios.add(scenario);
         }
@@ -411,7 +411,7 @@ public class ScenarioGenerator {
             scenario.setHostSpecification(createLimitedHostSpecification());
             scenario.setVmSpecification(createDemandingVmSpecification());
             scenario.setCloudletSpecification(createIntensiveCloudletSpecification());
-            scenario.setSlaRequirements(createStrictSLARequirements());
+            scenario.setSlaRequirementsObject(createStrictSLARequirements());
             
             scenarios.add(scenario);
         }
@@ -437,7 +437,7 @@ public class ScenarioGenerator {
             scenario.setHostSpecification(createReliableHostSpecification());
             scenario.setVmSpecification(createStandardVmSpecification());
             scenario.setCloudletSpecification(createSLAConstrainedCloudletSpecification());
-            scenario.setSlaRequirements(createStrictSLARequirements());
+            scenario.setSlaRequirementsObject(createStrictSLARequirements());
             
             scenarios.add(scenario);
         }
@@ -465,7 +465,7 @@ public class ScenarioGenerator {
             scenario.setHostSpecification(createLimitedHostSpecification());
             scenario.setVmSpecification(createDemandingVmSpecification());
             scenario.setCloudletSpecification(createIntensiveCloudletSpecification());
-            scenario.setSlaRequirements(createStrictSLARequirements());
+            scenario.setSlaRequirementsObject(createStrictSLARequirements());
             
             scenarios.add(scenario);
         }
@@ -488,7 +488,7 @@ public class ScenarioGenerator {
         scenario.setHostSpecification(createRandomHostSpecification());
         scenario.setVmSpecification(createRandomVmSpecification());
         scenario.setCloudletSpecification(createRandomCloudletSpecification());
-        scenario.setSlaRequirements(createRandomSLARequirements());
+        scenario.setSlaRequirementsObject(createRandomSLARequirements());
         
         return scenario;
     }

@@ -31,35 +31,25 @@ import java.util.stream.Collectors;
 public class FinalReportGenerator {
     
     private static final String REPORT_DIRECTORY = "results/final_reports/";
-    private static final String TEMPLATE_DIRECTORY = "src/main/resources/templates/";
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
+    private static final String STATISTICAL_ANALYSIS_KEY = "statistical";
     
-    private final Map<String, Object> reportData;
     private final List<ExperimentalResult> allResults;
     private final Map<String, AnalysisResult> analysisResults;
     private String reportTimestamp;
     
     // Analysis components
-    private final ComprehensiveStatisticalAnalyzer statisticalAnalyzer;
-    private final ParameterSensitivityAnalyzer sensitivityAnalyzer;
-    private final ScalabilityAnalyzer scalabilityAnalyzer;
-    private final ComparisonReport comparisonReport;
     private final VisualizationGenerator visualizationGenerator;
     
     /**
      * Constructs a FinalReportGenerator instance.
      */
     public FinalReportGenerator() {
-        this.reportData = new HashMap<>();
         this.allResults = new ArrayList<>();
         this.analysisResults = new HashMap<>();
         this.reportTimestamp = LocalDateTime.now().format(DATE_FORMAT);
         
-        // Initialize analyzers
-        this.statisticalAnalyzer = new ComprehensiveStatisticalAnalyzer();
-        this.sensitivityAnalyzer = new ParameterSensitivityAnalyzer();
-        this.scalabilityAnalyzer = new ScalabilityAnalyzer();
-        this.comparisonReport = new ComparisonReport();
+        // Initialize visualization generator
         this.visualizationGenerator = new VisualizationGenerator();
         
         // Create directories
@@ -469,15 +459,12 @@ public class FinalReportGenerator {
         
         // Add results tables and analysis
         if (analysisResults.containsKey("performance")) {
-            AnalysisResult perfAnalysis = analysisResults.get("performance");
             // Add performance analysis details
         }
     }
     
     private void writeStatisticalAnalysis(XWPFDocument document) {
-        if (analysisResults.containsKey("statistical")) {
-            AnalysisResult statAnalysis = analysisResults.get("statistical");
-            
+        if (analysisResults.containsKey(STATISTICAL_ANALYSIS_KEY)) {
             XWPFParagraph para = document.createParagraph();
             para.createRun().setText(
                 "Statistical analysis was performed using parametric and non-parametric tests to validate the significance of results."
@@ -560,12 +547,13 @@ public class FinalReportGenerator {
             for (int i = 0; i < allResults.size(); i++) {
                 XWPFTableRow row = table.getRow(i + 1);
                 ExperimentalResult result = allResults.get(i);
+                Map<String, Double> metrics = result.getMetrics();
                 row.getCell(0).setText(String.valueOf(i + 1));
                 row.getCell(1).setText(result.getAlgorithmName());
-                row.getCell(2).setText(String.format("%.2f%%", result.getMetric("resourceUtilization")));
-                row.getCell(3).setText(String.format("%.2f kWh", result.getMetric("powerConsumption")));
-                row.getCell(4).setText(String.valueOf(result.getMetric("slaViolations").intValue()));
-                row.getCell(5).setText(String.format("%.2f ms", result.getMetric("responseTime")));
+                row.getCell(2).setText(String.format("%.2f%%", metrics.getOrDefault("resourceUtilization", 0.0)));
+                row.getCell(3).setText(String.format("%.2f kWh", metrics.getOrDefault("powerConsumption", 0.0)));
+                row.getCell(4).setText(String.valueOf(metrics.getOrDefault("slaViolations", 0.0).intValue()));
+                row.getCell(5).setText(String.format("%.2f ms", metrics.getOrDefault("avgResponseTime", 0.0)));
             }
         }
     }
@@ -579,6 +567,7 @@ public class FinalReportGenerator {
             Path configPath = Paths.get("src/main/resources/config/experiment_config.yaml");
             if (Files.exists(configPath)) {
                 ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+                @SuppressWarnings("unchecked")
                 Map<String, Object> config = mapper.readValue(configPath.toFile(), Map.class);
                 
                 // Display configuration in formatted way
@@ -597,7 +586,7 @@ public class FinalReportGenerator {
         para.createRun().setText("Detailed statistical test results:");
         
         // Add statistical test tables
-        if (analysisResults.containsKey("statistical")) {
+        if (analysisResults.containsKey(STATISTICAL_ANALYSIS_KEY)) {
             // Extract and display detailed statistical results
         }
     }

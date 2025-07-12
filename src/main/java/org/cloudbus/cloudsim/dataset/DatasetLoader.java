@@ -27,15 +27,6 @@ public class DatasetLoader {
     // Dataset cache for multiple experiments
     private static final Map<String, List<CSVRecord>> datasetCache = new ConcurrentHashMap<>();
     private static final Map<String, DatasetStatistics> statisticsCache = new ConcurrentHashMap<>();
-    
-    /**
-     * Private constructor to prevent instantiation.
-     */
-    private DatasetLoader() {
-        // Utility class - no instantiation needed
-    }
-    
-    // Supported file extensions
     private static final Set<String> SUPPORTED_EXTENSIONS = new HashSet<>(Arrays.asList(".csv", ".tsv", ".gz"));
     
     /**

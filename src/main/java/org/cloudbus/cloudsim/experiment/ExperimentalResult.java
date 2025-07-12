@@ -810,6 +810,7 @@ public class ExperimentalResult {
             
             // Response time metrics
             if (performanceMetrics.getResponseTime() != null) {
+                metrics.put("responseTime", performanceMetrics.getResponseTime().getAvgResponseTime());
                 metrics.put("avgResponseTime", performanceMetrics.getResponseTime().getAvgResponseTime());
                 metrics.put("minResponseTime", performanceMetrics.getResponseTime().getMinResponseTime());
                 metrics.put("maxResponseTime", performanceMetrics.getResponseTime().getMaxResponseTime());
@@ -839,8 +840,43 @@ public class ExperimentalResult {
         }
         
         // Add execution metadata
+        metrics.put("executionTime", (double) executionDurationMs);
         metrics.put("executionDuration", (double) executionDurationMs);
         
         return metrics;
+    }
+    
+    /**
+     * Get a specific metric by name.
+     * 
+     * @param metricName The name of the metric to retrieve
+     * @return The metric value, or 0.0 if not found
+     */
+    public Double getMetric(String metricName) {
+        Map<String, Double> metrics = getMetrics();
+        return metrics.getOrDefault(metricName, 0.0);
+    }
+    
+    /**
+     * Get the run number for this experiment.
+     * This is typically extracted from the experiment ID or configuration.
+     * 
+     * @return The run number, or 1 if not specified
+     */
+    public int getRunNumber() {
+        // Try to extract run number from experiment ID
+        if (experimentId != null && experimentId.contains("_run_")) {
+            try {
+                String[] parts = experimentId.split("_run_");
+                if (parts.length > 1) {
+                    return Integer.parseInt(parts[1]);
+                }
+            } catch (NumberFormatException e) {
+                // Ignore parsing errors
+            }
+        }
+        
+        // If no run number found, return 1 as default
+        return 1;
     }
 }

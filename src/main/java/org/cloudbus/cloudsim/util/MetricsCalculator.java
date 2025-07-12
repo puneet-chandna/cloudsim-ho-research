@@ -23,9 +23,6 @@ import java.util.stream.Collectors;
 public class MetricsCalculator {
     private static final Logger logger = LoggerFactory.getLogger(MetricsCalculator.class);
     
-    // Precision for floating point comparisons
-    private static final double PRECISION = 0.0001;
-    
     // SLA violation thresholds
     private static final double SLA_CPU_THRESHOLD = 0.8;
     private static final double SLA_RAM_THRESHOLD = 0.8;
@@ -74,9 +71,9 @@ public class MetricsCalculator {
             double bwUtilization = bwCapacity > 0 ? bwUsed / bwCapacity : 0;
             
             // Storage utilization
-            double storageUsed = host.getStorageUtilization() * host.getStorage().getCapacity();
-            double storageCapacity = host.getStorage().getCapacity();
-            double storageUtilization = storageCapacity > 0 ? storageUsed / storageCapacity : 0;
+            long storageCapacity = host.getStorage().getCapacity();
+            long storageUsed = storageCapacity - host.getStorage().getAvailableResource();
+            double storageUtilization = storageCapacity > 0 ? (double) storageUsed / storageCapacity : 0.0;
             
             // Add to statistics
             cpuStats.addValue(cpuUtilization);
@@ -151,13 +148,13 @@ public class MetricsCalculator {
                 hostsWithPowerModel++;
                 
                 // Current power consumption
-                double currentPower = powerModel.getPower(host.getCpuMipsUtilization());
+                double currentPower = powerModel.getPower(host.getCpuMipsUtilization() * host.getTotalMipsCapacity());
                 
                 // Idle power consumption
-                double idlePower = powerModel.getPower(0);
+                double idlePower = powerModel.getPower(0.0);
                 
                 // Maximum power consumption
-                double maxPower = powerModel.getPower(1.0);
+                double maxPower = powerModel.getPower(host.getTotalMipsCapacity());
                 
                 powerStats.addValue(currentPower);
                 totalPower += currentPower;
@@ -235,7 +232,7 @@ public class MetricsCalculator {
         // Check response time violations
         for (Cloudlet cloudlet : cloudlets) {
             if (cloudlet.isFinished()) {
-                double responseTime = cloudlet.getActualCpuTime();
+                double responseTime = cloudlet.getFinishTime() - cloudlet.getExecStartTime();
                 responseTimeStats.addValue(responseTime);
                 
                 if (responseTime > SLA_RESPONSE_TIME_THRESHOLD) {
@@ -337,8 +334,8 @@ public class MetricsCalculator {
         DescriptiveStatistics waitTimeStats = new DescriptiveStatistics();
         
         for (Cloudlet cloudlet : finishedCloudlets) {
-            double responseTime = cloudlet.getFinishTime() - cloudlet.getSubmissionTime();
-            double waitTime = cloudlet.getExecStartTime() - cloudlet.getSubmissionTime();
+            double responseTime = cloudlet.getFinishTime() - cloudlet.getExecStartTime();
+            double waitTime = cloudlet.getExecStartTime() - cloudlet.getSubmissionDelay(); // If getSubmissionDelay() is not available, use 0
             
             responseTimeStats.addValue(responseTime);
             if (waitTime >= 0) {

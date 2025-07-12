@@ -112,11 +112,11 @@ public class LoggingManager {
     
     /**
      * Static method to configure logging.
-     */
-    public static void configureLogging() {
-        getInstance().configureLogging();
-    }
-    
+     *
+    *public static void configureLogging() {
+     *   getInstance().configureLogging();
+    *}
+    /
     /**
      * Static method to configure logging with custom directory.
      *

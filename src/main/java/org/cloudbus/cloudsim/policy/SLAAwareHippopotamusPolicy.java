@@ -8,7 +8,7 @@ import org.cloudbus.cloudsim.hosts.Host;
 import org.cloudbus.cloudsim.vms.Vm;
 import org.cloudbus.cloudsim.algorithm.HippopotamusOptimization;
 import org.cloudbus.cloudsim.algorithm.HippopotamusParameters;
-import org.cloudbus.cloudsim.algorithm.OptimizationResult;
+import org.cloudbus.cloudsim.algorithm.SimpleOptimizationResult;
 import org.cloudbus.cloudsim.util.MetricsCalculator;
 import org.cloudbus.cloudsim.util.LoggingManager;
 import org.cloudbus.cloudsim.util.ExperimentException;
@@ -53,7 +53,7 @@ public class SLAAwareHippopotamusPolicy extends VmAllocationPolicyAbstract {
     // SLA tracking and analysis
     private final Map<Vm, SLARequirements> vmSLARequirements;
     private final Map<Vm, SLAMetrics> vmSLAMetrics;
-    private final Map<Host, List<SLAViolation>> hostViolationHistory;
+    private final Map<Host, List<SLAViolationEvent>> hostViolationHistory;
     
     // Research and statistical tracking
     private final List<SLAViolationEvent> violationEvents;
@@ -284,12 +284,31 @@ public class SLAAwareHippopotamusPolicy extends VmAllocationPolicyAbstract {
         }
     }
     
+    /**
+     * Default implementation for finding host for VM.
+     * This method is required by the abstract parent class.
+     * 
+     * @param vm The VM to be allocated
+     * @return Optional containing the selected host, or empty if allocation fails
+     */
     @Override
-    public Optional<Host> findHostForVm(Vm vm) {
+    public Optional<Host> defaultFindHostForVm(Vm vm) {
+        List<Host> hostList = getHostList();
+        return findHostForVm(vm, hostList);
+    }
+    
+    /**
+     * SLA-aware VM allocation that considers SLA compliance.
+     * 
+     * @param vm The VM to be allocated
+     * @param hostList List of available hosts
+     * @return Optional containing the selected host, or empty if allocation fails
+     */
+    public Optional<Host> findHostForVm(Vm vm, List<Host> hostList) {
         try {
             totalAllocationRequests++;
             
-            List<Host> availableHosts = getHostList().stream()
+            List<Host> availableHosts = hostList.stream()
                 .filter(host -> host.isSuitableForVm(vm))
                 .collect(Collectors.toList());
             
@@ -474,10 +493,9 @@ public class SLAAwareHippopotamusPolicy extends VmAllocationPolicyAbstract {
             if (bestSLAScore < 0.7) { // Threshold for acceptable SLA compliance
                 LoggingManager.logInfo("Falling back to Hippopotamus optimization for better SLA compliance");
                 
-                // Create VM and Host lists for optimization
-                List<Vm> vmList = Arrays.asList(vm);
-                
-                OptimizationResult result = optimizationEngine.optimize(vmList, candidateHosts, parameters);
+                // Use the correct optimize method signature: (vmCount, hostCount, parameters)
+                SimpleOptimizationResult result = optimizationEngine.optimize(
+                    1, candidateHosts.size(), parameters);
                 if (result != null && result.getBestSolution() != null) {
                     // Extract host from optimization result
                     // This is a simplified version - actual implementation would need proper mapping
@@ -589,8 +607,8 @@ public class SLAAwareHippopotamusPolicy extends VmAllocationPolicyAbstract {
             score += responseTimeScore * 0.3; // 30% weight
             
             // Resource utilization prediction
-            double predictedCpuUtil = (host.getCpuPercentUtilization() + (vm.getCurrentRequestedTotalMips() / host.getTotalMipsCapacity()));
-            double predictedMemUtil = (host.getRamPercentUtilization() + ((double) vm.getCurrentRequestedRam() / host.getRam().getCapacity()));
+            double predictedCpuUtil = (host.getCpuPercentUtilization() + (vm.getMips() / host.getTotalMipsCapacity()));
+            double predictedMemUtil = (host.getRam().getAllocatedResource() + vm.getRam().getCapacity()) / (double) host.getRam().getCapacity();
             
             double cpuScore = Math.max(0, 1.0 - Math.max(0, predictedCpuUtil - requirements.getMaxCpuUtilization()));
             double memScore = Math.max(0, 1.0 - Math.max(0, predictedMemUtil - requirements.getMaxMemoryUtilization()));
@@ -647,7 +665,7 @@ public class SLAAwareHippopotamusPolicy extends VmAllocationPolicyAbstract {
                 metrics.setCurrentResponseTime(estimateResponseTime(vm, host));
                 metrics.setCurrentAvailability(estimateHostAvailability(host));
                 metrics.setCurrentCpuUtilization(host.getCpuPercentUtilization());
-                metrics.setCurrentMemoryUtilization(host.getRamPercentUtilization());
+                metrics.setCurrentMemoryUtilization(host.getRam().getAllocatedResource() / (double) host.getRam().getCapacity());
             }
         } catch (Exception e) {
             LoggingManager.logError("Error updating SLA metrics after allocation", e);

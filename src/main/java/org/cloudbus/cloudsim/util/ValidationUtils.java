@@ -262,6 +262,29 @@ public class ValidationUtils {
         }
     }
     
+    /**
+     * Validate that a collection is not empty
+     * @param collection The collection to validate
+     * @param paramName The parameter name for error messages
+     * @throws ExperimentException if collection is null or empty
+     */
+    public static void validateNotEmpty(Collection<?> collection, String paramName) {
+        validateNotNull(collection, paramName);
+        if (collection.isEmpty()) {
+            throw new ExperimentException(paramName + " cannot be empty");
+        }
+    }
+    
+    /**
+     * Validate an ExperimentalScenario for consistency and correctness.
+     */
+    public static void validateExperimentalScenario(org.cloudbus.cloudsim.simulation.ExperimentalScenario scenario) {
+        if (scenario == null) {
+            throw new ExperimentException("ExperimentalScenario cannot be null");
+        }
+        scenario.validateScenario();
+    }
+    
     // Private helper methods
     
     private static ValidationCheck validateDataCompleteness(List<ExperimentalResult> results) {

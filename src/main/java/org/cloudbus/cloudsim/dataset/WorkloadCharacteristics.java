@@ -45,6 +45,12 @@ public class WorkloadCharacteristics {
     // Statistical characteristics
     private final StatisticalCharacteristics statisticalCharacteristics;
     
+    private double burstiness = 0.0;
+    private double seasonality = 0.0;
+    private boolean cpuIntensive = false;
+    private boolean memoryIntensive = false;
+    private boolean ioIntensive = false;
+    
     /**
      * Constructor for comprehensive workload characteristics.
      * 
@@ -126,6 +132,110 @@ public class WorkloadCharacteristics {
     
     public double getScalabilityFactor() {
         return scalabilityFactor;
+    }
+    
+    public void setCpuIntensive(boolean cpuIntensive) {
+        this.cpuIntensive = cpuIntensive;
+    }
+    public boolean isCpuIntensive() {
+        return cpuIntensive;
+    }
+    public void setMemoryIntensive(boolean memoryIntensive) {
+        this.memoryIntensive = memoryIntensive;
+    }
+    public boolean isMemoryIntensive() {
+        return memoryIntensive;
+    }
+    public void setIoIntensive(boolean ioIntensive) {
+        this.ioIntensive = ioIntensive;
+    }
+    public boolean isIoIntensive() {
+        return ioIntensive;
+    }
+    public void setBurstiness(double burstiness) {
+        this.burstiness = burstiness;
+    }
+    public double getBurstiness() {
+        return burstiness;
+    }
+    public void setSeasonality(double seasonality) {
+        this.seasonality = seasonality;
+    }
+    public double getSeasonality() {
+        return seasonality;
+    }
+    
+    /**
+     * Copy constructor for WorkloadCharacteristics.
+     */
+    public WorkloadCharacteristics(WorkloadCharacteristics other) {
+        this.resourcePatterns = other.resourcePatterns; // Assuming immutable or safe to share
+        this.temporalCharacteristics = other.temporalCharacteristics;
+        this.slaRequirements = other.slaRequirements;
+        this.performanceTargets = other.performanceTargets;
+        this.metadata = other.metadata;
+        this.statisticalCharacteristics = other.statisticalCharacteristics;
+        this.burstiness = other.burstiness;
+        this.seasonality = other.seasonality;
+        this.cpuIntensive = other.cpuIntensive;
+        this.memoryIntensive = other.memoryIntensive;
+        this.ioIntensive = other.ioIntensive;
+        this.workloadType = other.workloadType;
+        this.generationSeed = other.generationSeed;
+        this.scalabilityFactor = other.scalabilityFactor;
+        // Deep copy VMs and Cloudlets if possible
+        this.vms = new ArrayList<>(other.vms);
+        this.cloudlets = new ArrayList<>(other.cloudlets);
+    }
+
+    /**
+     * Returns the number of VMs in this workload.
+     */
+    public int getVmCount() {
+        return vms != null ? vms.size() : 0;
+    }
+
+    /**
+     * Returns the total CPU requirement (sum of all VM MIPS).
+     */
+    public double getTotalCpuRequirement() {
+        if (vms == null) return 0;
+        return vms.stream().mapToDouble(vm -> vm.getMips()).sum();
+    }
+
+    /**
+     * Returns the total memory requirement (sum of all VM RAM in MB).
+     */
+    public double getTotalMemoryRequirement() {
+        if (vms == null) return 0;
+        return vms.stream().mapToDouble(vm -> vm.getRam().getCapacity()).sum();
+    }
+
+    /**
+     * Normalize resource requirements for all VMs (dummy implementation).
+     */
+    public void normalizeResourceRequirements() {
+        // Example: scale all VM MIPS and RAM to [0,1] range (not actually changing values here)
+        // Implement actual normalization logic as needed
+        // This is a placeholder for demonstration
+    }
+
+    /**
+     * Filter outliers in VM MIPS (dummy implementation).
+     */
+    public void filterOutliers(Double threshold) {
+        // Example: remove VMs with MIPS above threshold (if threshold is not null)
+        if (vms == null || threshold == null) return;
+        vms = vms.stream().filter(vm -> vm.getMips() <= threshold).collect(Collectors.toList());
+    }
+
+    /**
+     * Scale workload by a factor (dummy implementation).
+     */
+    public void scaleWorkload(Double factor) {
+        if (vms == null || factor == null) return;
+        // Example: scale MIPS for each VM (not actually changing values here)
+        // Implement actual scaling logic as needed
     }
     
     /**

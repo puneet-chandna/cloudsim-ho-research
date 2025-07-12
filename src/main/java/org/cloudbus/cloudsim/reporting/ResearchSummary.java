@@ -30,6 +30,16 @@ public class ResearchSummary {
     private static final String SUMMARY_DIRECTORY = "results/research_summaries/";
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
     
+    // Constants for repeated strings
+    private static final String RESOURCE_UTILIZATION = "resourceUtilization";
+    private static final String POWER_CONSUMPTION = "powerConsumption";
+    private static final String SLA_VIOLATIONS = "slaViolations";
+    private static final String RESPONSE_TIME = "responseTime";
+    private static final String VALUE = "value";
+    private static final String IMPROVEMENT = "improvement";
+    private static final String SIGNIFICANCE = "significance";
+    private static final String P_VALUE = "p < 0.001";
+    
     private final Map<String, List<ExperimentalResult>> algorithmResults;
     private final Map<String, Object> keyFindings;
     private final List<String> highlights;
@@ -100,49 +110,49 @@ public class ResearchSummary {
             StringBuilder summary = new StringBuilder();
             
             // Title and metadata
-            summary.append("# Hippopotamus Optimization for VM Placement - Research Summary\n\n");
-            summary.append("**Generated:** ").append(LocalDateTime.now()).append("\n\n");
+            summary.append("# Hippopotamus Optimization for VM Placement - Research Summary%n%n");
+            summary.append("**Generated:** ").append(LocalDateTime.now()).append("%n%n");
             
             // Executive Summary
-            summary.append("## Executive Summary\n\n");
-            summary.append(generateExecutiveSummaryText()).append("\n\n");
+            summary.append("## Executive Summary%n%n");
+            summary.append(generateExecutiveSummaryText()).append("%n%n");
             
             // Key Performance Metrics
-            summary.append("## Key Performance Metrics\n\n");
+            summary.append("## Key Performance Metrics%n%n");
             appendPerformanceMetrics(summary);
             
             // Comparative Analysis
-            summary.append("## Comparative Analysis\n\n");
+            summary.append("## Comparative Analysis%n%n");
             appendComparativeAnalysis(summary);
             
             // Research Highlights
-            summary.append("## Research Highlights\n\n");
+            summary.append("## Research Highlights%n%n");
             for (String highlight : highlights) {
-                summary.append("- ").append(highlight).append("\n");
+                summary.append("- ").append(highlight).append("%n");
             }
-            summary.append("\n");
+            summary.append("%n");
             
             // Statistical Significance
-            summary.append("## Statistical Significance\n\n");
+            summary.append("## Statistical Significance%n%n");
             appendStatisticalSummary(summary);
             
             // Scalability Results
-            summary.append("## Scalability Results\n\n");
+            summary.append("## Scalability Results%n%n");
             appendScalabilityResults(summary);
             
             // Conclusions
-            summary.append("## Conclusions\n\n");
-            summary.append(generateConclusionText()).append("\n\n");
+            summary.append("## Conclusions%n%n");
+            summary.append(generateConclusionText()).append("%n%n");
             
             // Implementation Details
-            summary.append("## Implementation Details\n\n");
-            summary.append("- **Framework:** CloudSim Plus 7.0.1\n");
-            summary.append("- **Language:** Java 21\n");
-            summary.append("- **Build Tool:** Maven 3.9.9\n");
-            summary.append("- **Statistical Analysis:** Apache Commons Math 3.6.1\n\n");
+            summary.append("## Implementation Details%n%n");
+            summary.append("- **Framework:** CloudSim Plus 7.0.1%n");
+            summary.append("- **Language:** Java 21%n");
+            summary.append("- **Build Tool:** Maven 3.9.9%n");
+            summary.append("- **Statistical Analysis:** Apache Commons Math 3.6.1%n%n");
             
             // Future Work
-            summary.append("## Future Work\n\n");
+            summary.append("## Future Work%n%n");
             appendFutureWork(summary);
             
             // Save summary
@@ -170,72 +180,72 @@ public class ResearchSummary {
             StringBuilder slides = new StringBuilder();
             
             // Slide 1: Title
-            slides.append("# Slide 1: Title\n");
-            slides.append("## Hippopotamus Optimization Algorithm for VM Placement\n");
-            slides.append("### Efficient Resource Management in Cloud Computing\n");
-            slides.append("Research Team - ").append(LocalDateTime.now().getYear()).append("\n\n");
+            slides.append("# Slide 1: Title%n");
+            slides.append("## Hippopotamus Optimization Algorithm for VM Placement%n");
+            slides.append("### Efficient Resource Management in Cloud Computing%n");
+            slides.append("Research Team - ").append(LocalDateTime.now().getYear()).append("%n%n");
             
             // Slide 2: Problem Statement
-            slides.append("# Slide 2: Problem Statement\n");
-            slides.append("- VM placement is NP-hard optimization problem\n");
-            slides.append("- Critical for cloud resource efficiency\n");
-            slides.append("- Impacts: Resource utilization, Energy consumption, SLA compliance\n");
-            slides.append("- Current solutions have limitations in scalability and performance\n\n");
+            slides.append("# Slide 2: Problem Statement%n");
+            slides.append("- VM placement is NP-hard optimization problem%n");
+            slides.append("- Critical for cloud resource efficiency%n");
+            slides.append("- Impacts: Resource utilization, Energy consumption, SLA compliance%n");
+            slides.append("- Current solutions have limitations in scalability and performance%n%n");
             
             // Slide 3: Proposed Solution
-            slides.append("# Slide 3: Proposed Solution\n");
-            slides.append("## Hippopotamus Optimization (HO) Algorithm\n");
-            slides.append("- Bio-inspired meta-heuristic\n");
-            slides.append("- Models hippopotamus territorial behavior\n");
-            slides.append("- Balances exploration and exploitation\n");
-            slides.append("- Multi-objective optimization approach\n\n");
+            slides.append("# Slide 3: Proposed Solution%n");
+            slides.append("## Hippopotamus Optimization (HO) Algorithm%n");
+            slides.append("- Bio-inspired meta-heuristic%n");
+            slides.append("- Models hippopotamus territorial behavior%n");
+            slides.append("- Balances exploration and exploitation%n");
+            slides.append("- Multi-objective optimization approach%n%n");
             
             // Slide 4: Key Results
-            slides.append("# Slide 4: Key Results\n");
+            slides.append("# Slide 4: Key Results%n");
             appendKeyResultsForSlides(slides);
             
             // Slide 5: Performance Comparison
-            slides.append("# Slide 5: Performance Comparison\n");
-            slides.append("## Algorithm Performance (vs. Best Baseline)\n");
+            slides.append("# Slide 5: Performance Comparison%n");
+            slides.append("## Algorithm Performance (vs. Best Baseline)%n");
             appendComparisonForSlides(slides);
             
             // Slide 6: Scalability
-            slides.append("# Slide 6: Scalability Analysis\n");
-            slides.append("- Tested from 100 to 5000 VMs\n");
-            slides.append("- Linear time complexity observed\n");
-            slides.append("- Maintains solution quality at scale\n");
-            slides.append("- Suitable for large cloud environments\n\n");
+            slides.append("# Slide 6: Scalability Analysis%n");
+            slides.append("- Tested from 100 to 5000 VMs%n");
+            slides.append("- Linear time complexity observed%n");
+            slides.append("- Maintains solution quality at scale%n");
+            slides.append("- Suitable for large cloud environments%n%n");
             
             // Slide 7: Statistical Validation
-            slides.append("# Slide 7: Statistical Validation\n");
-            slides.append("- 30 independent runs per experiment\n");
-            slides.append("- Student's t-test: p < 0.001\n");
-            slides.append("- ANOVA confirms algorithm differences\n");
-            slides.append("- Large effect sizes (Cohen's d > 0.8)\n\n");
+            slides.append("# Slide 7: Statistical Validation%n");
+            slides.append("- 30 independent runs per experiment%n");
+            slides.append("- Student's t-test: p < 0.001%n");
+            slides.append("- ANOVA confirms algorithm differences%n");
+            slides.append("- Large effect sizes (Cohen's d > 0.8)%n%n");
             
             // Slide 8: Real-world Datasets
-            slides.append("# Slide 8: Real-world Validation\n");
-            slides.append("## Datasets Used:\n");
-            slides.append("- Google Cluster Traces\n");
-            slides.append("- Azure VM Traces\n");
-            slides.append("- Synthetic Workloads\n");
-            slides.append("## Consistent performance across all datasets\n\n");
+            slides.append("# Slide 8: Real-world Validation%n");
+            slides.append("## Datasets Used:%n");
+            slides.append("- Google Cluster Traces%n");
+            slides.append("- Azure VM Traces%n");
+            slides.append("- Synthetic Workloads%n");
+            slides.append("## Consistent performance across all datasets%n%n");
             
             // Slide 9: Contributions
-            slides.append("# Slide 9: Research Contributions\n");
-            slides.append("1. Novel HO algorithm for VM placement\n");
-            slides.append("2. Comprehensive experimental evaluation\n");
-            slides.append("3. Statistical validation of results\n");
-            slides.append("4. Open-source CloudSim implementation\n");
-            slides.append("5. Benchmark for future research\n\n");
+            slides.append("# Slide 9: Research Contributions%n");
+            slides.append("1. Novel HO algorithm for VM placement%n");
+            slides.append("2. Comprehensive experimental evaluation%n");
+            slides.append("3. Statistical validation of results%n");
+            slides.append("4. Open-source CloudSim implementation%n");
+            slides.append("5. Benchmark for future research%n%n");
             
             // Slide 10: Conclusions
-            slides.append("# Slide 10: Conclusions & Impact\n");
-            slides.append("- HO significantly improves cloud resource management\n");
-            slides.append("- 15% better utilization, 12% less power consumption\n");
-            slides.append("- Scalable to large cloud environments\n");
-            slides.append("- Ready for practical deployment\n");
-            slides.append("- Environmental and economic benefits\n\n");
+            slides.append("# Slide 10: Conclusions & Impact%n");
+            slides.append("- HO significantly improves cloud resource management%n");
+            slides.append("- 15% better utilization, 12% less power consumption%n");
+            slides.append("- Scalable to large cloud environments%n");
+            slides.append("- Ready for practical deployment%n");
+            slides.append("- Environmental and economic benefits%n%n");
             
             // Save slides
             String filename = String.format("presentation_summary_%s.txt", summaryTimestamp);
@@ -340,51 +350,51 @@ public class ResearchSummary {
             StringBuilder brief = new StringBuilder();
             
             // Header
-            brief.append("RESEARCH BRIEF\n");
-            brief.append("=".repeat(50)).append("\n\n");
-            brief.append("Title: Hippopotamus Optimization for VM Placement\n");
-            brief.append("Date: ").append(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE)).append("\n\n");
+            brief.append("RESEARCH BRIEF%n");
+            brief.append(repeatString("=", 50)).append("%n%n");
+            brief.append("Title: Hippopotamus Optimization for VM Placement%n");
+            brief.append("Date: ").append(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE)).append("%n%n");
             
             // Problem
-            brief.append("PROBLEM\n");
-            brief.append("-".repeat(20)).append("\n");
+            brief.append("PROBLEM%n");
+            brief.append(repeatString("-", 20)).append("%n");
             brief.append("Virtual machine placement in cloud computing is a critical challenge ")
                  .append("affecting resource utilization, energy consumption, and service quality. ")
-                 .append("Current solutions struggle with scalability and optimization quality.\n\n");
+                 .append("Current solutions struggle with scalability and optimization quality.%n%n");
             
             // Solution
-            brief.append("SOLUTION\n");
-            brief.append("-".repeat(20)).append("\n");
+            brief.append("SOLUTION%n");
+            brief.append(repeatString("-", 20)).append("%n");
             brief.append("We developed a novel Hippopotamus Optimization (HO) algorithm that ")
                  .append("models territorial behaviors to efficiently solve the VM placement problem. ")
-                 .append("The algorithm balances exploration and exploitation for superior results.\n\n");
+                 .append("The algorithm balances exploration and exploitation for superior results.%n%n");
             
             // Key Results
-            brief.append("KEY RESULTS\n");
-            brief.append("-".repeat(20)).append("\n");
+            brief.append("KEY RESULTS%n");
+            brief.append(repeatString("-", 20)).append("%n");
             appendBriefResults(brief);
             
             // Impact
-            brief.append("\nIMPACT\n");
-            brief.append("-".repeat(20)).append("\n");
-            brief.append("• Cost Savings: Improved utilization reduces infrastructure needs\n");
-            brief.append("• Environmental: 12% power reduction supports sustainability\n");
-            brief.append("• Performance: Better SLA compliance improves user experience\n");
-            brief.append("• Scalability: Handles large-scale cloud deployments\n\n");
+            brief.append("%nIMPACT%n");
+            brief.append(repeatString("-", 20)).append("%n");
+            brief.append("• Cost Savings: Improved utilization reduces infrastructure needs%n");
+            brief.append("• Environmental: 12% power reduction supports sustainability%n");
+            brief.append("• Performance: Better SLA compliance improves user experience%n");
+            brief.append("• Scalability: Handles large-scale cloud deployments%n%n");
             
             // Next Steps
-            brief.append("NEXT STEPS\n");
-            brief.append("-".repeat(20)).append("\n");
-            brief.append("• Integration with production cloud platforms\n");
-            brief.append("• Extension to container orchestration\n");
-            brief.append("• Real-time adaptation capabilities\n\n");
+            brief.append("NEXT STEPS%n");
+            brief.append(repeatString("-", 20)).append("%n");
+            brief.append("• Integration with production cloud platforms%n");
+            brief.append("• Extension to container orchestration%n");
+            brief.append("• Real-time adaptation capabilities%n%n");
             
             // Contact
-            brief.append("CONTACT\n");
-            brief.append("-".repeat(20)).append("\n");
-            brief.append("Research Team - Cloud Computing Laboratory\n");
-            brief.append("Email: research@cloudlab.edu\n");
-            brief.append("Code: github.com/cloudlab/ho-vm-placement\n");
+            brief.append("CONTACT%n");
+            brief.append(repeatString("-", 20)).append("%n");
+            brief.append("Research Team - Cloud Computing Laboratory%n");
+            brief.append("Email: research@cloudlab.edu%n");
+            brief.append("Code: github.com/cloudlab/ho-vm-placement%n");
             
             // Save brief
             String filename = String.format("research_brief_%s.txt", summaryTimestamp);
@@ -401,6 +411,21 @@ public class ResearchSummary {
     
     // Private helper methods
     
+    /**
+     * Repeats a string n times (compatible with older Java versions).
+     * 
+     * @param str The string to repeat
+     * @param count Number of times to repeat
+     * @return Repeated string
+     */
+    private String repeatString(String str, int count) {
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            result.append(str);
+        }
+        return result.toString();
+    }
+    
     private String generateExecutiveSummaryText() {
         return "This research presents a novel Hippopotamus Optimization (HO) algorithm for solving " +
                "the virtual machine placement problem in cloud computing environments. Through extensive " +
@@ -411,70 +436,70 @@ public class ResearchSummary {
     }
     
     private void appendPerformanceMetrics(StringBuilder summary) {
-        summary.append("| Metric | HO Algorithm | Best Baseline | Improvement |\n");
-        summary.append("|--------|-------------|---------------|-------------|\n");
+        summary.append("| Metric | HO Algorithm | Best Baseline | Improvement |%n");
+        summary.append("|--------|-------------|---------------|-------------|%n");
         
         if (!algorithmResults.isEmpty()) {
             // Calculate actual metrics
             Map<String, Double> hoMetrics = calculateAverageMetrics("HippopotamusOptimization");
             Map<String, Double> baselineMetrics = findBestBaselineMetrics();
             
-            summary.append(String.format("| Resource Utilization | %.2f%% | %.2f%% | +%.1f%% |\n",
-                hoMetrics.getOrDefault("resourceUtilization", 85.0),
-                baselineMetrics.getOrDefault("resourceUtilization", 70.0),
+            summary.append(String.format("| Resource Utilization | %.2f%% | %.2f%% | +%.1f%% |%n",
+                hoMetrics.getOrDefault(RESOURCE_UTILIZATION, 85.0),
+                baselineMetrics.getOrDefault(RESOURCE_UTILIZATION, 70.0),
                 15.3));
             
-            summary.append(String.format("| Power Consumption | %.2f kWh | %.2f kWh | -%.1f%% |\n",
-                hoMetrics.getOrDefault("powerConsumption", 1200.0),
-                baselineMetrics.getOrDefault("powerConsumption", 1370.0),
+            summary.append(String.format("| Power Consumption | %.2f kWh | %.2f kWh | -%.1f%% |%n",
+                hoMetrics.getOrDefault(POWER_CONSUMPTION, 1200.0),
+                baselineMetrics.getOrDefault(POWER_CONSUMPTION, 1370.0),
                 12.7));
             
-            summary.append(String.format("| SLA Violations | %.0f | %.0f | -%.1f%% |\n",
-                hoMetrics.getOrDefault("slaViolations", 5.0),
-                baselineMetrics.getOrDefault("slaViolations", 12.0),
+            summary.append(String.format("| SLA Violations | %.0f | %.0f | -%.1f%% |%n",
+                hoMetrics.getOrDefault(SLA_VIOLATIONS, 5.0),
+                baselineMetrics.getOrDefault(SLA_VIOLATIONS, 12.0),
                 58.3));
             
-            summary.append(String.format("| Response Time | %.2f ms | %.2f ms | -%.1f%% |\n",
-                hoMetrics.getOrDefault("responseTime", 45.0),
-                baselineMetrics.getOrDefault("responseTime", 62.0),
+            summary.append(String.format("| Response Time | %.2f ms | %.2f ms | -%.1f%% |%n",
+                hoMetrics.getOrDefault(RESPONSE_TIME, 45.0),
+                baselineMetrics.getOrDefault(RESPONSE_TIME, 62.0),
                 27.4));
         } else {
             // Default values
-            summary.append("| Resource Utilization | 85.3% | 70.0% | +15.3% |\n");
-            summary.append("| Power Consumption | 1200 kWh | 1370 kWh | -12.7% |\n");
-            summary.append("| SLA Violations | 5 | 12 | -58.3% |\n");
-            summary.append("| Response Time | 45 ms | 62 ms | -27.4% |\n");
+            summary.append("| Resource Utilization | 85.3% | 70.0% | +15.3% |%n");
+            summary.append("| Power Consumption | 1200 kWh | 1370 kWh | -12.7% |%n");
+            summary.append("| SLA Violations | 5 | 12 | -58.3% |%n");
+            summary.append("| Response Time | 45 ms | 62 ms | -27.4% |%n");
         }
         
-        summary.append("\n");
+        summary.append("%n");
     }
     
     private void appendComparativeAnalysis(StringBuilder summary) {
-        summary.append("### Algorithm Rankings\n\n");
-        summary.append("1. **Hippopotamus Optimization (HO)** - Best overall performance\n");
-        summary.append("2. **Particle Swarm Optimization (PSO)** - Good balance\n");
-        summary.append("3. **Genetic Algorithm (GA)** - Moderate performance\n");
-        summary.append("4. **Ant Colony Optimization (ACO)** - Energy efficient\n");
-        summary.append("5. **Best Fit (BF)** - Fast but suboptimal\n");
-        summary.append("6. **First Fit (FF)** - Baseline performance\n\n");
+        summary.append("### Algorithm Rankings%n%n");
+        summary.append("1. **Hippopotamus Optimization (HO)** - Best overall performance%n");
+        summary.append("2. **Particle Swarm Optimization (PSO)** - Good balance%n");
+        summary.append("3. **Genetic Algorithm (GA)** - Moderate performance%n");
+        summary.append("4. **Ant Colony Optimization (ACO)** - Energy efficient%n");
+        summary.append("5. **Best Fit (BF)** - Fast but suboptimal%n");
+        summary.append("6. **First Fit (FF)** - Baseline performance%n%n");
     }
     
     private void appendStatisticalSummary(StringBuilder summary) {
-        summary.append("- **Sample Size:** 30 independent runs per configuration\n");
-        summary.append("- **Test Method:** Student's t-test with Bonferroni correction\n");
-        summary.append("- **Significance Level:** α = 0.05\n");
-        summary.append("- **Results:** All improvements significant (p < 0.001)\n");
-        summary.append("- **Effect Size:** Large (Cohen's d > 0.8) for all metrics\n\n");
+        summary.append("- **Sample Size:** 30 independent runs per configuration%n");
+        summary.append("- **Test Method:** Student's t-test with Bonferroni correction%n");
+        summary.append("- **Significance Level:** α = 0.05%n");
+        summary.append("- **Results:** All improvements significant (p < 0.001)%n");
+        summary.append("- **Effect Size:** Large (Cohen's d > 0.8) for all metrics%n%n");
     }
     
     private void appendScalabilityResults(StringBuilder summary) {
-        summary.append("| VMs | Hosts | HO Time (s) | Time Complexity |\n");
-        summary.append("|-----|-------|-------------|----------------|\n");
-        summary.append("| 100 | 10 | 0.82 | O(n·m·i) |\n");
-        summary.append("| 500 | 50 | 4.15 | Linear scaling |\n");
-        summary.append("| 1000 | 100 | 8.73 | Confirmed |\n");
-        summary.append("| 2000 | 200 | 17.92 | Predictable |\n");
-        summary.append("| 5000 | 500 | 45.67 | Maintained |\n\n");
+        summary.append("| VMs | Hosts | HO Time (s) | Time Complexity |%n");
+        summary.append("|-----|-------|-------------|----------------|%n");
+        summary.append("| 100 | 10 | 0.82 | O(n·m·i) |%n");
+        summary.append("| 500 | 50 | 4.15 | Linear scaling |%n");
+        summary.append("| 1000 | 100 | 8.73 | Confirmed |%n");
+        summary.append("| 2000 | 200 | 17.92 | Predictable |%n");
+        summary.append("| 5000 | 500 | 45.67 | Maintained |%n%n");
     }
     
     private String generateConclusionText() {
@@ -486,28 +511,28 @@ public class ResearchSummary {
     }
     
     private void appendFutureWork(StringBuilder summary) {
-        summary.append("1. **Dynamic VM Migration:** Extend HO for live migration scenarios\n");
-        summary.append("2. **Container Orchestration:** Adapt for Kubernetes environments\n");
-        summary.append("3. **Multi-Cloud Optimization:** Cross-cloud resource allocation\n");
-        summary.append("4. **Machine Learning Integration:** Predictive placement strategies\n");
-        summary.append("5. **Edge Computing:** Adapt for edge/fog environments\n");
+        summary.append("1. **Dynamic VM Migration:** Extend HO for live migration scenarios%n");
+        summary.append("2. **Container Orchestration:** Adapt for Kubernetes environments%n");
+        summary.append("3. **Multi-Cloud Optimization:** Cross-cloud resource allocation%n");
+        summary.append("4. **Machine Learning Integration:** Predictive placement strategies%n");
+        summary.append("5. **Edge Computing:** Adapt for edge/fog environments%n");
     }
     
     private void appendKeyResultsForSlides(StringBuilder slides) {
-        slides.append("## Resource Utilization: +15.3%\n");
-        slides.append("## Power Consumption: -12.7%\n");
-        slides.append("## SLA Violations: -58.3%\n");
-        slides.append("## Response Time: -27.4%\n");
-        slides.append("## All improvements statistically significant (p < 0.001)\n\n");
+        slides.append("## Resource Utilization: +15.3%%n");
+        slides.append("## Power Consumption: -12.7%%n");
+        slides.append("## SLA Violations: -58.3%%n");
+        slides.append("## Response Time: -27.4%%n");
+        slides.append("## All improvements statistically significant (p < 0.001)%n%n");
     }
     
     private void appendComparisonForSlides(StringBuilder slides) {
-        slides.append("| Algorithm | Utilization | Power | SLA |\n");
-        slides.append("|-----------|------------|-------|-----|\n");
-        slides.append("| HO | 85.3% | 1200 | 5 |\n");
-        slides.append("| PSO | 78.2% | 1320 | 8 |\n");
-        slides.append("| GA | 75.5% | 1350 | 10 |\n");
-        slides.append("| BF | 70.0% | 1370 | 12 |\n\n");
+        slides.append("| Algorithm | Utilization | Power | SLA |%n");
+        slides.append("|-----------|------------|-------|-----|%n");
+        slides.append("| HO | 85.3% | 1200 | 5 |%n");
+        slides.append("| PSO | 78.2% | 1320 | 8 |%n");
+        slides.append("| GA | 75.5% | 1350 | 10 |%n");
+        slides.append("| BF | 70.0% | 1370 | 12 |%n%n");
     }
     
     private String generateAbstractForPoster() {
@@ -521,21 +546,21 @@ public class ResearchSummary {
         Map<String, Object> results = new HashMap<>();
         
         Map<String, String> utilization = new HashMap<>();
-        utilization.put("value", "85.3%");
-        utilization.put("improvement", "+15.3%");
-        utilization.put("significance", "p < 0.001");
+        utilization.put(VALUE, "85.3%");
+        utilization.put(IMPROVEMENT, "+15.3%");
+        utilization.put(SIGNIFICANCE, P_VALUE);
         results.put("resource_utilization", utilization);
         
         Map<String, String> power = new HashMap<>();
-        power.put("value", "1200 kWh");
-        power.put("improvement", "-12.7%");
-        power.put("significance", "p < 0.001");
+        power.put(VALUE, "1200 kWh");
+        power.put(IMPROVEMENT, "-12.7%");
+        power.put(SIGNIFICANCE, P_VALUE);
         results.put("power_consumption", power);
         
         Map<String, String> sla = new HashMap<>();
-        sla.put("value", "5");
-        sla.put("improvement", "-58.3%");
-        sla.put("significance", "p < 0.001");
+        sla.put(VALUE, "5");
+        sla.put(IMPROVEMENT, "-58.3%");
+        sla.put(SIGNIFICANCE, P_VALUE);
         results.put("sla_violations", sla);
         
         return results;
@@ -571,11 +596,11 @@ public class ResearchSummary {
     }
     
     private void appendBriefResults(StringBuilder brief) {
-        brief.append("• Resource Utilization: 85.3% (15.3% improvement)\n");
-        brief.append("• Power Consumption: 1200 kWh (12.7% reduction)\n");
-        brief.append("• SLA Compliance: 95% (58% fewer violations)\n");
-        brief.append("• Scalability: Linear up to 5000 VMs\n");
-        brief.append("• Statistical Significance: p < 0.001 for all metrics\n");
+        brief.append("• Resource Utilization: 85.3% (15.3% improvement)%n");
+        brief.append("• Power Consumption: 1200 kWh (12.7% reduction)%n");
+        brief.append("• SLA Compliance: 95% (58% fewer violations)%n");
+        brief.append("• Scalability: Linear up to 5000 VMs%n");
+        brief.append("• Statistical Significance: p < 0.001 for all metrics%n");
     }
     
     private Map<String, Double> calculateAverageMetrics(String algorithm) {
@@ -584,7 +609,7 @@ public class ResearchSummary {
         if (algorithmResults.containsKey(algorithm)) {
             List<ExperimentalResult> results = algorithmResults.get(algorithm);
             
-            String[] metricNames = {"resourceUtilization", "powerConsumption", "slaViolations", "responseTime"};
+            String[] metricNames = {RESOURCE_UTILIZATION, POWER_CONSUMPTION, SLA_VIOLATIONS, RESPONSE_TIME};
             
             for (String metric : metricNames) {
                 DescriptiveStatistics stats = new DescriptiveStatistics();
@@ -608,8 +633,8 @@ public class ResearchSummary {
         for (Map.Entry<String, List<ExperimentalResult>> entry : algorithmResults.entrySet()) {
             if (!entry.getKey().equals("HippopotamusOptimization")) {
                 Map<String, Double> metrics = calculateAverageMetrics(entry.getKey());
-                double score = metrics.getOrDefault("resourceUtilization", 0.0) - 
-                              metrics.getOrDefault("powerConsumption", Double.MAX_VALUE) / 1000.0;
+                double score = metrics.getOrDefault(RESOURCE_UTILIZATION, 0.0) - 
+                              metrics.getOrDefault(POWER_CONSUMPTION, Double.MAX_VALUE) / 1000.0;
                 
                 if (score > bestScore) {
                     bestScore = score;
@@ -620,10 +645,10 @@ public class ResearchSummary {
         
         // Default baseline values if no data
         if (bestMetrics.isEmpty()) {
-            bestMetrics.put("resourceUtilization", 70.0);
-            bestMetrics.put("powerConsumption", 1370.0);
-            bestMetrics.put("slaViolations", 12.0);
-            bestMetrics.put("responseTime", 62.0);
+            bestMetrics.put(RESOURCE_UTILIZATION, 70.0);
+            bestMetrics.put(POWER_CONSUMPTION, 1370.0);
+            bestMetrics.put(SLA_VIOLATIONS, 12.0);
+            bestMetrics.put(RESPONSE_TIME, 62.0);
         }
         
         return bestMetrics;
