@@ -24,7 +24,6 @@ import java.util.concurrent.*;
  */
 public class ExperimentRunner {
     
-    private static final LoggingManager logger = LoggingManager.getInstance();
     private final ResourceMonitor resourceMonitor;
     private final ExecutorService monitoringExecutor;
     private volatile boolean experimentRunning;
@@ -176,7 +175,7 @@ public class ExperimentRunner {
         simulation.setupSimulation(scenario);
         
         // Configure allocation policy based on algorithm type
-        configureAllocationPolicy(simulation, config, result);
+        configureAllocationPolicy(simulation, config);
         
         // Run simulation with timeout
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -260,14 +259,12 @@ public class ExperimentRunner {
      * Configure allocation policy based on algorithm type
      */
     private void configureAllocationPolicy(HippopotamusVmPlacementSimulation simulation,
-                                         ExperimentConfig config,
-                                         ExperimentalResult result) {
+                                         ExperimentConfig config) {
         switch (config.getAlgorithmType()) {
             case "HippopotamusOptimization":
-                HippopotamusVmAllocationPolicy hoPolicy = new HippopotamusVmAllocationPolicy();
                 // Note: setParameters method doesn't exist, we'll use constructor instead
                 if (config.toHippopotamusParameters() != null) {
-                    hoPolicy = new HippopotamusVmAllocationPolicy(config.toHippopotamusParameters());
+                    new HippopotamusVmAllocationPolicy(config.toHippopotamusParameters());
                 }
                 // Note: setAllocationPolicy method doesn't exist on simulation
                 // The simulation will use the policy internally
@@ -287,19 +284,16 @@ public class ExperimentRunner {
                 break;
                 
             case "GeneticAlgorithm":
-                GeneticAlgorithmVmAllocation gaPolicy = new GeneticAlgorithmVmAllocation();
                 // Note: setParameters method doesn't exist
                 // Parameters would be set through constructor or other means
                 break;
                 
             case "ParticleSwarm":
-                ParticleSwarmVmAllocation psoPolicy = new ParticleSwarmVmAllocation();
                 // Note: setParameters method doesn't exist
                 // Parameters would be set through constructor or other means
                 break;
                 
             case "AntColony":
-                AntColonyVmAllocation acoPolicy = new AntColonyVmAllocation();
                 // Note: setParameters method doesn't exist
                 // Parameters would be set through constructor or other means
                 break;
@@ -320,46 +314,63 @@ public class ExperimentRunner {
      */
     private void collectSimulationMetrics(HippopotamusVmPlacementSimulation simulation,
                                         ExperimentalResult result) {
-        Map<String, Object> metrics = simulation.collectMetrics();
+        try {
+            // The collectMetrics() method returns an ExperimentalResult, not a Map
+            ExperimentalResult simulationResult = simulation.collectMetrics();
+            
+            // Copy metrics from simulation result to our result
+            copyMetricsFromSimulationResult(simulationResult, result);
+            
+        } catch (Exception e) {
+            LoggingManager.logError("Failed to collect simulation metrics", e);
+            // Continue with partial results
+        }
+    }
+    
+    /**
+     * Copy metrics from simulation result to experiment result
+     */
+    private void copyMetricsFromSimulationResult(ExperimentalResult simulationResult, 
+                                               ExperimentalResult result) {
+        // Copy performance metrics
+        ExperimentalResult.PerformanceMetrics targetMetrics = result.getPerformanceMetrics();
+        ExperimentalResult.PerformanceMetrics sourceMetrics = simulationResult.getPerformanceMetrics();
         
-        // Update performance metrics
-        ExperimentalResult.PerformanceMetrics perfMetrics = result.getPerformanceMetrics();
-        
-        // Resource utilization
-        if (metrics.containsKey("resource_utilization")) {
-            Map<String, Double> utilization = (Map<String, Double>) metrics.get("resource_utilization");
-            perfMetrics.getResourceUtilization().setAvgCpuUtilization(
-                utilization.getOrDefault("cpu", 0.0));
-            perfMetrics.getResourceUtilization().setAvgMemoryUtilization(
-                utilization.getOrDefault("memory", 0.0));
+        // Copy resource utilization
+        if (sourceMetrics.getResourceUtilization() != null) {
+            targetMetrics.getResourceUtilization().setAvgCpuUtilization(
+                sourceMetrics.getResourceUtilization().getAvgCpuUtilization());
+            targetMetrics.getResourceUtilization().setAvgMemoryUtilization(
+                sourceMetrics.getResourceUtilization().getAvgMemoryUtilization());
         }
         
-        // Power consumption
-        if (metrics.containsKey("power_consumption")) {
-            Map<String, Double> power = (Map<String, Double>) metrics.get("power_consumption");
-            perfMetrics.getPowerConsumption().setTotalPowerConsumption(
-                power.getOrDefault("total", 0.0));
-            perfMetrics.getPowerConsumption().setAvgPowerConsumption(
-                power.getOrDefault("average", 0.0));
+        // Copy power consumption
+        if (sourceMetrics.getPowerConsumption() != null) {
+            targetMetrics.getPowerConsumption().setTotalPowerConsumption(
+                sourceMetrics.getPowerConsumption().getTotalPowerConsumption());
+            targetMetrics.getPowerConsumption().setAvgPowerConsumption(
+                sourceMetrics.getPowerConsumption().getAvgPowerConsumption());
         }
         
-        // SLA violations
-        if (metrics.containsKey("sla_violations")) {
-            Map<String, Object> sla = (Map<String, Object>) metrics.get("sla_violations");
-            perfMetrics.getSlaViolations().setTotalViolations(
-                (Integer) sla.getOrDefault("count", 0));
-            perfMetrics.getSlaViolations().setViolationRate(
-                (Double) sla.getOrDefault("rate", 0.0));
+        // Copy SLA violations
+        if (sourceMetrics.getSlaViolations() != null) {
+            targetMetrics.getSlaViolations().setTotalViolations(
+                sourceMetrics.getSlaViolations().getTotalViolations());
+            targetMetrics.getSlaViolations().setViolationRate(
+                sourceMetrics.getSlaViolations().getViolationRate());
         }
         
-        // Add raw data points for statistical analysis
-        for (Map.Entry<String, Object> entry : metrics.entrySet()) {
+        // Copy raw data points for statistical analysis
+        for (Map.Entry<String, List<Double>> entry : simulationResult.getRawData().entrySet()) {
             String metric = entry.getKey();
-            Object value = entry.getValue();
-            if (value instanceof Number) {
-                result.addRawDataPoint(metric, ((Number) value).doubleValue());
+            List<Double> values = entry.getValue();
+            for (Double value : values) {
+                result.addRawDataPoint(metric, value);
             }
         }
+        
+        // Note: setTotalHosts, setTotalVms, setTotalCloudlets methods don't exist in ExperimentalResult
+        // These would need to be added to the ExperimentalResult class if needed
     }
     
     /**
@@ -546,11 +557,6 @@ public class ExperimentRunner {
      */
     private void cleanupExperiment(ExperimentConfig config) {
         LoggingManager.logInfo("Cleaning up experiment: " + config.getExperimentName());
-        
-        // Force garbage collection for memory-intensive experiments
-        if (config.getVmCount() > 1000 || config.getHostCount() > 100) {
-            System.gc();
-        }
         
         // Clear any temporary files
         // Implementation depends on specific requirements
