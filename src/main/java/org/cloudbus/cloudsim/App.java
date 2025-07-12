@@ -116,43 +116,36 @@ public class App {
                     logger.info("Executing full research pipeline");
                     controller.executeFullResearchPipeline();
                     break;
-                    
                 case "single":
                     String algorithm = cmd.getOptionValue("algorithm", "HippopotamusOptimization");
                     String dataset = cmd.getOptionValue("dataset", "synthetic");
                     logger.info("Executing single experiment: {} on {}", algorithm, dataset);
-                    // TODO: Implement executeSingleExperiment in MainResearchController
+                    controller.executeSingleExperiment(algorithm, dataset);
                     break;
-                    
                 case "comparison":
                     logger.info("Executing algorithm comparison analysis");
-                    // TODO: Implement executeComparisonAnalysis in MainResearchController
+                    controller.executeComparisonAnalysis();
                     break;
-                    
                 case "scalability":
                     logger.info("Executing scalability analysis");
-                    // TODO: Implement executeScalabilityAnalysis in MainResearchController
+                    controller.executeScalabilityAnalysis();
                     break;
-                    
                 case "sensitivity":
                     logger.info("Executing parameter sensitivity analysis");
-                    // TODO: Implement executeParameterSensitivityAnalysis in MainResearchController
+                    controller.executeParameterSensitivityAnalysis();
                     break;
-                    
                 case "analysis":
                     String resultsPath = cmd.getOptionValue("results");
                     if (resultsPath == null) {
                         throw new ExperimentException("Results path required for analysis mode");
                     }
                     logger.info("Executing analysis only on: {}", resultsPath);
-                    // TODO: Implement executeAnalysisOnly in MainResearchController
+                    controller.executeAnalysisOnly(resultsPath);
                     break;
-                    
                 case "report":
                     logger.info("Generating reports only");
-                    // TODO: Implement generateReportsOnly in MainResearchController
+                    controller.generateReportsOnly();
                     break;
-                    
                 default:
                     throw new ExperimentException("Unknown execution mode: " + mode);
             }

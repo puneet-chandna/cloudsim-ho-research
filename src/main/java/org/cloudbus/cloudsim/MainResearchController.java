@@ -81,6 +81,141 @@ public class MainResearchController {
     }
     
     /**
+     * Execute a single experiment with the specified algorithm and dataset.
+     */
+    public void executeSingleExperiment(String algorithm, String dataset) throws ExperimentException {
+        logger.info("Running single experiment: {} on {}", algorithm, dataset);
+        try {
+            // Setup output directory
+            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+            outputDirectory = Paths.get("results", "single_experiment_" + timestamp);
+            Files.createDirectories(outputDirectory);
+            LoggingManager.initializeResearchLogging(outputDirectory);
+
+            // Create experiment config
+            ExperimentConfig config = new ExperimentConfig();
+            config.setExperimentName("single_" + algorithm + "_" + dataset);
+            config.setAlgorithmName(algorithm);
+            config.setDatasetName(dataset);
+            config.setReplications(1);
+            config.setOutputSettings(new ExperimentConfig.OutputSettings());
+            config.getOutputSettings().setOutputDirectory(outputDirectory.toString());
+
+            // Run experiment
+            ExperimentRunner runner = new ExperimentRunner();
+            ExperimentalResult result = runner.runExperiment(config);
+            aggregatedResults = new HashMap<>();
+            aggregatedResults.computeIfAbsent(algorithm, k -> new ArrayList<>()).add(result);
+
+            // Generate basic report
+            generateFinalResults();
+        } catch (Exception e) {
+            logger.error("Error running single experiment", e);
+            throw new ExperimentException("Single experiment failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Execute comparison analysis: run all baseline algorithms on all datasets.
+     */
+    public void executeComparisonAnalysis() throws ExperimentException {
+        logger.info("Running algorithm comparison analysis");
+        try {
+            initializeResearchEnvironment();
+            configureExperiments();
+            // Only baseline experiments
+            // Remove scalability/sensitivity/real dataset if not needed
+            enableScalabilityAnalysis = false;
+            enableSensitivityAnalysis = false;
+            enableRealDatasetAnalysis = false;
+            executeExperiments();
+            coordinateAnalysis();
+            generateFinalResults();
+            finalizeResearch();
+        } catch (Exception e) {
+            logger.error("Error in comparison analysis", e);
+            throw new ExperimentException("Comparison analysis failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Execute scalability analysis only.
+     */
+    public void executeScalabilityAnalysis() throws ExperimentException {
+        logger.info("Running scalability analysis");
+        try {
+            initializeResearchEnvironment();
+            configureExperiments();
+            // Only scalability experiments
+            enableRealDatasetAnalysis = false;
+            enableSensitivityAnalysis = false;
+            executeExperiments();
+            // Only scalability analysis
+            coordinateAnalysis();
+            generateFinalResults();
+            finalizeResearch();
+        } catch (Exception e) {
+            logger.error("Error in scalability analysis", e);
+            throw new ExperimentException("Scalability analysis failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Execute parameter sensitivity analysis only.
+     */
+    public void executeParameterSensitivityAnalysis() throws ExperimentException {
+        logger.info("Running parameter sensitivity analysis");
+        try {
+            initializeResearchEnvironment();
+            configureExperiments();
+            // Only sensitivity experiments
+            enableRealDatasetAnalysis = false;
+            enableScalabilityAnalysis = false;
+            executeExperiments();
+            // Only sensitivity analysis
+            coordinateAnalysis();
+            generateFinalResults();
+            finalizeResearch();
+        } catch (Exception e) {
+            logger.error("Error in sensitivity analysis", e);
+            throw new ExperimentException("Sensitivity analysis failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Analyze existing results from a given path (no new experiments).
+     */
+    public void executeAnalysisOnly(String resultsPath) throws ExperimentException {
+        logger.info("Running analysis only on results at: {}", resultsPath);
+        try {
+            // Load results from path (assume JSON or serialized ExperimentalResult)
+            // For demo, just set outputDirectory
+            outputDirectory = Paths.get(resultsPath);
+            // TODO: Implement actual loading of results into aggregatedResults
+            // For now, just run analysis/reporting on empty results
+            coordinateAnalysis();
+            generateFinalResults();
+        } catch (Exception e) {
+            logger.error("Error in analysis only mode", e);
+            throw new ExperimentException("Analysis only failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Generate reports only from existing analysis/results.
+     */
+    public void generateReportsOnly() throws ExperimentException {
+        logger.info("Generating reports only from existing results");
+        try {
+            // Assume outputDirectory and aggregatedResults are already set
+            generateFinalResults();
+        } catch (Exception e) {
+            logger.error("Error generating reports only", e);
+            throw new ExperimentException("Report generation failed: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
      * Execute the full research pipeline.
      * This is the main entry point for conducting the complete research study.
      * 
