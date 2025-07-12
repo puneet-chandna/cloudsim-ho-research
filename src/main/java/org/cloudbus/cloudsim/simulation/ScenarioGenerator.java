@@ -332,6 +332,14 @@ public class ScenarioGenerator {
             WorkloadCharacteristics workloadChar = workloadTemplates.get(selectedWorkloadType);
             scenario.setWorkloadCharacteristics(workloadChar);
             
+            // Add at least one default host and VM configuration
+            List<ExperimentalScenario.HostConfiguration> hostConfigs = new ArrayList<>();
+            hostConfigs.add(new ExperimentalScenario.HostConfiguration(0, 10000, 32768, 1000000, 10000));
+            scenario.setHostConfigurations(hostConfigs);
+            List<ExperimentalScenario.VmConfiguration> vmConfigs = new ArrayList<>();
+            vmConfigs.add(new ExperimentalScenario.VmConfiguration(0, 2000, 4096, 100000, 1000));
+            scenario.setVmConfigurations(vmConfigs);
+            
             scenarios.add(scenario);
         }
         
@@ -366,6 +374,14 @@ public class ScenarioGenerator {
             WorkloadCharacteristics workloadChar = workloadTemplates.get(selectedWorkloadType);
             scenario.setWorkloadCharacteristics(workloadChar);
             
+            // Add at least one default host and VM configuration
+            List<ExperimentalScenario.HostConfiguration> hostConfigs = new ArrayList<>();
+            hostConfigs.add(new ExperimentalScenario.HostConfiguration(0, 20000, 65536, 2000000, 20000));
+            scenario.setHostConfigurations(hostConfigs);
+            List<ExperimentalScenario.VmConfiguration> vmConfigs = new ArrayList<>();
+            vmConfigs.add(new ExperimentalScenario.VmConfiguration(0, 4000, 8192, 200000, 2000));
+            scenario.setVmConfigurations(vmConfigs);
+            
             scenarios.add(scenario);
         }
         
@@ -397,6 +413,14 @@ public class ScenarioGenerator {
             scenario.setCloudletSpecification(createVariedCloudletSpecification());
             scenario.setSlaRequirementsObject(createStandardSLARequirements());
             
+            // Add at least one default host and VM configuration
+            List<ExperimentalScenario.HostConfiguration> hostConfigs = new ArrayList<>();
+            hostConfigs.add(new ExperimentalScenario.HostConfiguration(0, 12000, 32768, 1000000, 10000));
+            scenario.setHostConfigurations(hostConfigs);
+            List<ExperimentalScenario.VmConfiguration> vmConfigs = new ArrayList<>();
+            vmConfigs.add(new ExperimentalScenario.VmConfiguration(0, 2500, 4096, 100000, 1000));
+            scenario.setVmConfigurations(vmConfigs);
+            
             scenarios.add(scenario);
         }
         
@@ -417,8 +441,8 @@ public class ScenarioGenerator {
             // Create resource pressure by having more VMs than optimal
             int hostCount = 15 + random.nextInt(15);
             scenario.setHostCount(hostCount);
-            scenario.setVmCount(hostCount * 8 + random.nextInt(hostCount * 4)); // High VM to host ratio
-            scenario.setCloudletCount(scenario.getVmCount() * 3);
+            scenario.setVmCount(hostCount * 8);
+            scenario.setCloudletCount(hostCount * 16);
             
             scenario.setHostSpecification(createLimitedHostSpecification());
             scenario.setVmSpecification(createDemandingVmSpecification());
@@ -430,6 +454,14 @@ public class ScenarioGenerator {
             String selectedWorkloadType = workloadTypes[random.nextInt(workloadTypes.length)];
             WorkloadCharacteristics workloadChar = workloadTemplates.get(selectedWorkloadType);
             scenario.setWorkloadCharacteristics(workloadChar);
+            
+            // Add at least one default host and VM configuration
+            List<ExperimentalScenario.HostConfiguration> hostConfigs = new ArrayList<>();
+            hostConfigs.add(new ExperimentalScenario.HostConfiguration(0, 8000, 16384, 500000, 5000));
+            scenario.setHostConfigurations(hostConfigs);
+            List<ExperimentalScenario.VmConfiguration> vmConfigs = new ArrayList<>();
+            vmConfigs.add(new ExperimentalScenario.VmConfiguration(0, 1000, 2048, 50000, 500));
+            scenario.setVmConfigurations(vmConfigs);
             
             scenarios.add(scenario);
         }
@@ -463,6 +495,14 @@ public class ScenarioGenerator {
             WorkloadCharacteristics workloadChar = workloadTemplates.get(selectedWorkloadType);
             scenario.setWorkloadCharacteristics(workloadChar);
             
+            // Add at least one default host and VM configuration
+            List<ExperimentalScenario.HostConfiguration> hostConfigs = new ArrayList<>();
+            hostConfigs.add(new ExperimentalScenario.HostConfiguration(0, 16000, 65536, 2000000, 20000));
+            scenario.setHostConfigurations(hostConfigs);
+            List<ExperimentalScenario.VmConfiguration> vmConfigs = new ArrayList<>();
+            vmConfigs.add(new ExperimentalScenario.VmConfiguration(0, 8000, 16384, 200000, 2000));
+            scenario.setVmConfigurations(vmConfigs);
+            
             scenarios.add(scenario);
         }
         
@@ -484,18 +524,26 @@ public class ScenarioGenerator {
             int hostCount = 50 + random.nextInt(50);
             scenario.setHostCount(hostCount);
             scenario.setVmCount(hostCount * 15); // Very high VM density
-            scenario.setCloudletCount(scenario.getVmCount() * 10); // High workload
+            scenario.setCloudletCount(scenario.getVmCount() * 2);
             
-            scenario.setHostSpecification(createLimitedHostSpecification());
+            scenario.setHostSpecification(createHighCapacityHostSpecification());
             scenario.setVmSpecification(createDemandingVmSpecification());
             scenario.setCloudletSpecification(createIntensiveCloudletSpecification());
-            scenario.setSlaRequirementsObject(createStrictSLARequirements());
+            scenario.setSlaRequirementsObject(createRelaxedSLARequirements());
             
             // Set workload characteristics to prevent validation failure
             String[] workloadTypes = {"WEB", "SCIENTIFIC", "DATABASE", "BATCH"};
             String selectedWorkloadType = workloadTypes[random.nextInt(workloadTypes.length)];
             WorkloadCharacteristics workloadChar = workloadTemplates.get(selectedWorkloadType);
             scenario.setWorkloadCharacteristics(workloadChar);
+            
+            // Add at least one default host and VM configuration
+            List<ExperimentalScenario.HostConfiguration> hostConfigs = new ArrayList<>();
+            hostConfigs.add(new ExperimentalScenario.HostConfiguration(0, 32000, 131072, 4000000, 40000));
+            scenario.setHostConfigurations(hostConfigs);
+            List<ExperimentalScenario.VmConfiguration> vmConfigs = new ArrayList<>();
+            vmConfigs.add(new ExperimentalScenario.VmConfiguration(0, 16000, 32768, 400000, 4000));
+            scenario.setVmConfigurations(vmConfigs);
             
             scenarios.add(scenario);
         }
@@ -525,6 +573,14 @@ public class ScenarioGenerator {
         String selectedWorkloadType = workloadTypes[random.nextInt(workloadTypes.length)];
         WorkloadCharacteristics workloadChar = workloadTemplates.get(selectedWorkloadType);
         scenario.setWorkloadCharacteristics(workloadChar);
+        
+        // Add at least one default host and VM configuration
+        List<ExperimentalScenario.HostConfiguration> hostConfigs = new ArrayList<>();
+        hostConfigs.add(new ExperimentalScenario.HostConfiguration(0, 10000, 32768, 1000000, 10000));
+        scenario.setHostConfigurations(hostConfigs);
+        List<ExperimentalScenario.VmConfiguration> vmConfigs = new ArrayList<>();
+        vmConfigs.add(new ExperimentalScenario.VmConfiguration(0, 2000, 4096, 100000, 1000));
+        scenario.setVmConfigurations(vmConfigs);
         
         return scenario;
     }
