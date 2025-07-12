@@ -96,8 +96,18 @@ public class HippopotamusOptimization {
             // Initialize optimization
             initializeOptimization(vmCount, hostCount, params);
             
+            // Add timeout mechanism
+            long startTime = System.currentTimeMillis();
+            long maxExecutionTime = 300000; // 5 minutes timeout
+            
             // Main optimization loop
             for (currentIteration = 0; currentIteration < params.getMaxIterations(); currentIteration++) {
+                // Check timeout
+                if (System.currentTimeMillis() - startTime > maxExecutionTime) {
+                    logger.warn("Optimization timeout reached after {} ms", maxExecutionTime);
+                    break;
+                }
+                
                 // Update hippopotamus positions
                 updatePopulation(params);
                 
@@ -223,8 +233,8 @@ public class HippopotamusOptimization {
             double r2 = ThreadLocalRandom.current().nextDouble();
             double r3 = ThreadLocalRandom.current().nextDouble();
             
-            // Adaptive coefficient based on iteration
-            double H = 2 * (1 - t); // Decreases over time
+            // Adaptive coefficient based on iteration (ensure it doesn't go to zero)
+            double H = Math.max(0.1, 2 * (1 - t)); // Decreases over time but has minimum
             
             if (r1 < 0.5) {
                 // Exploration phase
@@ -240,8 +250,13 @@ public class HippopotamusOptimization {
                 newPosition[vm] = (int) (bestHost + r3 * H * (2 * r2 - 1));
             }
             
-            // Ensure valid host assignment
+            // Ensure valid host assignment with proper bounds checking
             newPosition[vm] = Math.max(0, Math.min(hippo.getHostCount() - 1, newPosition[vm]));
+            
+            // Additional safety check to prevent invalid assignments
+            if (newPosition[vm] < 0 || newPosition[vm] >= hippo.getHostCount()) {
+                newPosition[vm] = ThreadLocalRandom.current().nextInt(hippo.getHostCount());
+            }
         }
         
         hippo.setPosition(newPosition);
@@ -465,6 +480,12 @@ public class HippopotamusOptimization {
      * Check convergence based on research criteria
      */
     private boolean checkConvergence(HippopotamusParameters params) {
+        // Add maximum iteration check to prevent infinite loops
+        if (currentIteration >= params.getMaxIterations() - 1) {
+            logger.info("Maximum iterations reached: {}", params.getMaxIterations());
+            return true;
+        }
+        
         if (convergenceHistory.size() < params.getConvergenceWindow()) {
             return false;
         }
@@ -479,7 +500,13 @@ public class HippopotamusOptimization {
         double maxFitness = Collections.max(recentHistory);
         double improvement = maxFitness - minFitness;
         
-        return improvement < params.getConvergenceThreshold();
+        boolean converged = improvement < params.getConvergenceThreshold();
+        if (converged) {
+            logger.info("Convergence achieved: improvement = {:.6f} < threshold = {:.6f}", 
+                       improvement, params.getConvergenceThreshold());
+        }
+        
+        return converged;
     }
     
     /**
