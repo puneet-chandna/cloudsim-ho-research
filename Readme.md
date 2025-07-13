@@ -1,5 +1,9 @@
 # CloudSim Hippopotamus Optimization Research Framework
 
+**Author**: Puneet Chandna  
+**Institution**: Vellore Institute of Technology, Chennai, Tamil Nadu  
+**Email**: puneetchandna21@gmail.com
+
 ## Table of Contents
 1. [Project Overview](#project-overview)
 2. [Recent Updates and Fixes](#recent-updates-and-fixes)
@@ -1208,4 +1212,26 @@ The CloudSim Hippopotamus Optimization Research Framework provides a comprehensi
 
 The framework's emphasis on statistical rigor, reproducibility, and comprehensive analysis makes it suitable for academic research, industrial evaluation, and algorithm comparison studies. Its integration with real-world datasets and support for multiple algorithms enables researchers to conduct thorough and meaningful experiments.
 
-For questions, issues, or contributions, please refer to the project repository and documentation resources. 
+For questions, issues, or contributions, please refer to the project repository and documentation resources.
+
+---
+
+## Author Information
+
+**Puneet Chandna**  
+Vellore Institute of Technology  
+Chennai, Tamil Nadu, India  
+Email: puneetchandna21@gmail.com
+
+### Research Focus
+- Cloud Computing and Virtual Machine Placement
+- Metaheuristic Optimization Algorithms
+- Multi-objective Optimization
+- Performance Analysis and Statistical Evaluation
+- CloudSim-based Simulation Research
+
+### Academic Background
+This research framework was developed as part of academic research in cloud computing optimization at Vellore Institute of Technology, Chennai. The project demonstrates the application of the Hippopotamus Optimization algorithm to solve complex VM placement problems in cloud computing environments.
+
+### Contact
+For research collaboration, academic inquiries, or technical support related to this framework, please contact the author at the email address provided above. 
