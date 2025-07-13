@@ -1,11 +1,12 @@
 {
-  "experimentConfig" : null,
+  "timestamp" : 1.752368414918E12,
   "algorithmName" : "HippopotamusOptimization",
-  "memoryUsage" : 0.0,
+  "memoryUsage" : 1.0,
   "executionTime" : 0,
   "resourceUtilization" : 0.0,
   "slaViolations" : 0.0,
   "powerConsumption" : 200.0,
+  "experimentConfig" : null,
   "metrics" : {
     "maxResponseTime" : 0.0,
     "avgResponseTime" : 0.0,
@@ -49,16 +50,15 @@
   },
   "scenarioDetails" : {
     "duration" : 0,
-    "experiment_id" : "2b0a2cba-80da-441f-8206-0e024633bd55",
+    "experiment_id" : "76bbdd36-59d6-4c20-a4b9-ded84a94e95d",
     "algorithm" : "HippopotamusOptimization"
   },
   "experimentConfiguration" : {
-    "experiment_id" : "2b0a2cba-80da-441f-8206-0e024633bd55",
+    "experiment_id" : "76bbdd36-59d6-4c20-a4b9-ded84a94e95d",
     "algorithm" : "HippopotamusOptimization"
   },
   "runNumber" : 1,
-  "timestamp" : 1.752360520569E12,
-  "experiment_id" : "2b0a2cba-80da-441f-8206-0e024633bd55",
+  "experiment_id" : "76bbdd36-59d6-4c20-a4b9-ded84a94e95d",
   "experiment_config" : {
     "replications" : 1,
     "hostCount" : 10,
@@ -66,7 +66,7 @@
     "vmCount" : 50,
     "algorithmName" : "HippopotamusOptimization"
   },
-  "start_time" : [ 2025, 7, 13, 4, 18, 40, 569620364 ],
+  "start_time" : [ 2025, 7, 13, 6, 30, 14, 918483831 ],
   "end_time" : null,
   "execution_duration_ms" : 0,
   "performance_metrics" : {
@@ -123,11 +123,11 @@
   },
   "statistical_measures" : {
     "means" : {
-      "system_cpu_usage" : 15.995279947916666,
+      "system_cpu_usage" : 47.07438151041667,
       "total_cloudlets" : 100.0,
       "total_hosts" : 10.0,
       "simulation_time" : 3.6893488267528E10,
-      "system_memory_usage" : 0.7181867449034868,
+      "system_memory_usage" : 0.8274619467556477,
       "total_vms" : 50.0
     },
     "standardDeviations" : {
@@ -147,27 +147,27 @@
       "total_vms" : 0.0
     },
     "minValues" : {
-      "system_cpu_usage" : 15.995279947916666,
+      "system_cpu_usage" : 47.07438151041667,
       "total_cloudlets" : 100.0,
       "total_hosts" : 10.0,
       "simulation_time" : 3.6893488267528E10,
-      "system_memory_usage" : 0.7181867449034868,
+      "system_memory_usage" : 0.8274619467556477,
       "total_vms" : 50.0
     },
     "maxValues" : {
-      "system_cpu_usage" : 15.995279947916666,
+      "system_cpu_usage" : 47.07438151041667,
       "total_cloudlets" : 100.0,
       "total_hosts" : 10.0,
       "simulation_time" : 3.6893488267528E10,
-      "system_memory_usage" : 0.7181867449034868,
+      "system_memory_usage" : 0.8274619467556477,
       "total_vms" : 50.0
     },
     "medians" : {
-      "system_cpu_usage" : 15.995279947916666,
+      "system_cpu_usage" : 47.07438151041667,
       "total_cloudlets" : 100.0,
       "total_hosts" : 10.0,
       "simulation_time" : 3.6893488267528E10,
-      "system_memory_usage" : 0.7181867449034868,
+      "system_memory_usage" : 0.8274619467556477,
       "total_vms" : 50.0
     },
     "coefficientsOfVariation" : {
@@ -184,17 +184,17 @@
     "operatingSystem" : "6.14.0-23-generic",
     "javaVersion" : "21.0.7",
     "availableProcessors" : 12,
-    "maxMemory" : 4120903680,
-    "usedMemory" : 0,
+    "maxMemory" : 4294967296,
+    "usedMemory" : 1,
     "systemProperties" : { }
   },
   "convergence_data" : [ ],
   "raw_data" : {
-    "system_cpu_usage" : [ 15.995279947916666 ],
+    "system_cpu_usage" : [ 47.07438151041667 ],
     "total_cloudlets" : [ 100.0 ],
     "total_hosts" : [ 10.0 ],
     "simulation_time" : [ 3.6893488267528E10 ],
-    "system_memory_usage" : [ 0.7181867449034868 ],
+    "system_memory_usage" : [ 0.8274619467556477 ],
     "total_vms" : [ 50.0 ]
   },
   "validation_status" : {

@@ -5,10 +5,12 @@ org/cloudbus/cloudsim/analyzer/StatisticalTestSuite$KruskalWallisResult.class
 org/cloudbus/cloudsim/util/ValidationUtils$DataIntegrityReport.class
 org/cloudbus/cloudsim/analyzer/StatisticalTestSuite.class
 org/cloudbus/cloudsim/baseline/RandomVmAllocation$DetailedMetrics.class
+org/cloudbus/cloudsim/util/MemoryLeakDetector.class
 org/cloudbus/cloudsim/reporting/FinalReportGenerator.class
 org/cloudbus/cloudsim/analyzer/SLAViolationAnalyzer$SLAViolation.class
 org/cloudbus/cloudsim/analyzer/ScalabilityAnalyzer$ComplexityClass.class
 org/cloudbus/cloudsim/baseline/FirstFitVmAllocation.class
+org/cloudbus/cloudsim/util/MemoryOptimizer.class
 org/cloudbus/cloudsim/experiment/ParameterSpace$SamplingStrategy.class
 org/cloudbus/cloudsim/analyzer/ComprehensiveStatisticalAnalyzer$InferentialAnalysisResult.class
 org/cloudbus/cloudsim/experiment/ExperimentalResult$ThroughputMetrics.class
@@ -20,6 +22,7 @@ org/cloudbus/cloudsim/experiment/BatchExperimentExecutor$ProgressMonitor.class
 org/cloudbus/cloudsim/baseline/GeneticAlgorithmVmAllocation.class
 org/cloudbus/cloudsim/dataset/WorkloadCharacteristics$TemporalCharacteristics.class
 org/cloudbus/cloudsim/reporting/VisualizationGenerator.class
+org/cloudbus/cloudsim/util/MemoryLeakDetectionManager$ExperimentMemoryTracker.class
 org/cloudbus/cloudsim/experiment/ExperimentalResult$PerformanceMetrics.class
 org/cloudbus/cloudsim/dataset/DatasetLoader.class
 org/cloudbus/cloudsim/analyzer/ComprehensiveStatisticalAnalyzer.class
@@ -40,11 +43,13 @@ org/cloudbus/cloudsim/dataset/WorkloadCharacteristics$ResourceRequirementPattern
 org/cloudbus/cloudsim/util/ResourceMonitor$ResourceStatistics.class
 org/cloudbus/cloudsim/dataset/AzureTraceParser.class
 org/cloudbus/cloudsim/analyzer/ScalabilityAnalyzer.class
+org/cloudbus/cloudsim/util/MemoryLeakTest.class
 org/cloudbus/cloudsim/simulation/ExperimentalScenario.class
 org/cloudbus/cloudsim/dataset/ResourceDistributionStats.class
 org/cloudbus/cloudsim/dataset/WorkloadCharacteristics$Builder.class
 org/cloudbus/cloudsim/analyzer/ScalabilityAnalyzer$ScalingPoint.class
 org/cloudbus/cloudsim/dataset/GoogleTraceParser$TaskUsageData.class
+org/cloudbus/cloudsim/util/MemoryLeakDetector$MemorySnapshot.class
 org/cloudbus/cloudsim/dataset/GoogleTraceParser$WorkloadPatterns.class
 org/cloudbus/cloudsim/algorithm/HippopotamusOptimization.class
 org/cloudbus/cloudsim/util/LoggingManager$1.class
@@ -89,11 +94,13 @@ org/cloudbus/cloudsim/util/ResourceMonitor$MemoryUsage.class
 org/cloudbus/cloudsim/experiment/ParameterSpace.class
 org/cloudbus/cloudsim/util/ValidationUtils$ValidationReport.class
 org/cloudbus/cloudsim/experiment/BatchExperimentExecutor$BatchExecutionResult.class
+org/cloudbus/cloudsim/util/MemoryLeakDetectionManager.class
 org/cloudbus/cloudsim/analyzer/SLAViolationAnalyzer$SpatialPattern.class
 org/cloudbus/cloudsim/experiment/ExperimentalResult$ResourceUtilizationMetrics.class
 org/cloudbus/cloudsim/dataset/VMSpecificationRecord.class
 org/cloudbus/cloudsim/analyzer/RealDatasetAnalyzer$WorkloadCharacterization.class
 org/cloudbus/cloudsim/util/ExperimentException.class
+org/cloudbus/cloudsim/util/MemoryLeakDetector$GCSnapshot.class
 org/cloudbus/cloudsim/reporting/FinalReportGenerator$SectionWriter.class
 org/cloudbus/cloudsim/baseline/GeneticAlgorithmVmAllocation$Individual.class
 org/cloudbus/cloudsim/dataset/WorkloadProfile.class
@@ -122,6 +129,7 @@ org/cloudbus/cloudsim/util/DatasetIntegration.class
 org/cloudbus/cloudsim/baseline/AntColonyVmAllocation.class
 org/cloudbus/cloudsim/experiment/ExperimentRunner$ExperimentException.class
 org/cloudbus/cloudsim/experiment/ExperimentConfig$MeasurementSettings.class
+org/cloudbus/cloudsim/util/MemoryOptimizer$MemoryStats.class
 org/cloudbus/cloudsim/baseline/RandomVmAllocation.class
 org/cloudbus/cloudsim/simulation/ExperimentalScenario$HostConfiguration.class
 org/cloudbus/cloudsim/algorithm/Hippopotamus.class
@@ -143,6 +151,7 @@ org/cloudbus/cloudsim/experiment/ExperimentalResult$ValidationStatus.class
 org/cloudbus/cloudsim/experiment/BatchExperimentExecutor$ExperimentExecutionResult.class
 org/cloudbus/cloudsim/analyzer/StatisticalTestSuite$WilcoxonTestResult.class
 org/cloudbus/cloudsim/algorithm/OptimizationResult$Builder.class
+org/cloudbus/cloudsim/util/MemoryLeakDetectionManager$MemoryLeakPattern.class
 org/cloudbus/cloudsim/experiment/ExperimentalResult$ResponseTimeMetrics.class
 org/cloudbus/cloudsim/algorithm/HippopotamusParameters.class
 org/cloudbus/cloudsim/algorithm/SimpleOptimizationResult.class

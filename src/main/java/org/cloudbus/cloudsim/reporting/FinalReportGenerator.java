@@ -435,18 +435,18 @@ public class FinalReportGenerator {
         para.createRun().setText("Experimental Configuration:");
         
         // Add configuration details from experiment configs
-        if (!allResults.isEmpty() && allResults.get(0).getExperimentConfig() != null) {
-            ExperimentConfig config = allResults.get(0).getExperimentConfig();
+        if (!allResults.isEmpty() && allResults.get(0).getExperimentConfigData() != null) {
+            Map<String, Object> configData = allResults.get(0).getExperimentConfigData();
             
             XWPFTable table = document.createTable(4, 2);
             table.getRow(0).getCell(0).setText("Parameter");
             table.getRow(0).getCell(1).setText("Value");
-            table.getRow(1).getCell(0).setText("Simulation Duration");
-            table.getRow(1).getCell(1).setText(config.getSimulationDuration() + " seconds");
+            table.getRow(1).getCell(0).setText("Algorithm");
+            table.getRow(1).getCell(1).setText((String) configData.getOrDefault("algorithmName", "Unknown"));
             table.getRow(2).getCell(0).setText("Number of VMs");
-            table.getRow(2).getCell(1).setText(String.valueOf(config.getVmCount()));
+            table.getRow(2).getCell(1).setText(String.valueOf(configData.getOrDefault("vmCount", 0)));
             table.getRow(3).getCell(0).setText("Number of Hosts");
-            table.getRow(3).getCell(1).setText(String.valueOf(config.getHostCount()));
+            table.getRow(3).getCell(1).setText(String.valueOf(configData.getOrDefault("hostCount", 0)));
         }
     }
     

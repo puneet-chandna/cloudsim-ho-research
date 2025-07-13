@@ -131,8 +131,8 @@ public class PublicationDataExporter {
                         experimentId++,
                         result.getAlgorithmName(),
                         result.getRunNumber(),
-                        result.getExperimentConfig().getVmCount(),
-                        result.getExperimentConfig().getHostCount(),
+                                    (Integer) result.getExperimentConfigData().getOrDefault("vmCount", 0),
+            (Integer) result.getExperimentConfigData().getOrDefault("hostCount", 0),
                         result.getMetric(RESOURCE_UTILIZATION),
                         result.getMetric(POWER_CONSUMPTION),
                         result.getMetric(SLA_VIOLATIONS),
@@ -471,10 +471,10 @@ public class PublicationDataExporter {
                 
                 // Configuration
                 Map<String, Object> configMap = new HashMap<>();
-                ExperimentConfig config = result.getExperimentConfig();
-                configMap.put("vmCount", config.getVmCount());
-                configMap.put("hostCount", config.getHostCount());
-                configMap.put("simulationDuration", config.getSimulationDuration());
+                Map<String, Object> configData = result.getExperimentConfigData();
+                configMap.put("vmCount", configData.getOrDefault("vmCount", 0));
+                configMap.put("hostCount", configData.getOrDefault("hostCount", 0));
+                configMap.put("simulationDuration", configData.getOrDefault("simulationDuration", 0));
                 resultMap.put("configuration", configMap);
                 
                 // Metrics

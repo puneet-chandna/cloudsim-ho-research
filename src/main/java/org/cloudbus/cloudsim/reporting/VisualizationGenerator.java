@@ -779,7 +779,11 @@ public class VisualizationGenerator {
         Map<Integer, List<Double>> vmCountTimes = new HashMap<>();
         
         for (ExperimentalResult result : results) {
-            int vmCount = result.getExperimentConfig().getVmCount();
+            int vmCount = 0;
+            if (result.getExperimentConfigData() != null && 
+                result.getExperimentConfigData().containsKey("vmCount")) {
+                vmCount = (Integer) result.getExperimentConfigData().get("vmCount");
+            }
             double execTime = result.getMetric("executionTime");
             vmCountTimes.computeIfAbsent(vmCount, k -> new ArrayList<>()).add(execTime);
         }

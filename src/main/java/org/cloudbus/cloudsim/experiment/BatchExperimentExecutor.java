@@ -564,7 +564,13 @@ public class BatchExperimentExecutor {
                 // Group results by algorithm for inferential analysis
                 Map<String, List<ExperimentalResult>> algorithmResults = new HashMap<>();
                 for (ExperimentalResult result : results) {
-                    String algorithmName = result.getExperimentConfig().getAlgorithmType();
+                    String algorithmName = "Unknown";
+            if (result.getExperimentConfigData() != null && 
+                result.getExperimentConfigData().containsKey("algorithmName")) {
+                algorithmName = (String) result.getExperimentConfigData().get("algorithmName");
+            } else if (result.getAlgorithmName() != null) {
+                algorithmName = result.getAlgorithmName();
+            }
                     algorithmResults.computeIfAbsent(algorithmName, k -> new ArrayList<>()).add(result);
                 }
                 

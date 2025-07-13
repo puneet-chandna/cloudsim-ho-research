@@ -11,6 +11,7 @@
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/policy/PowerAwareHippopotamusPolicy.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/simulation/ExperimentalScenario.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/util/DatasetIntegration.java
+/home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/util/MemoryLeakDetector.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/simulation/HippopotamusVmPlacementSimulation.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/algorithm/Hippopotamus.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/experiment/ParameterSpace.java
@@ -33,7 +34,9 @@
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/baseline/BestFitVmAllocation.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/simulation/SimulationEnvironment.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/analyzer/SLAViolationAnalyzer.java
+/home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/util/MemoryLeakTest.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/algorithm/OptimizationResult.java
+/home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/util/MemoryOptimizer.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/experiment/ExperimentConfig.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/dataset/WorkloadCharacteristics.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/dataset/DatasetLoader.java
@@ -52,3 +55,4 @@
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/experiment/ExperimentRunner.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/reporting/PublicationDataExporter.java
 /home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/algorithm/HippopotamusOptimization.java
+/home/puneet/codes/vmproject/cloudsim-ho-research/src/main/java/org/cloudbus/cloudsim/util/MemoryLeakDetectionManager.java

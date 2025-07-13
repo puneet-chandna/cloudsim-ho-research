@@ -51,6 +51,7 @@ public class MainResearchController {
     private final LoggingManager loggingManager;
     private final ResourceMonitor resourceMonitor;
     private final ValidationUtils validator;
+    private final MemoryOptimizer memoryOptimizer;
     
     private List<ExperimentConfig> experimentConfigs;
     private Map<String, List<ExperimentalResult>> aggregatedResults;
@@ -74,6 +75,7 @@ public class MainResearchController {
         this.loggingManager = new LoggingManager();
         this.resourceMonitor = ResourceMonitor.getInstance();
         this.validator = new ValidationUtils();
+        this.memoryOptimizer = new MemoryOptimizer(2048); // 2GB threshold
         this.aggregatedResults = new HashMap<>();
         this.executorService = Executors.newFixedThreadPool(
             Runtime.getRuntime().availableProcessors()
@@ -242,6 +244,9 @@ public class MainResearchController {
             // Initialize research environment
             initializeResearchEnvironment();
             
+            // Start memory optimization
+            memoryOptimizer.startMonitoring();
+            
             // Phase 1: Configuration and validation
             logger.info("Phase 1: Configuring experiments");
             configureExperiments();
@@ -260,6 +265,9 @@ public class MainResearchController {
             
             // Cleanup and finalization
             finalizeResearch();
+            
+            // Stop memory optimization
+            memoryOptimizer.stopMonitoring();
             
             Duration totalDuration = Duration.between(researchStartTime, LocalDateTime.now());
             logger.info("Research pipeline completed successfully in {} hours", 
@@ -461,10 +469,16 @@ public class MainResearchController {
     
     private void initializeResearchEnvironment() throws ExperimentException {
         try {
-            // Setup output directory structure
+            // Setup output directory structure for full research runs
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            outputDirectory = Paths.get("results", "research_" + timestamp);
+            outputDirectory = Paths.get("results", "full_research_" + timestamp);
             Files.createDirectories(outputDirectory);
+            
+            // Create organized subdirectories for different experiment types
+            Files.createDirectories(outputDirectory.resolve("baseline_experiments"));
+            Files.createDirectories(outputDirectory.resolve("real_dataset_experiments"));
+            Files.createDirectories(outputDirectory.resolve("scalability_experiments"));
+            Files.createDirectories(outputDirectory.resolve("sensitivity_experiments"));
             Files.createDirectories(outputDirectory.resolve("raw_data"));
             Files.createDirectories(outputDirectory.resolve("statistical_analysis"));
             Files.createDirectories(outputDirectory.resolve("comparison_reports"));
@@ -504,9 +518,19 @@ public class MainResearchController {
                 allResults.add(result);
             }
             
+            // Force memory cleanup after batch execution
+            memoryOptimizer.forceCleanup();
+            
             // Collect and aggregate results
             for (ExperimentalResult result : allResults) {
-                String experimentType = result.getExperimentConfig().getExperimentName();
+                // Use experimentConfigData instead of getExperimentConfig() which returns null
+                String experimentType = "Unknown";
+                if (result.getExperimentConfigData() != null && 
+                    result.getExperimentConfigData().containsKey("experimentId")) {
+                    experimentType = (String) result.getExperimentConfigData().get("experimentId");
+                } else if (result.getExperimentId() != null) {
+                    experimentType = result.getExperimentId();
+                }
                 aggregatedResults.computeIfAbsent(experimentType, k -> new ArrayList<>())
                     .add(result);
             }
@@ -572,6 +596,11 @@ public class MainResearchController {
                     config.setReplications(30); // For statistical significance
                     config.setRandomSeed(12345L); // For reproducibility
                     
+                    // Set output directory for baseline experiments
+                    ExperimentConfig.OutputSettings outputSettings = new ExperimentConfig.OutputSettings();
+                    outputSettings.setOutputDirectory(outputDirectory.resolve("baseline_experiments").toString());
+                    config.setOutputSettings(outputSettings);
+                    
                     experimentConfigs.add(config);
                 }
             } else {
@@ -589,6 +618,11 @@ public class MainResearchController {
                 
                 config.setReplications(30);
                 config.setRandomSeed(12345L);
+                
+                // Set output directory for baseline experiments
+                ExperimentConfig.OutputSettings outputSettings = new ExperimentConfig.OutputSettings();
+                outputSettings.setOutputDirectory(outputDirectory.resolve("baseline_experiments").toString());
+                config.setOutputSettings(outputSettings);
                 
                 experimentConfigs.add(config);
             }
@@ -625,6 +659,11 @@ public class MainResearchController {
                     config.setParameters(defaultParams);
                     
                     config.setReplications(10); // Fewer replications due to dataset size
+                    
+                    // Set output directory for real dataset experiments
+                    ExperimentConfig.OutputSettings outputSettings = new ExperimentConfig.OutputSettings();
+                    outputSettings.setOutputDirectory(outputDirectory.resolve("real_dataset_experiments").toString());
+                    config.setOutputSettings(outputSettings);
                     
                     experimentConfigs.add(config);
                 }
@@ -672,6 +711,11 @@ public class MainResearchController {
                     
                     config.setReplications(5);
                     
+                    // Set output directory for scalability experiments
+                    ExperimentConfig.OutputSettings outputSettings = new ExperimentConfig.OutputSettings();
+                    outputSettings.setOutputDirectory(outputDirectory.resolve("scalability_experiments").toString());
+                    config.setOutputSettings(outputSettings);
+                    
                     experimentConfigs.add(config);
                 }
             }
@@ -704,6 +748,11 @@ public class MainResearchController {
             config.setAlgorithmName(HIPPOPOTAMUS_OPTIMIZATION);
             config.setParameters(paramSet);
             config.setReplications(10);
+            
+            // Set output directory for sensitivity experiments
+            ExperimentConfig.OutputSettings outputSettings = new ExperimentConfig.OutputSettings();
+            outputSettings.setOutputDirectory(outputDirectory.resolve("sensitivity_experiments").toString());
+            config.setOutputSettings(outputSettings);
             
             experimentConfigs.add(config);
         }

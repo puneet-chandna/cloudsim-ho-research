@@ -7,6 +7,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.IntStream;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.random.MersenneTwister;
+import org.cloudbus.cloudsim.util.MemoryLeakDetectionManager;
 
 /**
  * Hippopotamus Optimization Algorithm for VM Placement
@@ -39,6 +40,12 @@ public class HippopotamusOptimization {
     private int functionEvaluations;
     private MersenneTwister random;
     
+    // Memory leak detection
+    private final MemoryLeakDetectionManager memoryLeakDetector;
+    private String currentExperimentId;
+    private int memoryCheckCounter;
+    private static final int MEMORY_CHECK_INTERVAL = 10; // Check every 10 iterations
+    
     // Algorithm state
     private List<Hippopotamus> population;
     private Hippopotamus globalBest;
@@ -64,6 +71,8 @@ public class HippopotamusOptimization {
         this.diversityStats = new DescriptiveStatistics();
         this.executionMetrics = new HashMap<>();
         this.random = new MersenneTwister();
+        this.memoryLeakDetector = MemoryLeakDetectionManager.getInstance();
+        this.memoryCheckCounter = 0;
         
         logger.info("HippopotamusOptimization initialized for research framework");
     }
@@ -91,6 +100,10 @@ public class HippopotamusOptimization {
         
         optimizationStartTime = System.currentTimeMillis();
         validateParameters(vmCount, hostCount, params);
+        
+        // Initialize memory leak detection
+        currentExperimentId = "ho_optimization_" + System.currentTimeMillis();
+        memoryLeakDetector.startExperimentMonitoring(currentExperimentId);
         
         try {
             // Initialize optimization
@@ -120,6 +133,9 @@ public class HippopotamusOptimization {
                 // Track convergence and diversity
                 trackOptimizationProgress();
                 
+                // Memory leak detection check
+                performMemoryLeakCheck();
+                
                 // Check convergence
                 if (checkConvergence(params)) {
                     logger.info("Convergence achieved at iteration {}", currentIteration);
@@ -135,10 +151,20 @@ public class HippopotamusOptimization {
             }
             
             optimizationEndTime = System.currentTimeMillis();
+            
+            // Stop memory leak detection
+            memoryLeakDetector.stopExperimentMonitoring(currentExperimentId);
+            
             return generateOptimizationResult(params);
             
         } catch (Exception e) {
             logger.error("Error during optimization", e);
+            
+            // Stop memory leak detection on error
+            if (currentExperimentId != null) {
+                memoryLeakDetector.stopExperimentMonitoring(currentExperimentId);
+            }
+            
             throw new RuntimeException("Optimization failed", e);
         }
     }
@@ -641,5 +667,66 @@ public class HippopotamusOptimization {
         return population.stream()
             .map(Hippopotamus::new)
             .collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
+    }
+    
+    /**
+     * Perform memory leak detection check during optimization
+     */
+    private void performMemoryLeakCheck() {
+        memoryCheckCounter++;
+        
+        if (memoryCheckCounter % MEMORY_CHECK_INTERVAL == 0) {
+            try {
+                // Create algorithm state for memory analysis
+                Map<String, Object> algorithmState = new HashMap<>();
+                algorithmState.put("population", population);
+                algorithmState.put("convergenceHistory", convergenceHistory);
+                algorithmState.put("diversityHistory", diversityHistory);
+                algorithmState.put("currentIteration", currentIteration);
+                algorithmState.put("functionEvaluations", functionEvaluations);
+                
+                // Check for memory leaks in optimization algorithm
+                memoryLeakDetector.checkOptimizationAlgorithmMemory(
+                    currentExperimentId, "HippopotamusOptimization", algorithmState);
+                
+                // Record memory allocation for this iteration
+                long estimatedMemory = estimateCurrentMemoryUsage();
+                memoryLeakDetector.recordMemoryAllocation(
+                    currentExperimentId, estimatedMemory, "optimization_iteration");
+                
+                logger.debug("Memory leak check completed at iteration {}", currentIteration);
+                
+            } catch (Exception e) {
+                logger.warn("Error during memory leak check: {}", e.getMessage());
+            }
+        }
+    }
+    
+    /**
+     * Estimate current memory usage for the optimization algorithm
+     */
+    private long estimateCurrentMemoryUsage() {
+        long memoryUsage = 0;
+        
+        // Estimate population memory
+        if (population != null) {
+            memoryUsage += population.size() * 1024; // Rough estimate per individual
+        }
+        
+        // Estimate history memory
+        if (convergenceHistory != null) {
+            memoryUsage += convergenceHistory.size() * 8; // Double values
+        }
+        
+        if (diversityHistory != null) {
+            memoryUsage += diversityHistory.size() * 8; // Double values
+        }
+        
+        // Estimate parameter sensitivity data
+        if (parameterSensitivityData != null) {
+            memoryUsage += parameterSensitivityData.size() * 1024; // Rough estimate
+        }
+        
+        return memoryUsage;
     }
 }
