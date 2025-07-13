@@ -1,0 +1,67 @@
+=== MEMORY LEAK DETECTION REPORT ===
+Session ID: session_1752370407841
+Report #: 9
+Experiment ID: ho_optimization_1752370410959
+Generated: 2025-07-13 07:03:30
+
+=== MEMORY USAGE SUMMARY ===
+Heap Used: 420 MB
+Heap Committed: 4100 MB
+Heap Max: 8192 MB
+Non-Heap Used: 30 MB
+Active Threads: 37
+Peak Threads: 47
+
+=== GARBAGE COLLECTION STATISTICS ===
+Total GC Count: 2
+Total GC Time: 8 ms
+GC Efficiency: 99.99%
+
+=== MEMORY LEAK ANALYSIS ===
+
+=== MEMORY POOL DETAILS ===
+Pool: CodeHeap 'non-nmethods'
+  Used: 1 MB
+  Committed: 2 MB
+  Max: 5 MB
+
+Pool: Metaspace
+  Used: 17 MB
+  Committed: 18 MB
+  Max: 0 MB
+
+Pool: CodeHeap 'profiled nmethods'
+  Used: 7 MB
+  Committed: 7 MB
+  Max: 117 MB
+
+Pool: Compressed Class Space
+  Used: 2 MB
+  Committed: 2 MB
+  Max: 1024 MB
+
+Pool: G1 Eden Space
+  Used: 420 MB
+  Committed: 612 MB
+  Max: 0 MB
+
+Pool: G1 Old Gen
+  Used: 1 MB
+  Committed: 3480 MB
+  Max: 8192 MB
+
+Pool: G1 Survivor Space
+  Used: 7 MB
+  Committed: 8 MB
+  Max: 0 MB
+
+Pool: CodeHeap 'non-profiled nmethods'
+  Used: 2 MB
+  Committed: 2 MB
+  Max: 117 MB
+
+=== FILE MANAGEMENT INFO ===
+Reports generated this session: 9/10
+Experiments reported: 8
+Snapshots stored: 5
+
