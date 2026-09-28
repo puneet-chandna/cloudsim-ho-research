@@ -1,0 +1,77 @@
+name: Java 21 validation
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validation-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pull-request:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - name: Build and verify the packaged artifact
+        run: ./mvnw -B clean verify
+      - name: Retain and independently validate four-case smoke
+        shell: bash
+        run: |
+          java -Xmx4g -jar target/cloudsim-ho-research-v2-2.0.0.jar --profile smoke --output-dir target/ci-smoke
+          runs=(target/ci-smoke/*)
+          test "${#runs[@]}" -eq 1
+          python3 scripts/statistics_validator.py "${runs[0]}"
+          python3 -c 'import hashlib,json,pathlib; jar=pathlib.Path("target/cloudsim-ho-research-v2-2.0.0.jar"); run=next(pathlib.Path("target/ci-smoke").iterdir()); assert json.loads((run/"run.json").read_text())["artifact_sha256"]==hashlib.sha256(jar.read_bytes()).hexdigest()'
+
+  release-smoke:
+    if: github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      # This job promises packaged smoke only. Linux PR validation runs the oracle suite.
+      - name: Build and validate packaged smoke
+        shell: pwsh
+        run: |
+          if ($IsWindows) { .\mvnw.cmd -B '-Dmaven.test.skip=true' clean package }
+          else { ./mvnw -B '-Dmaven.test.skip=true' clean package }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          java -Xmx4g -jar target/cloudsim-ho-research-v2-2.0.0.jar --profile smoke --output-dir target/ci-smoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $runs = @(Get-ChildItem -Directory target/ci-smoke)
+          if ($runs.Count -ne 1) { throw 'Expected one smoke run' }
+          python scripts/statistics_validator.py $runs[0].FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $manifest = Get-Content (Join-Path $runs[0].FullName 'run.json') -Raw | ConvertFrom-Json
+          $artifactHash = (Get-FileHash target/cloudsim-ho-research-v2-2.0.0.jar -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($manifest.artifact_sha256 -ne $artifactHash) { throw 'Artifact hash mismatch' }

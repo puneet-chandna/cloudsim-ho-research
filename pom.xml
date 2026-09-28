@@ -7,28 +7,29 @@
     
     <groupId>org.puneet.cloudsimplus.hiippo</groupId>
     <artifactId>cloudsim-ho-research-v2</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>2.0.0</version>
     <packaging>jar</packaging>
     
     <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <cloudsimplus.version>8.5.7</cloudsimplus.version>
         <commons.math3.version>3.6.1</commons.math3.version>
         <commons.csv.version>1.10.0</commons.csv.version>
-        <logback.version>1.4.14</logback.version>
+        <commons.lang3.version>3.18.0</commons.lang3.version>
+        <logback.version>1.6.4</logback.version>
         <junit.version>5.10.1</junit.version>
     </properties>
     
-    <!-- Distribution Management for GitHub Packages -->
-    <distributionManagement>
-        <repository>
-            <id>github</id>
-            <name>GitHub Packages</name>
-            <url>https://maven.pkg.github.com/puneet-chandna/cloudsim-ho-research-V2</url>
-        </repository>
-    </distributionManagement>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commons.lang3.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
     
     <dependencies>
         <!-- CloudSim Plus -->
@@ -62,7 +63,7 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>2.0.7</version>
+            <version>2.0.20</version>
         </dependency>
         
         <!-- Logback Core -->
@@ -79,11 +80,10 @@
             <version>${logback.version}</version>
         </dependency>
         
-        <!-- Janino - Required for Logback conditional expressions -->
         <dependency>
-            <groupId>org.codehaus.janino</groupId>
-            <artifactId>janino</artifactId>
-            <version>3.1.10</version>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.12.1</version>
         </dependency>
         
         <!-- JUnit Testing -->
@@ -107,11 +107,23 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
+                <!-- Shade replaces the main jar; always rebuild the thin jar before shading again. -->
+                <configuration><forceCreation>true</forceCreation></configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+                <configuration><overwrite>true</overwrite></configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
-                    <source>21</source>
-                    <target>21</target>
+                    <release>21</release>
                     <compilerArgs>
                         <arg>-parameters</arg>
                     </compilerArgs>
@@ -123,19 +135,17 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.0.0-M7</version>
                 <configuration>
-                    <argLine>-Xmx4G -Xms2G</argLine>
-                    <parallel>methods</parallel>
-                    <threadCount>2</threadCount>
+                    <argLine>-Xmx512m</argLine>
                 </configuration>
             </plugin>
             
             <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>3.1.0</version>
+                <groupId>io.github.git-commit-id</groupId>
+                <artifactId>git-commit-id-maven-plugin</artifactId>
+                <version>9.0.2</version>
+                <executions><execution><goals><goal>revision</goal></goals></execution></executions>
                 <configuration>
-                    <mainClass>org.puneet.cloudsimplus.hiippo.App</mainClass>
-                    <commandlineArgs>-Xmx45G -Xms45G -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -Xloggc:gc.log -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=./heapdump.hprof -XX:+DisableExplicitGC</commandlineArgs>
+                    <failOnNoGitDirectory>true</failOnNoGitDirectory>
                 </configuration>
             </plugin>
             
@@ -153,12 +163,20 @@
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>org.puneet.cloudsimplus.hiippo.App</mainClass>
+                                    <manifestEntries>
+                                        <Implementation-Version>${project.version}</Implementation-Version>
+                                        <Git-Revision>${git.commit.id}</Git-Revision>
+                                        <Git-Dirty>${git.dirty}</Git-Dirty>
+                                    </manifestEntries>
                                 </transformer>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer"/>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer"/>
                             </transformers>
                             <filters>
+                                <filter>
+                                    <artifact>org.cloudsimplus:cloudsimplus</artifact>
+                                    <excludes><exclude>logback.xml</exclude></excludes>
+                                </filter>
                                 <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
@@ -167,13 +185,6 @@
                                         <exclude>META-INF/*.RSA</exclude>
                                         <exclude>module-info.class</exclude>
                                         <exclude>META-INF/versions/*/module-info.class</exclude>
-                                    </excludes>
-                                </filter>
-                                <!-- CRITICAL FIX: Exclude commons-math3 from shaded JAR to prevent overlapping classes -->
-                                <filter>
-                                    <artifact>org.apache.commons:commons-math3</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
@@ -185,14 +196,14 @@
                 </executions>
             </plugin>
             
-            <!-- Maven Deploy Plugin Configuration for GitHub Packages -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-deploy-plugin</artifactId>
-                <version>3.1.2</version>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>3.5.3</version>
+                <executions><execution><goals><goal>integration-test</goal><goal>verify</goal></goals></execution></executions>
                 <configuration>
-                    <repositoryId>github</repositoryId>
-                    <url>https://maven.pkg.github.com/puneet-chandna/cloudsim-ho-research-V2</url>
+                    <argLine>-Xmx512m</argLine>
+                    <systemPropertyVariables><artifact.path>${project.build.directory}/${project.build.finalName}.jar</artifact.path></systemPropertyVariables>
                 </configuration>
             </plugin>
         </plugins>
@@ -204,6 +215,7 @@
                 <includes>
                     <include>**/*.properties</include>
                     <include>**/*.xml</include>
+                    <include>META-INF/third-party/**</include>
                 </includes>
             </resource>
         </resources>

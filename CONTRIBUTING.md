@@ -1,83 +1,49 @@
-# Contributing to CloudSim HO Research
+# Contributing
 
-First off, thank you for considering contributing to this project! Your help is greatly appreciated.
+Read the [frozen configuration](src/main/resources/protocol.properties),
+[`RunConfig.effective()`](src/main/java/org/puneet/cloudsimplus/hiippo/runtime/RunConfig.java),
+[search implementation](src/main/java/org/puneet/cloudsimplus/hiippo/placement/Search.java)
+and independent [optimizer oracle](scripts/optimizer_oracle.py) and
+[output validator](scripts/statistics_validator.py) before changing behavior.
+Report defects with source/JAR version, command, JDK/OS, exit code and retained
+run manifest/logs. Do not treat pre-v2 results or partial datasets as evidence.
 
-## How to Report Bugs
+Use a full Java 21 JDK, Git, Python 3.10+ available as `python3`, and the included
+Maven 3.9.16 Wrapper on Linux. The [quickstart](README.md#build-and-verify) is the
+supported setup. Run a focused test during changes, then:
 
-If you find a bug, please open an issue on the GitHub repository. Please include the following information in your bug report:
-
-*   A clear and concise description of the bug.
-*   Steps to reproduce the bug.
-*   The expected behavior.
-*   The actual behavior.
-*   The version of the project you are using.
-*   Any relevant logs or screenshots.
-
-## How to Suggest Enhancements
-
-If you have an idea for an enhancement, please open an issue on the GitHub repository. Please include the following information in your enhancement suggestion:
-
-*   A clear and concise description of the enhancement.
-*   The problem that the enhancement solves.
-*   Any alternative solutions or features you've considered.
-
-## Your First Code Contribution
-
-Unsure where to begin contributing? You can start by looking through the `good first issue` and `help wanted` issues.
-
-## Pull Request Process
-
-1.  Ensure any install or build dependencies are removed before the end of the layer when doing a build.
-2.  Update the README.md with details of changes to the interface, this includes new environment variables, exposed ports, useful file locations and container parameters.
-3.  Increase the version numbers in any examples files and the README.md to the new version that this Pull Request would represent. The versioning scheme we use is [SemVer](http://semver.org/).
-4.  You may merge the Pull Request in once you have the sign-off of two other developers, or if you do not have permission to do that, you may request the second reviewer to merge it for you.
-
-## How to Build
-
-This project uses Maven to manage dependencies and build the project.
-
-1.  **Prerequisites:**
-    *   Java 21 or later
-    *   Maven 3.9 or later
-
-2.  **Build the project:**
-    ```bash
-    mvn clean install
-    ```
-
-## How to Run Tests
-
-This project uses JUnit 5 for testing.
-
-1.  **Run all tests:**
-    ```bash
-    mvn test
-    ```
-
-## How to Run the Application
-
-To run the full experiment, use the following commands:
-
-**PowerShell:**
-```powershell
-./run-experiment.ps1
+```sh
+./mvnw -B clean verify
+python3 -B -m unittest discover -s scripts -p 'test_statistics_validator.py'
+java -Xmx4g -jar target/cloudsim-ho-research-v2-2.0.0.jar --profile smoke --output-dir results/smoke
+python3 scripts/statistics_validator.py results/smoke/<run-directory>
 ```
 
-**Bash:**
-```bash
-./run-experiment.sh
-```
+Substitute the printed child directory. `verify` tests the actual shaded JAR;
+`mvnw test` only runs unit tests. Meaningful changes need a check that fails
+without the fix. Preserve the independent Python oracles and frozen contract;
+do not add retries, skip unfavorable cases, tune on test seeds or replace
+undefined statistics with artificial jitter.
 
-### Running the Simulation from JAR
+The only executable main is `App`. Current packages are `scenario`, `placement`
+and `runtime`. The old runners, algorithm/policy implementations, property files
+and legacy tests were retired after caller checks; use Git history to investigate
+old results. Preserve ignored user results/logs. `clean verify` cleans Maven's
+`target` directory, not user results.
 
-To run the simulation from the JAR file, use the `run-simulation` scripts. Make sure the JAR file name in the script matches the one in your `target` directory.
+PR CI is short Ubuntu build/test/packaged smoke with a ten-minute timeout.
+Manual release CI runs packaged smoke on Ubuntu and Windows, also ten minutes
+per job. Windows uses `mvnw.cmd -Dmaven.test.skip=true clean package` followed by
+the JAR and `python` validator; it does not claim the Linux test suite passed.
+There are no scheduled/release-triggered publishing or research jobs.
 
-**PowerShell:**
-```powershell
-./run-simulation.ps1
-```
+Full research is local Linux only, `-Xmx4g` with an external `timeout 12h`.
+Stable release requires 450 complete cases, independent output/analysis checks,
+artifact/environment provenance and two independent reviewer approvals.
+Smoke/explore are beta validation, not full research acceptance. Publication
+and bundled-dependency licensing remain separate decisions.
 
-**Bash:**
-```bash
-./run-simulation.sh
-```
+Keep README and companion documentation consistent with tested commands,
+configuration keys, outputs and limitations. Explain behavioral/protocol changes
+and evidence in the PR; obtain two reviews before integration. Follow the
+[code of conduct](CODE_OF_CONDUCT.md).

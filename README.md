@@ -1,142 +1,152 @@
-<div align="center">
+<p align="center"><img src="logo/dark.svg" alt="CloudSim HO Research V2" width="500"></p>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="logo/dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="logo/dark.svg">
-  <img alt="CloudSim-HO-Research-V2" src="logo/dark.svg" width="500">
-</picture>
+# CloudSim HO Research V2
 
-<br/>
-<br/>
+A bounded, reproducible comparison of Hippopotamus Optimization (HO), GA,
+FirstFit and BestFit for static VM placement using CloudSim Plus 8.5.7.
+The current source version is **2.0.0**. Historical pre-v2 results are
+invalid research evidence. No algorithm winner or real datacenter saving is claimed.
 
-**A research framework for evaluating the Hippopotamus Optimization (HO) algorithm for Virtual Machine placement in cloud data centers.**
+These instructions describe the local recovery checkout. The v2 changes and
+artifact have not been published; use the reviewed local source for now.
+The public default branch and live documentation may still describe legacy code.
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge)](.)
-[![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](./LICENSE)
-[![Java](https://img.shields.io/badge/Java-21-orange?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/)
-[![Maven](https://img.shields.io/badge/Maven-3.9+-C71A36?style=for-the-badge&logo=apachemaven&logoColor=white)](https://maven.apache.org/)
+The executable contract is the [frozen configuration](src/main/resources/protocol.properties)
+and [`RunConfig.effective()`](src/main/java/org/puneet/cloudsimplus/hiippo/runtime/RunConfig.java),
+checked independently by the [output validator](scripts/statistics_validator.py).
+[Documentation](https://cloudsim-ho-project.puneetchandna.com/),
+[contributing](CONTRIBUTING.md), [code of conduct](CODE_OF_CONDUCT.md).
 
-[Documentation](https://cloudsim-ho-project.puneetchandna.com/) · [Contributing](CONTRIBUTING.md) · [Report Bug](https://github.com/puneet-chandna/cloudsim-ho-research-V2/issues)
+## Build and verify
 
-</div>
+Use a full **Java 21 JDK** (`java` and `javac`), Git and **Python 3.10+**.
+Linux tests require the executable `python3` for independent stdlib oracles.
+Wrapper bootstrap on Linux requires `unzip` and either `sha256sum` or `shasum`.
+The included Maven Wrapper pins Maven 3.9.16; no global Maven installation is
+needed. Initial setup needs network access to download Maven and dependencies.
+Set `JAVA_HOME` to the JDK and put its `bin` directory on `PATH`.
 
----
+From the supplied v2 source checkout (not a fresh clone of the public default
+branch), run:
 
-## ✨ Highlights
-
-- 🦛 **Hippopotamus Optimization (HO)** — A comprehensive implementation of the HO algorithm for VM placement.
-- 📊 **Comparative Analysis** — Robust benchmarking against FirstFit, BestFit, and Genetic Algorithm (GA) strategies.
-- 🔬 **Parameter Sensitivity Analysis** — In-depth studies on algorithm parameters and scalability.
-- 📈 **Detailed Metrics** — Resource utilization, SLA violations, and power consumption analysis.
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-Ensure you have the following installed:
-
-| Tool  | Version |
-| :---- | :------ |
-| Java  | 21+     |
-| Maven | 3.9+    |
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/puneet-chandna/cloudsim-ho-research-V2.git
-
-# Navigate to the project directory
-cd cloudsim-ho-research-V2
-
-# Build the project
-mvn clean install
+```sh
+java -version
+javac -version
+python3 --version
+./mvnw -B clean verify
+java -jar target/cloudsim-ho-research-v2-2.0.0.jar --help
+java -Xmx4g -jar target/cloudsim-ho-research-v2-2.0.0.jar --profile smoke --output-dir results/smoke
 ```
 
----
+The application prints the unique run directory. Validate that exact directory:
 
-## ⚙️ Usage
+```sh
+python3 scripts/statistics_validator.py results/smoke/<run-directory>
+```
 
-### Running Experiments
+Replace `<run-directory>` with the printed child name. `verify` includes unit
+tests and real packaged CLI integration tests; `test` alone does not verify the
+shaded JAR. The validator checks manifest/file hashes, raw matrices, canonical
+inputs, placements, budgets, metrics and independent analysis. Keep the exact
+JAR alongside its validated results and compare its SHA-256 to `artifact_sha256`.
 
-Run the default experiment suite (Micro, Small, and Medium scenarios):
-
-<details>
-<summary><strong>PowerShell</strong></summary>
+Windows support is **packaged smoke only**, not the Linux research/test contract.
+In PowerShell, build the package without the Linux oracle suite and check every
+native exit code (Python is invoked as `python`):
 
 ```powershell
-./run-experiment.ps1
+.\mvnw.cmd -B '-Dmaven.test.skip=true' clean package
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+java -Xmx4g -jar target/cloudsim-ho-research-v2-2.0.0.jar --profile smoke --output-dir results/smoke
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+# Substitute the run directory printed above:
+python scripts/statistics_validator.py results/smoke/<run-directory>
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 ```
 
-</details>
+Windows execution and remote CI are separate gates; local Linux validation does
+not establish either. CI runs short PR-only Ubuntu validation and manual
+Ubuntu/Windows packaged smoke, with ten-minute job timeouts. It never publishes
+packages or runs the research matrix.
 
-<details>
-<summary><strong>Bash</strong></summary>
+## Run profiles and configuration
 
-```bash
-./run-experiment.sh
+| Profile | Scenarios (VMs/hosts) | Replications | HO N/T | Cases |
+| --- | --- | --- | --- | --- |
+| smoke | Micro 10/3 | 1 | 10/4 | 4 |
+| explore | Micro 10/3, Small 50/10 | 5 | 20/20 | 40 |
+| research | Micro 10/3, Small 50/10, Medium 100/20 | 30 | 30/40 | 360 main + 90 OAT |
+
+All four algorithms run in every main replication. Research additionally runs
+HO on Small with nine distinct one-at-a-time (OAT) N/T settings and ten paired
+sensitivity replications. The shared (30,40) setting is counted once. These
+settings and the **100-VM ceiling** are fixed; larger scenarios, GPU, parallel
+execution, Pareto optimization, overcommit and migrations are future work.
+
+```sh
+java -Xmx4g -jar target/cloudsim-ho-research-v2-2.0.0.jar --profile explore --output-dir results/explore
+# Linux only; 12-hour external safety timeout, maximum 4 GiB Java heap:
+timeout 12h java -Xmx4g -jar target/cloudsim-ho-research-v2-2.0.0.jar --profile research --output-dir results/research
 ```
 
-</details>
+Validate each complete directory with the same Python command. A timeout or
+interruption leaves incomplete evidence; never combine fragments. Stable 2.0.0
+requires all **450 local Linux cases** from the exact versioned artifact, valid
+independent analyses and two reviewer approvals. That acceptance is not implied
+by the version number or smoke/explore checks.
 
-### Running the Simulation from JAR
+No arguments, standalone `--help` or `--version` print information and exit 0
+without creating files. A run requires `--profile smoke|explore|research`.
+Optional flags are `--config file.properties`, `--output-dir directory` (default
+`results`) and `--debug`. CLI values take precedence over the overlay, then
+profile defaults. Only these UTF-8 Java properties are accepted:
 
-Execute the simulation directly from the compiled JAR file:
-
-<details>
-<summary><strong>PowerShell</strong></summary>
-
-```powershell
-./run-simulation.ps1
+```properties
+master.seed=123456
+log.level=INFO
 ```
 
-</details>
+`master.seed` is a signed 64-bit decimal; `log.level` is `INFO` or `DEBUG`.
+Unknown/duplicate keys (including escaped equivalents), malformed UTF-8,
+invalid values or conflicting/missing options exit **2** before output creation.
+Missing/unreadable config files and execution/output failures exit **1**. Only
+complete valid runs exit **0**. `output.dir`, scenario and algorithm settings
+are not configurable keys. `--debug` selects DEBUG without relaxing log bounds.
 
-<details>
-<summary><strong>Bash</strong></summary>
+## What is measured
 
-```bash
-./run-simulation.sh
-```
+The optimizer minimizes estimated steady host power in **watts**. The simulation
+separately integrates actual event-time power into **joules** and **kWh**;
+used hosts remain on through the final workload horizon. SLA violations count
+failed/censored cloudlets or slowdown strictly above 1.10 against independently
+simulated isolated references, divided by all requested cloudlets.
 
-</details>
+Strict reservation, constant utilization and one cloudlet per VM can make SLA
+identically zero and horizon placement-invariant. The conservative paired
+wild-bootstrap/BCa/Holm analysis reports **NO_CLAIM** when required inference is
+degenerate; descriptive energy differences do not override that gate. Results
+are conditional on this synthetic simulator model, not production evidence.
 
----
+HO implements all three paper phases with a declared Gaussian Mantegna Levy
+adaptation. Its full objective-call budget is **N + 3NT**, including predators:
+130/1220/3630 for the three main profiles. GA receives the same budget. The
+[search implementation](src/main/java/org/puneet/cloudsimplus/hiippo/placement/Search.java)
+and independent [optimizer oracle](scripts/optimizer_oracle.py) specify and check
+the equations, draw order and deterministic repair. The frozen configuration
+and output validator define the practical margins and inference gates.
 
-## 📚 Documentation
+## Outputs and licensing
 
-For comprehensive guides, API references, and conceptual explanations, visit the **[official documentation](https://cloudsim-ho-project.puneetchandna.com/)**.
+Each unique directory contains `run.json`, sorted `effective.properties`,
+`raw/main_results.csv`, `raw/placements.csv`, `raw/optimizer_trace.csv` and
+`logs/run.log`. Explore adds descriptive analysis; research adds sensitivity
+rows, paired primary comparisons, runtime summaries and an analysis report.
+Only a validated `COMPLETE` manifest is eligible evidence. `RUNNING` and `FAILED`
+directories remain for diagnosis. Logs rotate at 10 MiB with three retained
+archives, including DEBUG. Existing local logs/results are never cleaned by the app.
 
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) for details on how to get started.
-
----
-
-## 📜 Code of Conduct
-
-This project adheres to a [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
-
----
-
-## 📄 License
-
-This project is licensed under the [MIT License](./LICENSE).
-
----
-
-## 🙏 Acknowledgments
-
-This project is built on top of **[CloudSim Plus](https://cloudsimplus.org/)**, a modern and full-featured framework for modeling and simulating cloud computing environments.
-
----
-
-<div align="center">
-
-Made with ❤️ by [Puneet Chandna](https://github.com/puneet-chandna)
-
-</div>
+Project source has the [MIT license](LICENSE). Bundled dependencies retain their
+own licenses, including CloudSim Plus GPL-3.0; the JAR includes notices and a
+[dependency inventory](src/main/resources/META-INF/third-party/DEPENDENCIES.txt).
+Technical notice inclusion does not resolve distribution/legal obligations;
+review those separately before publishing a binary.
