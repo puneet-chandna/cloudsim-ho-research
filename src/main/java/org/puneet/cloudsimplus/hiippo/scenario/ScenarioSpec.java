@@ -14,8 +14,16 @@ public record ScenarioSpec(Inputs inputs, List<Double> referenceSeconds) {
     }
     public record SeedMetadata(long master,String phase,String scenario,int replication,long scenarioSeed,long workloadSeed) {
         public SeedMetadata {
-            if(!List.of("main","sensitivity").contains(phase) || !List.of("Micro","Small","Medium").contains(scenario) || replication<0)
+            boolean legacy=List.of("main","sensitivity").contains(phase) && List.of("Micro","Small","Medium").contains(scenario);
+            boolean stress=List.of("stress","stress_calibration").contains(phase) && scenario!=null
+                && scenario.matches("Static-V[1-9][0-9]*-H[1-9][0-9]*");
+            if((!legacy && !stress) || replication<0)
                 throw new IllegalArgumentException("Invalid scenario identity");
+            if(stress) {
+                int separator=scenario.indexOf("-H");
+                Integer.parseInt(scenario.substring(8,separator));
+                Integer.parseInt(scenario.substring(separator+2));
+            }
         }
     }
     public record HostSpec(int id,int pes,long mipsPerPe,long ramMiB,long bwMbps,long storageMiB,int idleW,int maxW) {

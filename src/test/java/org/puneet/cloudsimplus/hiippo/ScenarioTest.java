@@ -6,6 +6,67 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ScenarioTest {
+    @Test void legacyScenarioBytesRemainFrozen() {
+        var hashes=List.of("9437f11bd38a8709380cd6e28e960ee37f37a6f3cf7831d60d7196d9403f6cd7",
+            "60b56c2e86c16ada2031b089ebd01d3a2947dd6547c5f57ebfb29bb499bf339f",
+            "cb68700a68e7511a8dc18a4ee53ea1eb6e414d0da0ae5f3c3e677a9bbd52fc66");
+        int i=0;
+        for(String name:List.of("Micro","Small","Medium"))
+            assertEquals(hashes.get(i++),ScenarioGenerator.generate(123456,"main",name,0).fingerprint());
+    }
+
+    @Test void stressUsesExplicitDimensionsAndPairedInputsWithDistinctIdentities() {
+        for(String phase:List.of("stress","stress_calibration")) {
+            var first=ScenarioGenerator.generateStatic(123456,phase,"Static-V17-H4",0,17,4);
+            assertEquals(17,first.inputs().vms().size()); assertEquals(4,first.inputs().hosts().size());
+            Witness.validate(first.inputs()); Witness.validateNative(first.inputs());
+            for(String algorithm:List.of("HO","GA","FirstFit","BestFit")) {
+                assertEquals(first,ScenarioGenerator.generateStatic(123456,phase,"Static-V17-H4",0,17,4),algorithm);
+            }
+            assertNotEquals(first.fingerprint(),ScenarioGenerator.generateStatic(123457,phase,"Static-V17-H4",0,17,4).fingerprint());
+            assertNotEquals(first.fingerprint(),ScenarioGenerator.generateStatic(123456,phase,"Static-V17-H4",1,17,4).fingerprint());
+            assertNotEquals(first.fingerprint(),ScenarioGenerator.generateStatic(123456,phase,"Static-V18-H4",0,18,4).fingerprint());
+            assertNotEquals(first.fingerprint(),ScenarioGenerator.generateStatic(123456,phase,"Static-V17-H5",0,17,5).fingerprint());
+            for(var host:first.inputs().hosts()) {
+                assertEquals(16,host.pes()); assertEquals(3000,host.mipsPerPe());
+                assertEquals(32768,host.ramMiB()); assertEquals(10000,host.bwMbps()); assertEquals(1000000,host.storageMiB());
+                assertEquals(new int[]{175,210,280}[host.id()%3],host.idleW());
+                assertEquals(new int[]{250,300,400}[host.id()%3],host.maxW());
+            }
+            for(int i=0;i<17;i++) {
+                var vm=first.inputs().vms().get(i); var c=first.inputs().cloudlets().get(i);
+                assertTrue(List.of(1,2).contains(vm.pes()));
+                assertTrue(List.of(1000L,2000L,3000L).contains(vm.mipsPerPe()));
+                assertTrue(List.of(1024L,2048L,4096L).contains(vm.ramMiB()));
+                assertEquals(1000,vm.bwMbps()); assertEquals(10000,vm.storageMiB());
+                assertEquals(vm.pes(),c.pes()); assertEquals(0,c.lengthMi()%vm.mipsPerPe());
+                assertTrue(c.lengthMi()/vm.mipsPerPe()>=60 && c.lengthMi()/vm.mipsPerPe()<=120);
+                assertEquals((double)c.lengthMi()/vm.mipsPerPe(),first.referenceSeconds().get(i));
+            }
+        }
+        var stress=ScenarioGenerator.generateStatic(123456,"stress","Static-V17-H4",0,17,4);
+        var pilot=ScenarioGenerator.generateStatic(123456,"stress_calibration","Static-V17-H4",0,17,4);
+        assertNotEquals(stress.inputs().seeds().scenarioSeed(),pilot.inputs().seeds().scenarioSeed());
+        assertNotEquals(stress.inputs().seeds().workloadSeed(),pilot.inputs().seeds().workloadSeed());
+    }
+
+    @Test void stressIdentityAndWitnessFailuresNeverRelaxDimensions() {
+        for(String name:List.of("Micro","Static-V18-H4","Static-V17-H5","Static-V017-H4","Static-V0-H4"))
+            assertThrows(IllegalArgumentException.class,()->ScenarioGenerator.generateStatic(1,"stress",name,0,17,4));
+        for(String phase:List.of("main","sensitivity","other"))
+            assertThrows(IllegalArgumentException.class,()->ScenarioGenerator.generateStatic(1,phase,"Static-V17-H4",0,17,4));
+        assertThrows(IllegalArgumentException.class,()->ScenarioGenerator.generateStatic(1,"stress","Static-V17-H4",-1,17,4));
+        assertThrows(IllegalArgumentException.class,()->ScenarioGenerator.generateStatic(1,"stress","Static-V0-H4",0,0,4));
+        assertThrows(IllegalArgumentException.class,()->ScenarioGenerator.generateStatic(1,"stress","Static-V17-H0",0,17,0));
+        assertThrows(IllegalArgumentException.class,()->ScenarioGenerator.generateStatic(1,"stress","Static-V17-H1",0,17,1));
+        for(String phase:List.of("main","sensitivity"))
+            assertThrows(IllegalArgumentException.class,()->new ScenarioSpec.SeedMetadata(1,phase,"Static-V17-H4",0,1,2));
+        for(String phase:List.of("stress","stress_calibration")) {
+            assertThrows(IllegalArgumentException.class,()->new ScenarioSpec.SeedMetadata(1,phase,"Micro",0,1,2));
+            for(String name:List.of("Static-V0-H1","Static-V1-H0","Static-V01-H1","Static-V1-H2147483648","Static-V2147483648-H1"))
+                assertThrows(IllegalArgumentException.class,()->new ScenarioSpec.SeedMetadata(1,phase,name,0,1,2));
+        }
+    }
     @Test void isolatedBatchMatchesSeparateSingleVmSimulators() {
         var original=ScenarioGenerator.inputs(123456,"main","Micro",0);
         var vms=new ArrayList<ScenarioSpec.VmSpec>(); var cloudlets=new ArrayList<ScenarioSpec.CloudletSpec>();

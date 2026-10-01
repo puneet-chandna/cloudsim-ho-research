@@ -8,6 +8,9 @@ public final class ScenarioGenerator {
     public static Inputs inputs(long master,String phase,String name,int replication) {
         int count=switch(name) { case "Micro" -> 10; case "Small" -> 50; case "Medium" -> 100; default -> throw new IllegalArgumentException("Unknown scenario: "+name); };
         int hostCount=name.equals("Micro")?3:count/5;
+        return inputs(master,phase,name,replication,count,hostCount);
+    }
+    private static Inputs inputs(long master,String phase,String name,int replication,int count,int hostCount) {
         var seeds=new SeedMetadata(master,phase,name,replication,Seeds.derive(master,phase,name,replication,"scenario"),Seeds.derive(master,phase,name,replication,"workload"));
         var scenario=new Random(seeds.scenarioSeed()); var workload=new Random(seeds.workloadSeed());
         var hosts=new ArrayList<HostSpec>(); var vms=new ArrayList<VmSpec>(); var cloudlets=new ArrayList<CloudletSpec>();
@@ -23,6 +26,15 @@ public final class ScenarioGenerator {
     }
     public static ScenarioSpec generate(long master,String phase,String name,int replication) {
         var inputs=inputs(master,phase,name,replication);
+        Witness.validateNative(inputs);
+        return new ScenarioSpec(inputs,ScenarioObjects.measureReferences(inputs));
+    }
+    public static ScenarioSpec generateStatic(long master,String phase,String name,int replication,int vmCount,int hostCount) {
+        if(vmCount<1 || hostCount<1 || !List.of("stress","stress_calibration").contains(phase)
+            || !("Static-V"+vmCount+"-H"+hostCount).equals(name))
+            throw new IllegalArgumentException("Invalid static stress identity or dimensions");
+        // Share distributions and draw order with the frozen generator; never retry a rejected witness.
+        var inputs=inputs(master,phase,name,replication,vmCount,hostCount);
         Witness.validateNative(inputs);
         return new ScenarioSpec(inputs,ScenarioObjects.measureReferences(inputs));
     }
