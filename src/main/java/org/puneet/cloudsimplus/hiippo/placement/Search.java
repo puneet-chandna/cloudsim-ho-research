@@ -1,6 +1,7 @@
 package org.puneet.cloudsimplus.hiippo.placement;
 
 import org.puneet.cloudsimplus.hiippo.scenario.ScenarioSpec;
+import java.io.IOException;
 import java.util.*;
 
 /** Protocol v2 pure bounded search. Draw order is checked by scripts/optimizer_oracle.py. */
@@ -17,6 +18,19 @@ public final class Search {
     public record Result(Optional<Solution> best,List<Trace> trace) {
         public Result { trace=List.copyOf(trace); }
     }
+    /** Scalar evidence only; null powers denote infeasible candidates or no eligible feasible best yet. */
+    public record Evaluation(int evaluation,int iteration,String phase,int member,boolean feasible,
+                             Double watts,boolean accepted,Double bestWatts) {}
+    @FunctionalInterface public interface EvaluationSink { void accept(Evaluation evaluation) throws IOException; }
+    public record StreamResult(Optional<Solution> best,int evaluations) {}
+    public static StreamResult runStreaming(ScenarioSpec.Inputs inputs,Algorithm algorithm,int n,int t,long seed,
+                                           EvaluationSink sink) throws IOException {
+        return runStreaming(inputs,algorithm,n,t,new Random(seed),sink);
+    }
+    static StreamResult runStreaming(ScenarioSpec.Inputs inputs,Algorithm algorithm,int n,int t,Random random,
+                                    EvaluationSink sink) throws IOException {
+        return new Search(inputs,random,budget(n,t),Objects.requireNonNull(sink)).execute(algorithm,n,t);
+    }
     private record Candidate(double[] genes,PlacementPlan plan,double watts,long creation) {}
     private static final Comparator<Candidate> ORDER=(a,b)-> {
         int c=Double.compare(a.watts,b.watts);
@@ -29,9 +43,13 @@ public final class Search {
     private final ScenarioSpec.Inputs inputs;
     private final Random random;
     private final int dimensions,budget;
-    private final List<Trace> trace=new ArrayList<>();
-    private Search(ScenarioSpec.Inputs inputs,Random random,int budget) {
+    private final List<Trace> trace;
+    private final EvaluationSink sink;
+    private int evaluations;
+    private Double bestWatts;
+    private Search(ScenarioSpec.Inputs inputs,Random random,int budget,EvaluationSink sink) {
         this.inputs=inputs; this.random=Objects.requireNonNull(random); this.budget=budget; dimensions=inputs.vms().size();
+        this.sink=sink; trace=sink==null?new ArrayList<>():null;
     }
     public static int budget(int n,int t) {
         if(n<2 || n%2!=0 || t<1) throw new IllegalArgumentException("Even N>=2 and T>=1 required");
@@ -42,15 +60,19 @@ public final class Search {
     }
     /** Explicit component RNG; overload also admits fixed supplied draw fixtures. */
     public static Result run(ScenarioSpec.Inputs inputs,Algorithm algorithm,int n,int t,Random random) {
+        var search=new Search(inputs,random,budget(n,t),null);
+        try { return new Result(search.execute(algorithm,n,t).best(),search.trace); }
+        catch(IOException impossible) { throw new AssertionError("Detailed search has no I/O sink",impossible); }
+    }
+    private StreamResult execute(Algorithm algorithm,int n,int t) throws IOException {
         Objects.requireNonNull(algorithm);
-        var search=new Search(inputs,random,budget(n,t));
         var population=new ArrayList<Candidate>();
-        for(int i=0;i<n;i++) population.add(search.evaluate(search.uniform(),0,"INITIAL",i,-1,null,true));
-        if(algorithm==Algorithm.HO) search.ho(population,t); else search.ga(population);
+        for(int i=0;i<n;i++) population.add(evaluate(uniform(),0,"INITIAL",i,-1,null,true));
+        if(algorithm==Algorithm.HO) ho(population,t); else ga(population);
         var best=Collections.min(population,ORDER);
         Optional<Solution> solution=best.plan==null?Optional.empty():Optional.of(new Solution(box(best.genes),best.plan,best.watts,best.creation));
-        if(search.trace.size()!=search.budget) throw new IllegalStateException("Evaluation budget mismatch");
-        return new Result(solution,search.trace);
+        if(evaluations!=budget) throw new IllegalStateException("Evaluation budget mismatch");
+        return new StreamResult(solution,evaluations);
     }
     public static Optional<PlacementPlan> repair(ScenarioSpec.Inputs inputs,double[] genes) {
         if(genes.length!=inputs.vms().size()) throw new IllegalArgumentException("Gene count mismatch");
@@ -74,19 +96,26 @@ public final class Search {
     private double[] uniform() {
         double[] x=new double[dimensions]; for(int j=0;j<dimensions;j++) x[j]=random.nextDouble(); return x;
     }
-    private Candidate evaluate(double[] proposal,int iteration,String phase,int member,long dominant,Candidate incumbent,boolean eligible) {
-        if(trace.size()>=budget) throw new IllegalStateException("Budget exhausted");
+    private Candidate evaluate(double[] proposal,int iteration,String phase,int member,long dominant,Candidate incumbent,boolean eligible) throws IOException {
+        if(evaluations>=budget) throw new IllegalStateException("Budget exhausted");
         double[] x=proposal.clone(); boolean finite=true;
         for(int j=0;j<x.length;j++) { if(!Double.isFinite(x[j])) finite=false; else x[j]=Math.clamp(x[j],0,1); }
         var plan=finite?repair(inputs,x):Optional.<PlacementPlan>empty();
         double watts=plan.map(p->PlacementObjective.watts(inputs,p)).orElse(Double.POSITIVE_INFINITY);
-        var candidate=new Candidate(x,plan.orElse(null),watts,trace.size());
+        var candidate=new Candidate(x,plan.orElse(null),watts,evaluations++);
         boolean accepted=eligible && (incumbent==null || watts<incumbent.watts);
-        trace.add(new Trace(trace.size()+1,iteration,phase,member,dominant,finite?Optional.of(box(x)):Optional.empty(),
-            plan,Double.isFinite(watts)?Optional.of(watts):Optional.empty(),accepted));
+        if(sink==null) {
+            trace.add(new Trace(evaluations,iteration,phase,member,dominant,finite?Optional.of(box(x)):Optional.empty(),
+                plan,Double.isFinite(watts)?Optional.of(watts):Optional.empty(),accepted));
+        } else {
+            // Only population-eligible accepted candidates contribute; HO predators are probes.
+            if(accepted && Double.isFinite(watts) && (bestWatts==null || watts<bestWatts)) bestWatts=watts;
+            sink.accept(new Evaluation(evaluations,iteration,phase,member,plan.isPresent(),
+                Double.isFinite(watts)?watts:null,accepted,bestWatts));
+        }
         return candidate;
     }
-    private Candidate update(double[] x,int t,String phase,int i,long dominant,Candidate old) {
+    private Candidate update(double[] x,int t,String phase,int i,long dominant,Candidate old) throws IOException {
         var proposal=evaluate(x,t,phase,i,dominant,old,true);
         return proposal.watts<old.watts?proposal:old;
     }
@@ -95,11 +124,11 @@ public final class Search {
         for(int k=1;k<3;k++) { var c=p.get(random.nextInt(p.size())); if(ORDER.compare(c,best)<0) best=c; }
         return best;
     }
-    private void ga(List<Candidate> p) {
+    private void ga(List<Candidate> p) throws IOException {
         int generation=0,n=p.size();
-        while(trace.size()<budget) {
+        while(evaluations<budget) {
             generation++; var next=new ArrayList<Candidate>(); next.add(Collections.min(p,ORDER));
-            while(next.size()<n && trace.size()<budget) {
+            while(next.size()<n && evaluations<budget) {
                 double[] a=tournament(p).genes.clone(),b=tournament(p).genes.clone();
                 boolean cross=random.nextDouble()<0.8;
                 if(cross && dimensions>1) {
@@ -107,7 +136,7 @@ public final class Search {
                     for(int j=cut;j<dimensions;j++) { double swap=a[j]; a[j]=b[j]; b[j]=swap; }
                 }
                 for(double[] child:new double[][]{a,b}) {
-                    if(next.size()==n || trace.size()==budget) break;
+                    if(next.size()==n || evaluations==budget) break;
                     for(int j=0;j<dimensions;j++) if(random.nextDouble()<1.0/dimensions) child[j]=random.nextDouble();
                     next.add(evaluate(child,generation,"CHILD",next.size(),-1,null,true));
                 }
@@ -115,7 +144,7 @@ public final class Search {
             p.clear(); p.addAll(next);
         }
     }
-    private void ho(List<Candidate> p,int iterations) {
+    private void ho(List<Candidate> p,int iterations) throws IOException {
         int n=p.size();
         for(int t=1;t<=iterations;t++) {
             var dominant=Collections.min(p,ORDER); double[] best=dominant.genes;
