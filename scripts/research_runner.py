@@ -35,6 +35,16 @@ def clip_cells(text, width):
     return text
 
 
+def physical_memory(proc=Path('/proc')):
+    """Detected Linux MemTotal; separate from available/cgroup launch headroom."""
+    try:
+        match=re.search(r'^MemTotal:\s+(\d+) kB$',(proc/'meminfo').read_text(),re.M)
+        if not match or int(match[1])<=0: raise ValueError('Missing or invalid MemTotal')
+        return int(match[1])*1024
+    except (OSError,ValueError) as error:
+        raise ValueError(f'Cannot verify physical memory: {error}') from error
+
+
 def usable_memory(proc=Path('/proc')):
     """Linux MemAvailable, constrained by every visible cgroup-v2 ancestor."""
     try:
@@ -136,15 +146,17 @@ def rss(pid):
 
 
 class Dashboard:
-    def __init__(self, stream=None, plain=False, console=None, heap_mib=1024):
+    def __init__(self, stream=None, plain=False, console=None, heap_mib=1024, title='RESEARCH', total=450):
         self.stream = stream if stream is not None else sys.stdout
         self.tty = not plain and self.stream.isatty() and os.environ.get('TERM','dumb')!='dumb' and 'NO_COLOR' not in os.environ
         self.console = console
         self.started = time.monotonic()
         self.updated = 0
         self.drawn = False
+        self.line_count = 0
         self.warning = None
         self.heap_mib = heap_mib
+        self.title,self.total = title,total
 
     def render(self,stage,progress=None,pid=None,force=False):
         now = time.monotonic()
@@ -154,21 +166,26 @@ class Dashboard:
         done = progress.get('done')
         detail = sanitize(progress.get('detail',''))
         elapsed = int(now-self.started)
-        bar = ('['+'#'*(done*20//450)+'-'*(20-done*20//450)+f'] {done*100//450}% cases') if done is not None else 'Progress: stage in progress'
-        lines = ['CLOUDSIM  /  RESEARCH',f'Stage: {stage}    Elapsed: {elapsed//60:02d}:{elapsed%60:02d}',
-                 f'Cases: {done if done is not None else "-"}/450    Java RSS: {rss(pid) if pid else "-"}    Heap: {self.heap_mib} MiB',bar,detail]
+        total = progress.get('total',self.total)
+        bar = ('['+'#'*(done*20//total)+'-'*(20-done*20//total)+f'] {done*100//total}% cases') if done is not None else 'Progress: stage in progress'
+        lines = [f'CLOUDSIM  /  {self.title}',f'Stage: {stage}    Elapsed: {elapsed//60:02d}:{elapsed%60:02d}',
+                 f'Cases: {done if done is not None else "-"}/{total}    Java RSS: {rss(pid) if pid else "-"}    Heap: {self.heap_mib} MiB',bar,detail]
+        lines += [sanitize(line) for line in progress.get('extra_lines',[])[:3]]
         if self.console:
             self.console.write(' | '.join(lines)+'\n'); self.console.flush()
         try:
             if self.tty:
                 width = max(1,shutil.get_terminal_size((80,24)).columns-1)
-                if self.drawn: self.stream.write('\x1b[5A')
+                if self.drawn:
+                    self.stream.write(f'\x1b[{self.line_count}A')
+                    lines += ['']*max(0,self.line_count-len(lines))
                 else: self.stream.write('\x1b[?25l')
                 for index,line in enumerate(lines):
                     self.stream.write('\x1b[2K'+ ('\x1b[36m' if index==0 else '')+clip_cells(line,width)+('\x1b[0m' if index==0 else '')+'\n')
                 self.drawn = True
+                self.line_count = len(lines)
             else:
-                self.stream.write(f'[{stage}] {elapsed}s | {lines[2]} | {detail}\n')
+                self.stream.write(f'[{stage}] {elapsed}s | {lines[2]} | '+ ' | '.join(lines[4:])+'\n')
             self.stream.flush()
         except (OSError,ValueError) as error:
             self.warning = f'UI_WARNING: dashboard output failed: {sanitize(error)}'
@@ -185,6 +202,10 @@ class Interrupted(Exception):
     def __init__(self,signum): self.signum = signum
 
 
+class DeadlineExceeded(ValueError):
+    pass
+
+
 class ProcessControl:
     def __init__(self,dashboard,root):
         self.dashboard,self.root = dashboard,root
@@ -197,8 +218,10 @@ class ProcessControl:
 
     def on_signal(self,number,frame): self.signum = number
 
-    def check(self):
+    def check(self,deadline=None):
         if self.signum is not None: raise Interrupted(self.signum)
+        if deadline is not None and time.monotonic()>=deadline:
+            raise DeadlineExceeded('Shared experiment deadline exceeded')
 
     def restore(self):
         for number,handler in self.handlers.items(): signal.signal(number,handler)
@@ -217,26 +240,34 @@ class ProcessControl:
         except ProcessLookupError: pass
         child.wait(timeout=3)
 
-    def run(self,command,log,stage,cwd=None,timeout=12*60*60,stderr_log=None):
-        self.check()
+    def run(self,command,log,stage,cwd=None,timeout=12*60*60,stderr_log=None,deadline=None,progress_reader=None):
+        self.check(deadline)
         with ExitStack() as files:
             output = files.enter_context(log.open('wb'))
             errors = files.enter_context(stderr_log.open('wb')) if stderr_log else subprocess.STDOUT
             child = subprocess.Popen(command,cwd=cwd or self.root,stdout=output,stderr=errors,start_new_session=True)
             started = time.monotonic()
             observed = 0
+            peak = None
             try:
                 while child.poll() is None:
-                    self.check()
+                    self.check(deadline)
                     if timeout and time.monotonic()-started>timeout: raise ValueError(f'{stage} timed out')
+                    if deadline is not None or progress_reader is not None:
+                        try:
+                            match = re.search(r'^VmHWM:\s+(\d+) kB$',Path(f'/proc/{child.pid}/status').read_text(),re.M)
+                            if match: peak=max(peak or 0,int(match[1])*1024)
+                        except OSError: pass
                     if time.monotonic()-observed>=1:
                         observed = time.monotonic()
-                        progress = read_progress(self.root/'research') if stage=='research' else {'detail':f'Full output: {log}'}
-                        self.dashboard.render(progress.get('stage',stage),progress,child.pid if stage=='research' else None)
+                        progress = progress_reader() if progress_reader else read_progress(self.root/'research') if stage=='research' else {'detail':f'Full output: {log}'}
+                        self.dashboard.render(progress.get('stage',stage),progress,child.pid if stage=='research' or progress_reader else None)
                     time.sleep(.1)
-                self.check()
+                self.check(deadline)
                 return child.returncode if child.returncode>=0 else 128-child.returncode
-            finally: self.stop(child)
+            finally:
+                self.stop(child)
+                self.last_measurement = {'wall_seconds':time.monotonic()-started,'sampled_peak_rss_bytes':peak}
 
 
 def stamp(): return datetime.now(timezone.utc).isoformat()
