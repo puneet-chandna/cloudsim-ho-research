@@ -3,6 +3,8 @@ package org.puneet.cloudsimplus.hiippo;
 import org.puneet.cloudsimplus.hiippo.runtime.RunConfig;
 import org.puneet.cloudsimplus.hiippo.runtime.RunOutput;
 import org.puneet.cloudsimplus.hiippo.runtime.RunCoordinator;
+import org.puneet.cloudsimplus.hiippo.runtime.StressConfig;
+import org.puneet.cloudsimplus.hiippo.runtime.StressRun;
 
 /** Supported executable entry point. Parsing has no output side effects. */
 public final class App {
@@ -14,6 +16,14 @@ public final class App {
         }
         if (args.length == 1 && args[0].equals("--version")) {
             System.out.println("cloudsim-ho-research-v2 " + RunOutput.version()); return 0;
+        }
+        for(int i=0;i+1<args.length;i++) if(args[i].equals("--profile") && args[i+1].equals("stress")) {
+            final StressConfig stress;
+            try { stress=StressConfig.parse(args); }
+            catch(IllegalArgumentException | ArithmeticException e) { System.err.println("CONFIG_ERROR: "+e.getMessage()); return 2; }
+            try {
+                System.out.println("COMPLETE: run retained at "+StressRun.execute(stress)); return 0;
+            } catch(Exception e) { System.err.println("RUN_ERROR: "+e.getMessage()); return 1; }
         }
         final RunConfig config;
         try { config = RunConfig.parse(args); }
