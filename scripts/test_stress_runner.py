@@ -65,10 +65,44 @@ class StressRunnerChecks(unittest.TestCase):
                 data=json.JSONDecoder().raw_decode(result.stdout[result.stdout.index('{'):])[0]
                 self.assertEqual(data['estimates']['expected_cases'],20)
                 self.assertEqual(data['estimates']['expected_evaluations'],36310)
+                self.assertIn('estimates_scope',data)
+                self.assertEqual(data['estimates_scope'],'production')
                 self.assertEqual(data['effective_config']['vms'],vms)
                 self.assertEqual(data['effective_config']['hosts'],hosts)
+                plan=data['planned_work']
+                pilots={'micro':[(50,10)],'tiny':[(100,20)],'small':[(100,20),(500,100)],
+                        'medium':[(100,20),(500,100),(2000,400)],
+                        'large':[(100,20),(500,100),(10000,2000)],
+                        'xlarge':[(100,20),(500,100),(20000,4000)]}[name]
+                self.assertEqual([(p['effective_config']['vms'],p['effective_config']['hosts'])
+                                  for p in plan['calibration']],pilots)
+                for pilot in plan['calibration']:
+                    self.assertEqual([pilot['effective_config'][f] for f in ('population','iterations','replications')],[10,10,1])
+                    self.assertEqual((pilot['expected_cases'],pilot['expected_evaluations']),(4,622))
+                self.assertEqual((plan['production']['expected_cases'],plan['production']['expected_evaluations']),(20,36310))
+                self.assertEqual(plan['combined_totals'],{
+                    'expected_cases':20+4*len(pilots),'expected_evaluations':36310+622*len(pilots)})
+                for v,h in pilots:
+                    self.assertIn(f'Calibration: V{v}/H{h}/N10/T10/R1; 4 cases / 622 evaluations',result.stdout)
+                self.assertIn('Production: ',result.stdout)
+                self.assertIn('20 cases / 36310 evaluations',result.stdout)
+                self.assertIn('Combined totals:',result.stdout)
                 if name=='xlarge': self.assertIn('unverified',result.stdout.lower())
         self.assertEqual(list(self.base.iterdir()),[])
+
+    def test_dry_run_custom_density_and_effort_include_all_planned_work(self):
+        result=subprocess.run([str(ROOT/'run-stress.sh'),'--dry-run','--vms','750','--hosts','7',
+                               '--population','2','--iterations','1','--replications','2'],capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        data=json.JSONDecoder().raw_decode(result.stdout[result.stdout.index('{'):])[0]
+        self.assertIn('planned_work',data)
+        plan=data['planned_work']
+        self.assertEqual([(p['effective_config']['vms'],p['effective_config']['hosts'])
+                          for p in plan['calibration']],[(100,1),(500,5),(750,7)])
+        self.assertEqual((plan['production']['expected_cases'],plan['production']['expected_evaluations']),(8,36))
+        self.assertEqual(plan['combined_totals'],{'expected_cases':20,'expected_evaluations':1902})
+        self.assertIn('Calibration: V500/H5/N10/T10/R1; 4 cases / 622 evaluations',result.stdout)
+        self.assertIn('Production: V750/H7/N2/T1/R2; 8 cases / 36 evaluations',result.stdout)
 
     @unittest.skipUnless(Path(SPEC.origin).exists(), 'runner implementation pending')
     def test_durations_and_overflow_cli_rejected_without_artifacts(self):
@@ -138,6 +172,15 @@ sys.exit(9 if os.environ.get('MODE')=='validator_fail' else 0)
         self.assertEqual(data['status'],'complete'); self.assertEqual(data['validation'],'PASS')
         self.assertEqual(data['arguments'][-1],str(output)); self.assertEqual(data['effective_config']['replications'],2)
         self.assertEqual(data['calibration'][0]['validation'],'PASS')
+        self.assertIn('estimates_scope',data)
+        self.assertEqual(data['estimates_scope'],'production')
+        plan=data['planned_work']
+        self.assertEqual(len(plan['calibration']),1)
+        self.assertEqual((plan['calibration'][0]['expected_cases'],plan['calibration'][0]['expected_evaluations']),(4,622))
+        self.assertEqual(plan['combined_totals'],{'expected_cases':12,'expected_evaluations':658})
+        self.assertEqual([p['effective_config'] for p in plan['calibration']],
+                         [p['effective_config'] for p in data['calibration']])
+        self.assertEqual(plan['production']['effective_config'],data['production']['effective_config'])
         self.assertIn('VALIDATED',result.stdout); self.assertTrue(data['diagnostic'])
         self.assertIn('seed 123456',result.stdout)
         self.assertIn('excludes build/tests',result.stdout)
@@ -277,6 +320,26 @@ sys.exit(9 if os.environ.get('MODE')=='validator_fail' else 0)
         for part in ('V50/H10/N2/T1/R1','seed -7','heap 512 MiB','14400','a space'):
             self.assertIn(part,text)
         self.assertIn('Invalid',text)
+
+    def test_interactive_complete_work_is_visible_before_confirmation(self):
+        for values,expected in [(['','','n'],[
+                'Calibration: V100/H20/N10/T10/R1; 4 cases / 622 evaluations',
+                'Calibration: V500/H100/N10/T10/R1; 4 cases / 622 evaluations',
+                'Production: V500/H100/N30/T40/R5; 20 cases / 36310 evaluations',
+                'Combined totals: 28 cases / 37554 evaluations']),
+                (['1','2','2','1','2','n'],[
+                'Calibration: V50/H10/N10/T10/R1; 4 cases / 622 evaluations',
+                'Production: V50/H10/N2/T1/R2; 8 cases / 36 evaluations',
+                'Combined totals: 12 cases / 658 evaluations'])]:
+            with self.subTest(values=values):
+                output=io.StringIO(); inputs=iter(values); confirmation=[]
+                def read(prompt):
+                    if prompt.startswith('Start '): confirmation.append(output.getvalue())
+                    return next(inputs)
+                with self.assertRaises(EOFError):
+                    runner.select_interactive(['--interactive'],read=read,output=output)
+                for text in expected: self.assertIn(text,confirmation[0])
+        self.assertEqual(list(self.base.iterdir()),[])
 
     def test_interactive_invalid_choices_and_cancel_confirmation(self):
         (args,choices),text=self.menu(['bogus','6','bogus','1','maybe','y'])

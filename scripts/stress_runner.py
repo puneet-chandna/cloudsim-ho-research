@@ -141,6 +141,29 @@ def estimate(config,pilot_measurements):
     return result
 
 
+def planned_work(config):
+    # Previews and retained metadata must count the same mandatory calibration blocks.
+    def block(config):
+        totals=estimate(config,[])
+        return {'effective_config':effective(config),
+                **{field:totals[field] for field in ('expected_cases','expected_evaluations')}}
+    pilots=[block(pilot) for pilot in calibrations(config)]
+    production=block(config)
+    return {'calibration':pilots,'production':production,
+            'combined_totals':{field:sum(b[field] for b in [*pilots,production])
+                               for field in ('expected_cases','expected_evaluations')}}
+
+
+def show_planned_work(plan,output=None):
+    output=output if output is not None else sys.stdout
+    for label,block in [('Calibration',p) for p in plan['calibration']]+[('Production',plan['production'])]:
+        c=block['effective_config']
+        print(f'{label}: V{c["vms"]}/H{c["hosts"]}/N{c["population"]}/T{c["iterations"]}/R{c["replications"]}; '
+              f'{block["expected_cases"]} cases / {block["expected_evaluations"]} evaluations',file=output)
+    totals=plan['combined_totals']
+    print(f'Combined totals: {totals["expected_cases"]} cases / {totals["expected_evaluations"]} evaluations',file=output)
+
+
 def java_command(java,config,jar,output,phase):
     command=shared.java_command(java,config.heap_mib,jar,output)
     command[command.index('--profile')+1]='stress'
@@ -241,6 +264,7 @@ def select_interactive(arguments,read=input,output=None):
     choices={'preset':preset,'mode':'default' if mode=='1' else 'custom',
              'population':args.population,'iterations':args.iterations,'replications':args.replications}
     print(f'Effective: V{args.vms}/H{args.hosts}/N{args.population}/T{args.iterations}/R{args.replications}; seed {args.seed}; heap {args.heap_mib} MiB',file=output)
+    show_planned_work(planned_work(args),output)
     print(f'Deadline: {args.time_limit if args.time_limit is not None else "none"} seconds (calibration + production + validation); output: {shared.sanitize(args.output_dir.resolve())}',file=output)
     show_memory(memory_preview(args),output)
     if choice('Start build/calibration/run? [y/N]: ',{'y','yes','n','no'},'n') in ('n','no'):
@@ -266,9 +290,11 @@ def main(argv=None):
               'memory_evidence':memory_preview(args),
               'preset_notice':'xlarge is an unverified opt-in size; no runtime or resource guarantee' if args.preset=='xlarge' else None,
               'time_limit_scope':'calibration + production + all validation; excludes build/tests',
-              'skip_build':args.skip_build,'estimates':estimate(args,[])}
+              'skip_build':args.skip_build,'estimates':estimate(args,[]),'estimates_scope':'production',
+              'planned_work':planned_work(args)}
     if menu_choices is None: show_memory(metadata['memory_evidence'])
     if args.dry_run:
+        show_planned_work(metadata['planned_work'])
         print(json.dumps(metadata,indent=2)); print('Java command template: '+shlex.join(java_command(Path('JAVA_HOME/bin/java'),args,Path('RETAINED/stress.jar'),Path('RETAINED/production/artifacts'),'stress')))
         return 0
     dashboard=shared.Dashboard(plain=args.plain,heap_mib=args.heap_mib,title='STATIC STRESS',total=4*args.replications)

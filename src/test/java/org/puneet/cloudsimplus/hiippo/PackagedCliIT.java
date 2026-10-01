@@ -25,6 +25,12 @@ class PackagedCliIT {
     @Test void informationalCommandsHaveNoSideEffects() throws Exception {
         for (var args : List.of(new String[]{}, new String[]{"--help"}, new String[]{"--version"})) {
             assertEquals(0, run(args));
+            if (args.length == 0 || args[0].equals("--help")) {
+                var help=Files.readString(temp.resolve("console.txt"));
+                assertTrue(help.contains("--profile smoke|explore|research"));
+                assertTrue(help.contains("--profile stress"));
+                assertTrue(help.contains("./run-stress.sh --help"));
+            }
             try(var paths = Files.list(temp)) { assertEquals(List.of("console.txt"), paths.map(p -> p.getFileName().toString()).toList()); }
         }
     }
