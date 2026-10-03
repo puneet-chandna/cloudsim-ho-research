@@ -31,6 +31,9 @@ jobs:
       - name: Build and verify the packaged artifact
         run: ./mvnw -B clean verify
       - name: Check Python runner and independent validators
+        env:
+          # setup-java adds -ntp; verified-build tests require explicit Maven args.
+          MAVEN_ARGS: ''
         run: |
           python3 -m pip install -r scripts/requirements-tui.txt
           python3 -B -m unittest discover -s scripts -p 'test_*.py'
