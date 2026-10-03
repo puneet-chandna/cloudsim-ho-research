@@ -331,15 +331,26 @@ sys.exit(9 if os.environ.get('MODE')=='validator_fail' else 0)
         data=json.loads((next((self.base/'build').iterdir())/'runner.json').read_text())
         self.assertIn('deadline_started_at',data)
 
-    def test_hidden_jvm_options_and_memory_checks_fail_before_output(self):
+    def test_setup_failures_retain_logs_without_starting_experiments(self):
         root,env=self.fixture(); env['JAVA_TOOL_OPTIONS']='-Xmx99g'
         result=subprocess.run([str(root/'run-stress.sh'),'--skip-build','--plain','--output-dir',str(self.base/'options')],env=env,capture_output=True,text=True)
-        self.assertEqual(result.returncode,1); self.assertFalse((self.base/'options').exists())
+        self.assertEqual(result.returncode,1)
+        retained=next((self.base/'options').iterdir())
+        metadata=json.loads((retained/'runner.json').read_text())
+        self.assertEqual(metadata['validation'],'NOT_RUN')
+        self.assertIn('JAVA_TOOL_OPTIONS',metadata['error'])
+        self.assertIn(metadata['error'],(retained/'console.log').read_text())
         with patch.object(shared,'require_memory',side_effect=ValueError('Insufficient usable memory')),patch.dict(os.environ,env):
             os.environ.pop('JAVA_TOOL_OPTIONS')
             with patch.object(runner,'ROOT',root):
                 self.assertEqual(runner.main(['--skip-build','--plain','--output-dir',str(self.base/'memory')]),1)
-        self.assertFalse((self.base/'memory').exists())
+        retained=next((self.base/'memory').iterdir())
+        metadata=json.loads((retained/'runner.json').read_text())
+        self.assertEqual(metadata['validation'],'NOT_RUN')
+        self.assertIn('Insufficient usable memory',metadata['error'])
+        self.assertIn(metadata['error'],(retained/'console.log').read_text())
+        self.assertFalse((root/'build.started').exists())
+        self.assertFalse((root/'java.started').exists())
 
     def test_research_wrapper_rejects_stress_overrides(self):
         result=subprocess.run([str(ROOT/'run-research.sh'),'--vms','100'],cwd=self.base,capture_output=True,text=True)

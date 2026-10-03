@@ -19,12 +19,32 @@ checked independently by the [output validator](scripts/statistics_validator.py)
 
 ## Build and verify
 
-Use a full **Java 21 JDK** (`java` and `javac`), Git and **Python 3.10+**.
+Use a full **Java 21 JDK** (`java` and `javac`), Git and **Python 3.11+**.
 Linux tests require the executable `python3` for independent stdlib oracles.
 Wrapper bootstrap on Linux requires `unzip` and either `sha256sum` or `shasum`.
 The included Maven Wrapper pins Maven 3.9.16; no global Maven installation is
 needed. Initial setup needs network access to download Maven and dependencies.
 Set `JAVA_HOME` to the JDK and put its `bin` directory on `PATH`.
+
+For the integrated Linux terminal app, start `./cloudsim.sh`. First launch offers
+to install the pinned terminal UI into `.cloudsim/venv`; Setup can download a
+checksum-verified JDK 21 into `.cloudsim/jdk` or select an installed JDK.
+`./cloudsim.sh --setup` performs project-local setup directly (automatic JDK
+download currently supports Linux x86-64). No global Java alternatives or shell
+settings are changed. The launcher uses the selected JDK for checks, Maven and
+simulation and keeps its default Maven downloads under `.cloudsim/maven`.
+
+Run, Results, Tools and Setup stay available during a job. Choose Smoke,
+Explore, Research or Static Stress; stress sizes and advanced options are
+editable while frozen protocol settings remain read-only. Failed attempts keep
+their settings and logs. Ctrl+C opens cancellation, Ctrl+Q quits, and F1 shows
+keyboard help. F2–F5 switch between Run, Results, Tools and Setup. Small
+terminals scroll instead of hiding errors.
+
+Automation uses `--profile smoke|explore|research|stress`, `--check`, `--build`,
+`--test` or `--validate DIRECTORY`. Add `--plain` for plain progress. Help,
+dry-run and existing-output validation do not need Java or the terminal UI.
+Setup is explicit; direct experiment actions never download a JDK automatically.
 
 From the supplied v2 source checkout (not a fresh clone of the public default
 branch), run:

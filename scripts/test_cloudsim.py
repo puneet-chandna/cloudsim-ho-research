@@ -43,6 +43,46 @@ class LauncherTests(unittest.TestCase):
             args = self.cli.parse_args(['--profile', profile])
             self.assertEqual((args.action, args.profile), ('profile', profile))
 
+    def test_profile_setup_failures_retain_diagnostics_before_launch(self):
+        runtime = self.base/'runtime only'/'bin'
+        runtime.mkdir(parents=True)
+        (runtime/'java').write_text('#!/bin/sh\nexit 99\n')
+        (runtime/'java').chmod(0o755)
+        env = {**os.environ, 'JAVA_HOME': str(runtime.parent)}
+        for name in ('JAVA_TOOL_OPTIONS', 'JDK_JAVA_OPTIONS', '_JAVA_OPTIONS'):
+            env.pop(name, None)
+        for profile in ('smoke', 'explore', 'research', 'stress'):
+            with self.subTest(profile=profile):
+                output = self.base/profile
+                result = subprocess.run([str(ROOT/'cloudsim.sh'), '--profile', profile,
+                    '--plain', '--output-dir', str(output)], env=env,
+                    capture_output=True, text=True, timeout=15)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                retained = list(output.glob('*/runner.json'))
+                self.assertEqual(len(retained), 1, result.stdout)
+                metadata = json.loads(retained[0].read_text())
+                self.assertEqual(metadata['status'], 'failed')
+                self.assertEqual(metadata['exit_code'], 1)
+                self.assertEqual(metadata['validation'], 'NOT_RUN')
+                self.assertEqual(metadata['tests'], 'NOT_RUN')
+                self.assertIn('javac', metadata['error'])
+                self.assertIn(metadata['error'], (retained[0].parent/'console.log').read_text())
+                self.assertEqual(metadata['output_directory'], str(retained[0].parent))
+                self.assertFalse(list(retained[0].parent.glob('*.jar')))
+
+    def test_incomplete_jdk_error_identifies_selection_and_recovery(self):
+        runtime = self.base/'runtime only'/'bin'
+        runtime.mkdir(parents=True)
+        (runtime/'java').touch()
+        with patch.dict(os.environ, {'JAVA_HOME': str(runtime.parent)}, clear=True):
+            args = self.cli.parse_args(['--check', '--plain', '--output-dir', str(self.base/'logs')])
+            outcomes = []
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(self.cli.execute(args, on_complete=outcomes.append), 1)
+        self.assertIn(str(runtime/'java'), outcomes[0]['error'])
+        self.assertIn('--check', outcomes[0]['error'])
+        self.assertIn('experiment settings', outcomes[0]['error'])
+
     def test_invalid_invocations_are_side_effect_free(self):
         invalid = [['--plain'], ['--profile', 'smoke', '--check'], ['--check', '--build'],
                    ['--profile', 'research', '--profile=smoke'], ['--plain', '--plain', '--check'],
@@ -181,7 +221,8 @@ class LauncherTests(unittest.TestCase):
                 self.assertEqual(self.cli.execute(args, on_complete=completed.append), expected)
             self.assertEqual(run.call_count, count)
             commands = [call.args[0] for call in run.call_args_list]
-            expected_maven = [str(ROOT/'mvnw'), '-B', '-Dmaven.test.skip=true', 'clean', 'package'] if action == 'build' else [str(ROOT/'mvnw'), '-B', 'clean', 'verify']
+            expected_maven = [str(ROOT/'mvnw'), '-B', '-Dmaven.repo.local='+str(ROOT/'.cloudsim/maven/repository')]
+            expected_maven += ['-Dmaven.test.skip=true', 'clean', 'package'] if action == 'build' else ['clean', 'verify']
             self.assertEqual(commands[0], expected_maven)
             record = json.loads((Path(completed[0]['output_directory'])/'runner.json').read_text())
             self.assertEqual(record['exit_code'], expected)
@@ -219,11 +260,13 @@ class LauncherTests(unittest.TestCase):
     def test_tui_startup_is_lazy_and_missing_module_is_explicit(self):
         with patch.object(self.cli.sys.stdin, 'isatty', return_value=True), \
              patch.object(self.cli.sys.stdout, 'isatty', return_value=True), \
+             patch.object(self.cli.cloudsim_runtime, 'ensure_ui', return_value=True), \
              patch.dict(sys.modules, {'cloudsim_tui': None}), redirect_stderr(io.StringIO()) as errors:
             self.assertEqual(self.cli.main([]), 2)
         self.assertIn('interactive terminal application unavailable', errors.getvalue())
         with patch.object(self.cli.sys.stdin, 'isatty', return_value=True), \
              patch.object(self.cli.sys.stdout, 'isatty', return_value=True), \
+             patch.object(self.cli.cloudsim_runtime, 'ensure_ui', return_value=True), \
              patch.dict(sys.modules, {'cloudsim_tui': SimpleNamespace(run=lambda: 9)}):
             self.assertEqual(self.cli.main([]), 9)
 

@@ -331,15 +331,16 @@ def main(argv=None, *, dashboard=None, on_complete=None, invocation=None) -> int
     control.install()
     outer=console=None; code=1; deadline=None
     try:
+        args.output_dir=args.output_dir.resolve(); args.output_dir.mkdir(parents=True,exist_ok=True)
+        outer=Path(tempfile.mkdtemp(prefix='stress-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-',dir=args.output_dir))
+        control.root=outer; console=(outer/'console.log').open('a'); dashboard.console=console
+        metadata['output_directory']=str(outer); shared.save_metadata(outer,metadata)
         if menu_choices is None:
             if supplied_dashboard:
                 preview=io.StringIO(); show_memory(metadata['memory_evidence'],preview)
                 control.render('preflight',{'detail':preview.getvalue()},force=True)
             else: show_memory(metadata['memory_evidence'])
         java,metadata['usable_memory_bytes']=shared.check_environment(control,args.heap_mib)
-        args.output_dir=args.output_dir.resolve(); args.output_dir.mkdir(parents=True,exist_ok=True)
-        outer=Path(tempfile.mkdtemp(prefix='stress-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-',dir=args.output_dir))
-        control.root=outer; console=(outer/'console.log').open('a'); dashboard.console=console
         metadata.update(output_directory=str(outer),java=str(java)); shared.save_metadata(outer,metadata)
         for command,name in [(['status','--porcelain'],'source-status'),(['rev-parse','HEAD'],'source-revision')]:
             code=control.run(['git',*command],outer/f'{name}.log','provenance',cwd=ROOT,timeout=10,stderr_log=outer/f'{name}.stderr.log')
@@ -348,7 +349,7 @@ def main(argv=None, *, dashboard=None, on_complete=None, invocation=None) -> int
                         source_status=(outer/'source-status.log').read_text(),source_dirty=bool((outer/'source-status.log').read_text()))
         if args.skip_build: control.render('build',{'detail':'SKIPPED: Maven clean verify and Python test discovery (--skip-build).'},force=True)
         else:
-            for command,name in [([str(ROOT/'mvnw'),'-B','clean','verify'],'build.log'),([sys.executable,'-B','-m','unittest','discover','-s','scripts','-p','test_*.py'],'python-tests.log')]:
+            for command,name in [(shared.maven_command('clean','verify',root=ROOT),'build.log'),([sys.executable,'-B','-m','unittest','discover','-s','scripts','-p','test_*.py'],'python-tests.log')]:
                 metadata['status']='build'; shared.save_metadata(outer,metadata)
                 code=control.run(command,outer/name,'build',cwd=ROOT)
                 if code:

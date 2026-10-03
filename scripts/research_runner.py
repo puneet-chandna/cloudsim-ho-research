@@ -15,6 +15,7 @@ import sys
 import tempfile
 import time
 import unicodedata
+import cloudsim_runtime
 from datetime import datetime, timezone
 from contextlib import ExitStack
 
@@ -118,6 +119,11 @@ def java_command(java, heap_mib, jar, outer, config=None, *, profile='research')
                '-jar',str(jar),'--profile',profile,'--output-dir',str(outer/profile)]
     if config is not None: command += ['--config',str(config)]
     return command
+
+
+def maven_command(*arguments, root=None):
+    root = ROOT if root is None else root
+    return [str(root/'mvnw'), '-B', '-Dmaven.repo.local='+str(root/'.cloudsim/maven/repository'), *arguments]
 
 
 def read_progress(root, *, profile='research'):
@@ -242,6 +248,7 @@ class PresentationError(ValueError):
 class ProcessControl:
     def __init__(self,dashboard,root):
         self.dashboard,self.root = dashboard,root
+        self.env = dict(os.environ)
         self.signum = None
         self.handlers = {}
         self.warning = None
@@ -298,7 +305,8 @@ class ProcessControl:
         with ExitStack() as files:
             output = files.enter_context(log.open('wb'))
             errors = files.enter_context(stderr_log.open('wb')) if stderr_log else subprocess.STDOUT
-            child = subprocess.Popen(command,cwd=cwd or self.root,stdout=output,stderr=errors,start_new_session=True)
+            child = subprocess.Popen(command,cwd=cwd or self.root,stdout=output,stderr=errors,start_new_session=True,env=self.env)
+            self.active_pid = child.pid
             started = time.monotonic()
             observed = 0
             peak = None
@@ -323,6 +331,7 @@ class ProcessControl:
                 return self.last_exit_code
             finally:
                 self.stop(child)
+                self.active_pid = None
                 self.last_measurement = {'wall_seconds':time.monotonic()-started,'sampled_peak_rss_bytes':peak}
 
 
@@ -346,17 +355,29 @@ def heap_value(value):
 
 
 def check_environment(control, heap_mib: int) -> tuple[Path, int]:
-    check_java_options(os.environ)
-    java = Path(os.environ['JAVA_HOME'])/'bin/java' if os.environ.get('JAVA_HOME') else Path(shutil.which('java') or '/missing-java')
-    java = java.resolve(strict=True)
+    check_java_options(control.env)
+    def verify(home):
+        with tempfile.TemporaryDirectory(prefix='cloudsim-preflight-') as temporary:
+            for name in ('java','javac'):
+                tool = home/'bin'/name
+                if not tool.is_file(): raise ValueError(f'{tool} is missing')
+                log = Path(temporary)/name
+                result = control.run([str(tool),'-version'],log,'preflight',timeout=20)
+                if result or not re.search(r'(?:version\s+"?|javac\s+)21(?:[.\s"+-]|$)',log.read_text(errors='replace')):
+                    raise ValueError(f'{name} must be version 21; select a full JDK 21 with JAVA_HOME')
+        return home
+    control.env = cloudsim_runtime.java_environment(control.env, ROOT, verify=verify)
+    java = Path(control.env['JAVA_HOME'])/'bin/java' if control.env.get('JAVA_HOME') else Path('/missing-java')
+    try: java = java.resolve(strict=True)
+    except OSError as error:
+        raise ValueError(f'Java setup required: the selected Java is unavailable at {java}. '
+                         'Open Setup to select or install a full JDK 21, then Check again.') from error
     javac = java.parent/'javac'
-    if not javac.is_file(): raise ValueError('Select a full JDK 21 with JAVA_HOME (javac missing)')
-    with tempfile.TemporaryDirectory(prefix='cloudsim-preflight-') as temporary:
-        for tool in (java,javac):
-            log = Path(temporary)/tool.name
-            result = control.run([str(tool),'-version'],log,'preflight',timeout=20)
-            if result or not re.search(r'(?:version\s+"?|javac\s+)21(?:[.\s"+-]|$)',log.read_text(errors='replace')):
-                raise ValueError(f'{tool.name} must be version 21; select a full JDK 21 with JAVA_HOME')
+    if not javac.is_file():
+        raise ValueError(f'Java setup required: {java} has no matching javac. '
+                         'Use Setup in the app, or run ./cloudsim.sh --setup to install a local JDK 21. '
+                         'Run ./cloudsim.sh --check to confirm setup; changing experiment settings cannot fix this.')
+    verify(java.parent.parent)
     return java,require_memory(heap_mib)
 
 
@@ -405,6 +426,13 @@ def main(argv=None, *, profile='research', dashboard=None, on_complete=None, inv
     code = 1
     console = None
     try:
+        args.output_dir = args.output_dir.resolve()
+        args.output_dir.mkdir(parents=True,exist_ok=True)
+        outer = Path(tempfile.mkdtemp(prefix=profile+'-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-',dir=args.output_dir))
+        control.root = outer
+        console = (outer/'console.log').open('a'); dashboard.console = console
+        metadata['output_directory'] = str(outer)
+        save_metadata(outer,metadata)
         if args.config:
             args.config = args.config.resolve(strict=True)
             if not args.config.is_file(): raise ValueError('Config must be an existing file')
@@ -439,11 +467,7 @@ def main(argv=None, *, profile='research', dashboard=None, on_complete=None, inv
 def run_profile(args,profile,total,java,metadata,control):
     dashboard = control.dashboard
     # Keep the original sequential build/run/validation protocol and retained paths.
-    args.output_dir = args.output_dir.resolve()
-    args.output_dir.mkdir(parents=True,exist_ok=True)
-    outer = Path(tempfile.mkdtemp(prefix=profile+'-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-',dir=args.output_dir))
-    control.root = outer
-    dashboard.console = (outer/'console.log').open('a')
+    outer = control.root
     metadata['status'] = 'provenance'; save_metadata(outer,metadata)
     for arguments,name in [(['status','--porcelain'],'source-status'),(['rev-parse','HEAD'],'source-revision')]:
         code = control.run(['git',*arguments],outer/f'{name}.log','preflight',cwd=ROOT,timeout=10,stderr_log=outer/f'{name}.stderr.log')
@@ -456,7 +480,7 @@ def run_profile(args,profile,total,java,metadata,control):
     if args.skip_build:
         control.render('build',{'detail':'SKIPPED: Maven clean verify and Python test discovery (--skip-build).'},force=True)
     else:
-        for command,log in [([str(ROOT/'mvnw'),'-B','clean','verify'],'build.log'),
+        for command,log in [(maven_command('clean','verify'),'build.log'),
                             ([sys.executable,'-B','-m','unittest','discover','-s','scripts','-p','test_*.py'],'python-tests.log')]:
             metadata['status']='build'; save_metadata(outer,metadata)
             code = control.run(command,outer/log,'build',cwd=ROOT)

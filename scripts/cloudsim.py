@@ -10,6 +10,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import cloudsim_runtime
 
 import research_runner as shared
 import stress_runner as stress
@@ -108,7 +109,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         epilog='No arguments opens the terminal app. Linux, Python 3.11+ and full JDK 21 are required to run. Help and dry-run require no JDK.')
     actions = parser.add_mutually_exclusive_group()
     actions.add_argument('--profile', choices=(*shared.FROZEN_PROFILES, 'stress'))
-    for action in ('check', 'build', 'test'): actions.add_argument('--'+action, action='store_true')
+    for action in ('check', 'build', 'test', 'setup'): actions.add_argument('--'+action, action='store_true')
     actions.add_argument('--validate', type=stress.output_path, metavar='DIRECTORY')
     parser.add_argument('--plain', action='store_true', help='plain progress; automatic for nonterminal output')
     parser.add_argument('--dry-run', action='store_true', help='preview a profile without children or output creation')
@@ -125,7 +126,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     if len(flags) != len(set(flags)): parser.error('duplicate options are not supported')
     options = parser.parse_args(arguments)
     options.arguments = arguments
-    options.action = 'profile' if options.profile else next((a for a in ('check', 'build', 'test', 'validate') if getattr(options, a)), None)
+    options.action = 'profile' if options.profile else next((a for a in ('check', 'build', 'test', 'validate', 'setup') if getattr(options, a)), None)
     if arguments and options.action is None: parser.error('select an action: --profile, --check, --build, --test or --validate')
     if options.action != 'profile':
         incompatible = {'--config', '--skip-build', '--dry-run', *('--'+field.replace('_', '-') for field in STRESS_FLAGS)}
@@ -210,6 +211,7 @@ def preview(options: argparse.Namespace) -> dict:
 
 
 def execute(options: argparse.Namespace, *, dashboard=None, on_complete=None, invocation=None) -> int:
+    if options.action == 'setup': return cloudsim_runtime.setup()
     original = deepcopy(invocation) if invocation is not None else {'arguments': list(options.arguments)}
     if isinstance(original, dict): original['effective_config'] = _effective(options)
     if options.action == 'profile':
@@ -262,8 +264,8 @@ def _maintenance(options, dashboard, on_complete, invocation):
                 metadata['status'] = 'checked'; code = 0
                 control.render('checked', {'detail': f'PASS: JDK 21; {available//shared.MIB} MiB usable memory. No experiment executed.'}, force=True)
             else:
-                commands = [([str(ROOT/'mvnw'), '-B', '-Dmaven.test.skip=true', 'clean', 'package'], 'build.log')] if options.action == 'build' else [
-                    ([str(ROOT/'mvnw'), '-B', 'clean', 'verify'], 'build.log'),
+                commands = [(shared.maven_command('-Dmaven.test.skip=true', 'clean', 'package',root=ROOT), 'build.log')] if options.action == 'build' else [
+                    (shared.maven_command('clean', 'verify',root=ROOT), 'build.log'),
                     ([sys.executable, '-B', '-m', 'unittest', 'discover', '-s', 'scripts', '-p', 'test_*.py'], 'python-tests.log')]
                 for command, name in commands:
                     metadata.update(status=options.action)
@@ -293,6 +295,7 @@ def main(argv=None) -> int:
         if not sys.stdin.isatty() or not sys.stdout.isatty():
             print('ERROR: terminal stdin/stdout required; select --profile smoke|explore|research|stress, --check, --build, --test or --validate DIRECTORY.', file=sys.stderr)
             return 2
+        if not cloudsim_runtime.ensure_ui(): return 2
         try: from cloudsim_tui import run
         except ImportError as error:
             print('ERROR: interactive terminal application unavailable: '+shared.sanitize(error), file=sys.stderr)
