@@ -56,6 +56,11 @@ The first run or a changed input runs Maven `clean verify` and the Python suite.
 `--skip-build` is a separate diagnostic option. Every experiment still runs its
 independent result validator. Results distinguishes experiments, setup checks
 and validation reports, and explains which selections can be validated.
+Completed experiments show case/evaluation totals, elapsed time, runtime limits
+and algorithm means with explicit units. Analysis checks distinguish recorded
+validation from the lightweight integrity check used to display a summary;
+Stress remains descriptive and Research shows its recorded claim decisions.
+Saved paths, commands and raw metadata are available under Saved evidence.
 
 `--workers auto` (default) runs independent cases concurrently within CPU and
 shared heap limits: at most one worker per 512 MiB, capped at 32. Use

@@ -2,6 +2,7 @@
 import importlib.util
 import asyncio
 import json
+import io
 import os
 from pathlib import Path
 import sys
@@ -419,7 +420,8 @@ class InterfaceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(saved['status'],'failed')
             self.assertEqual(saved['exit_code'],137)
             app.show_result(result);await pilot.pause()
-            self.assertIn(str(directory),str(app.query_one('#result-details').render()))
+            self.assertIn(str(directory),str(app.query_one('#result-path').render()))
+            self.assertTrue(app.query_one('#result-evidence',Collapsible).collapsed)
 
     async def test_results_selects_experiment_and_explains_ineligible_actions(self):
         app=CloudSimApp(output_parent=self.root/'results')
@@ -450,8 +452,134 @@ class InterfaceTests(unittest.IsolatedAsyncioTestCase):
         app=CloudSimApp(output_parent=self.root/'results')
         async with app.run_test() as pilot:
             await self.settled(app,pilot)
-            app.show_result(dict(action='validate',status='complete',exit_code=0,validation='PASS',
-                                 validation_result={'scope':'campaign','artifact_binding':'verified','limitations':'recorded evidence'}))
-            await pilot.pause()
-            self.assertIn('Validated',str(app.query_one('#outcome').render()))
-            self.assertIn('Independent validation: PASS',str(app.query_one('#result-details').render()))
+            for profile in (None,'stress','research'):
+                app.show_result(dict(action='validate',profile=profile,status='complete',exit_code=0,validation='PASS',
+                                     validation_result={'scope':'campaign','artifact_binding':'verified','limitations':'recorded evidence'}))
+                await pilot.pause()
+                self.assertEqual('Validated',str(app.query_one('#outcome').render()))
+                self.assertIn('Independent validation: PASS',str(app.query_one('#result-details').render()))
+                self.assertIn('recorded evidence',str(app.query_one('#result-details').render()))
+
+    def rendered_result(self, app, selector):
+        from rich.console import Console
+        output=io.StringIO()
+        Console(file=output,width=80,color_system=None).print(app.query_one(selector,Static).content)
+        return output.getvalue()
+
+    def result_summary_fixture(self):
+        return {
+            'overview':[('Experiment','100 VMs / 20 hosts · N100 / T40 / R10'),('Master seed','123456'),
+                        ('Completed','40/40 cases · 242,020 evaluations'),('Cloudlets','0 failed or censored'),
+                        ('Elapsed','10.84s total · 7.37s simulation · 1.81s validation'),
+                        ('Runtime','8 workers / 4,096 MiB shared heap · 1,160 MiB sampled peak RSS')],
+            'algorithms':[{'algorithm':name,'cases':10,'energy_j':energy,'sla':0.0,'runtime_ms':None}
+                          for name,energy in (('HO',271627.6875),('GA',316129.875),('FF',319682.8125),('BF',319682.8125))],
+            'checks':[{'label':'Campaign validation','status':'PASS','detail':'Recorded independent validation passed.'},
+                      {'label':'Descriptive means','status':'AVAILABLE','detail':'10 paired replications per algorithm.'},
+                      {'label':'Research inference','status':'NOT_APPLICABLE','detail':'Wild bootstrap, BCa and Holm belong to frozen research.'}],
+            'notes':['Static stress is descriptive. Zero SLA is a no-contention control, not evidence of algorithm superiority.'],
+            'error':None}
+
+    async def test_completion_shows_means_units_scope_and_progressive_evidence(self):
+        app=CloudSimApp(output_parent=self.root/'results')
+        directory=self.root/'a-long-retained-experiment-directory'
+        metadata=dict(profile='stress',status='complete',exit_code=0,validation='PASS',tests='PASS',output_directory=str(directory))
+        async with app.run_test(size=(120,34)) as pilot:
+            await self.settled(app,pilot)
+            with patch('cloudsim_tui.build_result_summary',return_value=self.result_summary_fixture()):
+                app.show_result(metadata);await pilot.pause()
+            self.assertEqual(str(app.query_one('#outcome').render()),'Stress complete')
+            self.assertIn('Recorded validation: PASS',str(app.query_one('#result-details').render()))
+            means=self.rendered_result(app,'#algorithm-means')
+            for text in ('Algorithm','Energy J','SLA %','Time ms','271,627.69','316,129.88','319,682.81','0.000','—'):
+                self.assertIn(text,means)
+            checks=self.rendered_result(app,'#check-details')
+            self.assertIn('Research inference · NOT APPLICABLE',checks)
+            self.assertIn('10 paired replications',checks)
+            self.assertNotIn('winner',checks.lower())
+            for selector in ('#outcome','#result-details','#result-overview','#check-details','#result-notes'):
+                self.assertNotIn(str(directory),self.rendered_result(app,selector))
+            evidence=app.query_one('#result-evidence',Collapsible)
+            self.assertTrue(evidence.collapsed)
+            self.assertTrue(app.query_one('#result-raw',Collapsible).collapsed)
+            evidence.query_one('CollapsibleTitle').focus();await pilot.press('enter');await pilot.pause()
+            self.assertFalse(evidence.collapsed)
+            self.assertEqual(str(app.query_one('#result-path',Static).render()),str(directory))
+            self.assertTrue(all(parent.display for parent in app.query_one('#result-path').ancestors))
+            self.assertTrue(app.query_one('#result-raw',Collapsible).collapsed)
+            app.query_one('#edit',Button).focus()
+            await pilot.resize_terminal(80,24);await pilot.pause()
+            app.query_one('#result-scroll').scroll_home(animate=False);await pilot.pause()
+            viewport=app.query_one('#result-scroll').content_region;means=app.query_one('#algorithm-means').region
+            self.assertTrue(viewport.contains_region(means),(viewport,means))
+            await pilot.resize_terminal(60,18);await pilot.pause()
+            app.query_one('#result-scroll').scroll_home(animate=False);await pilot.pause()
+            self.assertTrue(app.query_one('#result-facts').display)
+            self.assertTrue(app.query_one('#result-facts',Collapsible).collapsed)
+            self.assertIn('8 workers',self.rendered_result(app,'#result-more-facts'))
+            self.assertIn('40 cases',self.rendered_result(app,'#result-overview'))
+            self.assertTrue(app.query_one('#result-scroll').content_region.contains_region(app.query_one('#algorithm-means').region))
+            await pilot.resize_terminal(120,34);await pilot.pause()
+            self.assertFalse(app.query_one('#result-facts').display)
+            self.assertIn('8 workers',self.rendered_result(app,'#result-overview'))
+
+    async def test_changed_summary_does_not_present_recorded_pass_as_fresh_validation(self):
+        app=CloudSimApp(output_parent=self.root/'results')
+        summary=self.result_summary_fixture();summary['error']='Retained summary changed. Rerun independent validation.'
+        async with app.run_test(size=(80,24)) as pilot:
+            await self.settled(app,pilot)
+            with patch('cloudsim_tui.build_result_summary',return_value=summary):
+                app.show_result(dict(profile='stress',status='complete',exit_code=0,validation='PASS'));await pilot.pause()
+            heading=app.query_one('#outcome',Static)
+            self.assertIn('summary unavailable',str(heading.render()))
+            self.assertFalse(heading.has_class('success'))
+            self.assertTrue(heading.has_class('summary-unavailable'))
+            self.assertIn('Recorded validation: PASS',str(app.query_one('#result-details').render()))
+            self.assertIn(summary['error'],str(app.query_one('#result-details').render()))
+            self.assertFalse(app.query_one('#algorithm-means').display)
+            self.assertFalse(app.query_one('#algorithm-title').display)
+
+    async def test_completion_preserves_frozen_profile_analysis_semantics(self):
+        app=CloudSimApp(output_parent=self.root/'results')
+        async with app.run_test(size=(120,34)) as pilot:
+            await self.settled(app,pilot)
+            for profile in ('smoke','explore','research'):
+                with self.subTest(profile=profile):
+                    summary={'overview':[],'notes':[],'error':None,
+                             'algorithms':[{'algorithm':'HO','scenario':scenario,'cases':1,'energy_j':100,'sla':0,'runtime_ms':1}
+                                           for scenario in ('Micro','Medium')],
+                             'checks':[{'label':'Research inference','status':'RECORDED_PASS' if profile=='research' else 'NOT_APPLICABLE',
+                                        'detail':'Wild bootstrap · BCa · Holm' if profile=='research' else 'Protocol check only; no research claims.'}]}
+                    with patch('cloudsim_tui.build_result_summary',return_value=summary):
+                        app.show_result(dict(profile=profile,status='complete',exit_code=0,validation='PASS'));await pilot.pause()
+                    self.assertEqual(str(app.query_one('#outcome').render()),profile.title()+' complete')
+                    checks=self.rendered_result(app,'#check-details')
+                    self.assertIn(summary['checks'][0]['detail'],checks)
+                    self.assertIn('RECORDED PASS' if profile=='research' else 'NOT APPLICABLE',checks)
+                    self.assertIn('HO / Micro',self.rendered_result(app,'#algorithm-means'))
+                    self.assertIn('HO / Medium',self.rendered_result(app,'#algorithm-means'))
+                    self.assertIn('main cases',str(app.query_one('#algorithm-title').render()))
+
+    async def test_completion_recovery_actions_remain_visible_at_all_sizes(self):
+        app=CloudSimApp(output_parent=self.root/'results')
+        empty={'overview':[],'algorithms':[],'checks':[],'notes':[],'error':None}
+        outcomes=((dict(status='failed',exit_code=1,error='Fixture failed'),'Could not complete the job'),
+                  (dict(status='interrupted',exit_code=130),'Cancelled'),
+                  (dict(action='build',status='complete',exit_code=0,tests='PASS'),'Action complete'),
+                  (dict(profile='research',status='checked',exit_code=0),'Setup ready'))
+        async with app.run_test(size=(120,34)) as pilot:
+            await self.settled(app,pilot)
+            app.last_args=['--profile','smoke']
+            for width,height in ((120,34),(80,24),(60,18)):
+                await pilot.resize_terminal(width,height);await pilot.pause()
+                for metadata,title in outcomes:
+                    with patch('cloudsim_tui.build_result_summary',return_value=empty):
+                        app.show_result(metadata);await pilot.pause()
+                    self.assertEqual(str(app.query_one('#outcome').render()),title)
+                    self.assertFalse(app.query_one('#result-body').display)
+                    for name in ('edit','retry','result-setup','view-log'):
+                        button=app.query_one('#'+name,Button)
+                        self.assertGreater(button.region.width,0)
+                        self.assertLessEqual(button.region.bottom,height-1)
+            await pilot.click('#edit');await pilot.pause()
+            self.assertEqual(app.query_one('#flow').current,'configure')

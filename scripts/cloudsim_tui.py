@@ -9,6 +9,8 @@ import signal
 import sys
 import time
 
+from rich.table import Table
+from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -21,6 +23,7 @@ from textual.widgets import (Button, Checkbox, Collapsible, ContentSwitcher, Dat
 
 import cloudsim
 import cloudsim_runtime as runtime
+from cloudsim_results import build_result_summary
 from run_validation import campaign_selection_error
 
 ROOT = cloudsim.ROOT
@@ -167,6 +170,17 @@ class CloudSimApp(App):
     #outcome.success { color: $success; }
     #outcome.failure { color: $error; }
     #result-details, #stage-detail { margin: 1 0; }
+    #result-details { margin: 0; color: $text-muted; }
+    #outcome.summary-unavailable { color: $warning; }
+    #result-body { height: auto; margin-top: 1; }
+    #result-main { height: auto; width: 3fr; padding-right: 3; }
+    #result-checks { height: auto; width: 2fr; padding-left: 3; border-left: solid $panel; }
+    #result-overview, #algorithm-means, #check-details, #result-notes, #result-path, #result-more-facts { height: auto; }
+    #result-checks > .section-title { margin: 0 0 1 0; }
+    #algorithm-title { margin-bottom: 1; }
+    #result-notes { margin-top: 1; color: $text-muted; }
+    #result-path { color: $text-muted; }
+    #result > .actions { dock: bottom; margin-top: 0; }
     #stage-detail { max-height: 4; }
     #measurements { color: $text-muted; }
     #runtime-note { height: auto; max-height: 2; color: $text-muted; }
@@ -184,6 +198,10 @@ class CloudSimApp(App):
     Screen.narrow #configure-body { layout: vertical; }
     Screen.narrow #form { width: 100%; padding-right: 0; }
     Screen.narrow #plan { display: none; }
+    Screen.narrow #result-body { layout: vertical; margin-top: 0; }
+    Screen.narrow #result-main, Screen.narrow #result-checks { width: 100%; padding: 0; border: none; }
+    Screen.narrow #result-checks { margin-top: 1; }
+    Screen.narrow #algorithm-title { margin: 0; }
     Screen.compact #brand { width: 12; }
     Screen.compact #plan, Screen.compact #start-hint { display: none; }
     Screen.compact TabPane { padding: 0 1; }
@@ -191,6 +209,8 @@ class CloudSimApp(App):
     Screen.compact #run-description { display: none; }
     Screen.compact #form .pair, Screen.compact #form .section-title { margin-top: 0; }
     Screen.compact #configure > .actions { margin: 0; }
+    Screen.compact #outcome, Screen.compact #result-body { margin-top: 0; }
+    Screen.compact #algorithm-title { margin: 0; }
     Screen.compact #stage-title { margin: 0; }
     Screen.compact #stage-detail { max-height: 3; margin: 0 0 1 0; }
     Screen.compact ProgressBar { margin: 0 0 1 0; }
@@ -221,6 +241,7 @@ class CloudSimApp(App):
         self.last_args = []
         self.last_action = 'profile'
         self.outcome = {}
+        self.result_summary = None
         self.outcome_log = None
         self.active_directory = None
         self.recent = {}
@@ -326,11 +347,24 @@ class CloudSimApp(App):
                             yield Button('Pause log', id='follow')
                             yield Button('Cancel job', variant='error', id='cancel-job')
                     with Vertical(id='result'):
-                        with VerticalScroll():
+                        with VerticalScroll(id='result-scroll'):
                             yield Static('', id='outcome', markup=False)
                             yield Static('', id='result-details', markup=False)
-                            with Collapsible(title='Commands and full metadata'):
-                                yield Static('', id='metadata', markup=False)
+                            with Horizontal(id='result-body'):
+                                with Vertical(id='result-main'):
+                                    yield Static('', id='result-overview')
+                                    yield Static('Algorithm means · production cases', id='algorithm-title', classes='section-title', markup=False)
+                                    yield Static('', id='algorithm-means')
+                                    with Collapsible(title='Experiment details', id='result-facts'):
+                                        yield Static('', id='result-more-facts')
+                                    yield Static('', id='result-notes', markup=False)
+                                with Vertical(id='result-checks'):
+                                    yield Static('Analysis & checks', classes='section-title', markup=False)
+                                    yield Static('', id='check-details')
+                            with Collapsible(title='Saved evidence', id='result-evidence'):
+                                yield Static('', id='result-path', markup=False)
+                                with Collapsible(title='Commands and raw metadata', id='result-raw'):
+                                    yield Static('', id='metadata', markup=False)
                         with Horizontal(classes='actions'):
                             yield Button('Edit', id='edit')
                             yield Button('Retry', id='retry')
@@ -396,7 +430,9 @@ class CloudSimApp(App):
         self.query_one('#brand', Static).update('CloudSim' if screen.has_class('compact') else 'CloudSim  /  Workbench')
 
     def on_resize(self, event):
-        if self.is_mounted: self.responsive_layout(event.size)
+        if self.is_mounted:
+            self.responsive_layout(event.size)
+            if self.result_summary is not None: self.render_result_summary(self.result_summary)
 
     @on(Select.Changed, '#theme')
     def change_theme(self, event):
@@ -758,30 +794,99 @@ class CloudSimApp(App):
         self.query_one('#flow', ContentSwitcher).current = 'result'
         okay = metadata.get('exit_code')==0 and metadata.get('status') in ('complete','checked')
         profile = metadata.get('profile')
-        validates = (bool(profile) and metadata.get('status')!='checked') or metadata.get('action')=='validate'
+        experiment = bool(profile) and metadata.get('status')!='checked' and metadata.get('action')!='validate'
+        validates = experiment or metadata.get('action')=='validate'
         if validates: okay = okay and metadata.get('validation')=='PASS'
-        title = ('Validated' if validates else 'Setup ready' if metadata.get('status')=='checked' else 'Action complete') if okay else 'Cancelled' if metadata.get('status')=='interrupted' else 'Could not complete the job'
+        summary = build_result_summary(metadata)
+        self.result_summary = summary
+        summary_error = summary.get('error')
+        title = (profile.title()+' complete' if experiment else 'Validated' if validates else 'Setup ready' if metadata.get('status')=='checked' else 'Action complete') if okay else 'Cancelled' if metadata.get('status')=='interrupted' else 'Could not complete the job'
+        if okay and experiment and summary_error:
+            title = 'Completed · summary unavailable'
         heading = self.query_one('#outcome', Static); heading.update(title)
-        heading.set_class(okay,'success'); heading.set_class(not okay,'failure')
-        detail = [metadata.get('error') or (None if recorded else self.progress.get('detail')) or title]
-        if metadata.get('output_directory'): detail += ['', 'Saved output', metadata['output_directory']]
-        if validates: detail += ['', 'Independent validation: '+str(metadata.get('validation','NOT_RUN'))]
-        detail += ['Build/tests: '+str(metadata.get('tests','NOT_RUN'))]
-        if metadata.get('build') == 'REUSED_VERIFIED': detail += ['Verified build and test receipt reused for matching source.']
-        if metadata.get('diagnostic'): detail += ['Diagnostic result: source, retained artifact or skipped build differs from a clean-source run.']
-        if profile == 'stress': detail += ['Static stress results are descriptive; no frozen research claims.']
-        if profile in ('smoke','explore'): detail += ['Frozen protocol check; no research claims.']
-        if metadata.get('claims') is not None: detail += [f'Research decisions: {metadata["claims"]} CLAIM / {metadata.get("no_claim",0)} NO_CLAIM']
+        heading.set_class(okay and not summary_error,'success'); heading.set_class(not okay,'failure')
+        heading.set_class(okay and bool(summary_error),'summary-unavailable')
+        detail = []
+        if metadata.get('error'): detail.append(metadata['error'])
+        elif not okay and not recorded and self.progress.get('detail'): detail.append(self.progress['detail'])
+        status = ('Independent validation: ' if metadata.get('action')=='validate' else 'Recorded validation: ')+str(metadata.get('validation','NOT_RUN')) if validates else ''
+        if metadata.get('tests') not in (None,'NOT_RUN'):
+            status += (' · ' if status else '')+'Build/tests: '+str(metadata['tests'])
+        if status: detail.append(status)
+        if summary_error: detail.append(str(summary_error))
         validation = metadata.get('validation_result')
-        if isinstance(validation, dict):
-            detail += [validation.get('scope',''), validation.get('artifact_binding',''), validation.get('limitations','')]
+        if metadata.get('action')=='validate' and isinstance(validation,dict) and not (summary.get('overview') or summary.get('checks')):
+            detail += [validation[name] for name in ('scope','artifact_binding','limitations') if validation.get(name)]
         self.query_one('#result-details', Static).update('\n'.join(clean(line) for line in detail))
+        self.query_one('#result-details').display = bool(detail)
+        self.render_result_summary(summary)
+        self.query_one('#result-path', Static).update(clean(metadata.get('output_directory','No output directory recorded.')))
+        self.query_one('#result-evidence', Collapsible).collapsed = True
+        self.query_one('#result-raw', Collapsible).collapsed = True
+        self.query_one('#result-facts', Collapsible).collapsed = True
         self.query_one('#metadata', Static).update(clean(json.dumps(metadata, indent=2)))
+        self.query_one('#result-scroll').scroll_home(animate=False)
         self.query_one('#retry', Button).disabled = recorded or not self.last_args
         if not okay and 'Java' in str(metadata.get('error')):
             self.ready = False
             self.query_one('#readiness', Static).update('Setup needs attention · open Setup to resolve it')
         self.tick()
+
+    def render_result_summary(self, summary):
+        overview = summary.get('overview', [])
+        compact = self.screen_stack[0].has_class('compact')
+        visible = [(label,value) for label,value in overview if str(label).lower() in ('experiment','completed','production')][:2] if compact else overview
+        if compact and not visible: visible = overview[:2]
+        table = Table.grid(expand=True, padding=(0,1))
+        if not compact: table.add_column(style='bold', no_wrap=True)
+        table.add_column(ratio=1)
+        for label, value in visible:
+            if compact: table.add_row(Text(clean(value)))
+            else: table.add_row(Text(clean(label)), Text(clean(value)))
+        self.query_one('#result-overview', Static).update(table)
+        self.query_one('#result-overview').display = bool(overview)
+        full = Table.grid(expand=True, padding=(0,1))
+        full.add_column(style='bold', no_wrap=True);full.add_column(ratio=1)
+        for label, value in overview: full.add_row(Text(clean(label)), Text(clean(value)))
+        self.query_one('#result-more-facts', Static).update(full)
+        self.query_one('#result-facts').display = compact and bool(overview)
+
+        # Evidence integrity failures suppress descriptive numbers. The stored
+        # verdict remains explicitly recorded; loading a summary is no rerun of
+        # the independent validators or optimizer replay.
+        algorithms = [] if summary.get('error') else summary.get('algorithms', [])
+        means = Table(box=None, expand=True, padding=(0,1), pad_edge=False,
+                      header_style='bold', show_edge=False)
+        for name in ('Algorithm','Cases','Energy J','SLA %','Time ms'):
+            means.add_column(name, justify='left' if name=='Algorithm' else 'right', no_wrap=True)
+        number = lambda value, decimals: '—' if value is None else f'{value:,.{decimals}f}'
+        scenarios = {str(row.get('scenario','')) for row in algorithms}
+        for row in algorithms:
+            sla = row.get('sla')
+            label = row['algorithm']+(' / '+str(row.get('scenario','')) if len(scenarios)>1 else '')
+            means.add_row(Text(clean(label)), Text(str(row['cases'])),
+                          Text(number(row.get('energy_j'),2)), Text(number(None if sla is None else sla*100,3)),
+                          Text(number(row.get('runtime_ms'),1)))
+        self.query_one('#algorithm-means', Static).update(means)
+        self.query_one('#algorithm-title', Static).update('Algorithm means' if compact else
+            'Algorithm means · '+('production cases' if self.outcome.get('profile')=='stress' else 'main cases'))
+        self.query_one('#algorithm-means').display = bool(algorithms)
+        self.query_one('#algorithm-title').display = bool(algorithms)
+
+        checks = summary.get('checks', [])
+        text = Text()
+        for index, check in enumerate(checks):
+            if index: text.append('\n')
+            text.append(clean(check['label']), style='bold')
+            text.append(' · '+clean(check['status']).replace('_',' '), style='bold')
+            if check.get('detail'): text.append('\n'+clean(check['detail'])+'\n')
+        self.query_one('#check-details', Static).update(text)
+        self.query_one('#result-checks').display = bool(checks)
+        notes = summary.get('notes', [])
+        self.query_one('#result-notes', Static).update('\n'.join(clean(note) for note in notes))
+        self.query_one('#result-notes').display = bool(notes)
+        self.query_one('#result-main').display = bool(overview or algorithms or notes)
+        self.query_one('#result-body').display = bool(overview or algorithms or notes or checks)
 
     def record_result(self, metadata):
         directory = metadata.get('output_directory')
