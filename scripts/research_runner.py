@@ -42,6 +42,16 @@ def clip_cells(text, width):
     return text
 
 
+# Future enhancement: native macOS support for cloudsim.sh and both runners.
+# Linux can host implementation and mocked tests, but is not macOS validation.
+# Before advertising support:
+# - Add macOS physical/available-memory probes and conservative heap headroom;
+#   do not bypass require_memory or treat total RAM as available RAM.
+# - Replace /proc RSS/high-water metrics on macOS, retaining Linux cgroup guards.
+# - Verify JDK 21 discovery, curses/resize, process-group cancellation and cleanup
+#   on native macOS (Apple Silicon; Intel too if claimed as supported).
+# - Run build/tests, frozen profiles, bounded stress and independent validation
+#   on a Mac or macOS CI runner; keep long stress campaigns out of routine CI.
 def physical_memory(proc=Path('/proc')):
     """Detected Linux MemTotal; separate from available/cgroup launch headroom."""
     try:
@@ -121,14 +131,17 @@ def read_progress(root, *, profile='research'):
         if any(type(v)!=int or not 0<=v<=total for v in (attempted,done)) or done>attempted:
             raise ValueError('invalid counters')
         detail = 'Cases finished; application analysis in progress' if done==total else 'Waiting for next case'
+        active = {}
         if done<attempted:
             active = data['cases'][attempted-1]
+            if not isinstance(active,dict): raise ValueError('invalid active case')
             detail = f"{active['scenario']} / {active['algorithm']} / replication {active['replication']} ({active['phase']})"
         if data.get('error'): detail = str(data['error'])
         return {'stage':'analysis' if done==total and data['state']=='RUNNING' else profile,
-                'done':done,'detail':detail}
+                'done':done,'total':total,'detail':detail,
+                **{key:active.get(key) for key in ('algorithm','scenario','replication','phase')}}
     except (OSError,ValueError,KeyError,TypeError,IndexError):
-        return {'stage':profile,'done':None,'detail':'Progress snapshot unavailable; child/logs remain authoritative'}
+        return {'stage':profile,'done':None,'total':total,'detail':'Progress snapshot unavailable; child/logs remain authoritative'}
 
 
 def completed_run(root, artifact_hash, *, profile='research'):
@@ -382,8 +395,9 @@ def main(argv=None, *, profile='research', dashboard=None, on_complete=None, inv
     args = parser.parse_args(argv)
     outer = None
     metadata = {'started_at':stamp(),'status':'preflight','exit_code':None,'profile':profile,'heap_mib':args.heap_mib,
-                'skip_build':args.skip_build,'validation':'NOT_RUN','arguments':list(argv if argv is not None else sys.argv[1:])}
-    if invocation is not None: metadata['invocation'] = list(invocation)
+                'skip_build':args.skip_build,'validation':'NOT_RUN','tests':'NOT_RUN',
+                'arguments':list(argv if argv is not None else sys.argv[1:])}
+    if invocation is not None: metadata['invocation'] = deepcopy(invocation)
     supplied_dashboard = dashboard is not None
     dashboard = dashboard if supplied_dashboard else Dashboard(plain=args.plain,heap_mib=args.heap_mib,title=profile.upper(),total=total)
     control = ProcessControl(dashboard,ROOT)
@@ -446,7 +460,10 @@ def run_profile(args,profile,total,java,metadata,control):
                             ([sys.executable,'-B','-m','unittest','discover','-s','scripts','-p','test_*.py'],'python-tests.log')]:
             metadata['status']='build'; save_metadata(outer,metadata)
             code = control.run(command,outer/log,'build',cwd=ROOT)
-            if code: raise ValueError(f'Build/check failed with exit {code}; see {outer/log}')
+            if code:
+                metadata['tests']='FAILED'
+                raise ValueError(f'Build/check failed with exit {code}; see {outer/log}')
+        metadata['tests']='PASS'; save_metadata(outer,metadata)
     jars = list((ROOT/'target').glob('cloudsim-ho-research-v2-*.jar'))
     if len(jars)!=1: raise ValueError('Expected exactly one packaged target/cloudsim-ho-research-v2-*.jar')
     retained = outer/f'{profile}.jar'; shutil.copyfile(jars[0],retained)

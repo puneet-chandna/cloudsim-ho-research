@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Bounded local static stress with separate, independently validated calibration."""
 import argparse
+from copy import deepcopy
 from datetime import datetime, timezone
 import json
 import io
@@ -194,7 +195,9 @@ def completed_run(parent,digest,config,phase):
 
 
 def progress(parent,config,deadline,estimates):
-    remaining='none' if deadline is None else f'{max(0,deadline-time.monotonic()):.0f}s'
+    remaining_seconds=None if deadline is None else max(0,deadline-time.monotonic())
+    remaining='none' if remaining_seconds is None else f'{remaining_seconds:.0f}s'
+    timing={'deadline_remaining':remaining_seconds,'deadline_unlimited':deadline is None}
     extra=[f'V{config.vms}/H{config.hosts}/N{config.population}/T{config.iterations}/R{config.replications}; deadline remaining {remaining}']
     if estimates['observed_pilots']:
         pilot=estimates['observed_pilots'][-1]
@@ -208,11 +211,17 @@ def progress(parent,config,deadline,estimates):
         data=json.loads(paths[0].read_text()); done=data['successful_cases']; total=4*config.replications
         if type(done) is not int or not 0<=done<=total: raise ValueError('invalid progress')
         active=data.get('current_case')
+        if active is not None and not isinstance(active,dict): raise ValueError('invalid active case')
+        evaluations,expected=data['completed_evaluations'],data['expected_evaluations']
+        if any(type(value) is not int or value<0 for value in (evaluations,expected)) or evaluations>expected:
+            raise ValueError('invalid evaluation counters')
         detail=f'{active.get("algorithm","?")} replication {active.get("replication","?")} evaluation {active.get("evaluation","?")}; ' if active else ''
         detail+=f'evaluations {data["completed_evaluations"]}/{data["expected_evaluations"]}'
-        return {'done':done,'total':total,'detail':detail,'extra_lines':extra}
+        return {'done':done,'total':total,'detail':detail,'extra_lines':extra,
+                'evaluations':evaluations,'evaluations_total':expected,**timing,
+                **{key:(active or {}).get(key) for key in ('algorithm','scenario','replication','phase','evaluation')}}
     except (OSError,ValueError,KeyError,TypeError):
-        return {'total':4*config.replications,'detail':'Progress unavailable (logs retained)','extra_lines':extra}
+        return {'total':4*config.replications,'detail':'Progress unavailable (logs retained)','extra_lines':extra,**timing}
 
 
 def gc_measurements(directory):
@@ -280,7 +289,7 @@ def main(argv=None, *, dashboard=None, on_complete=None, invocation=None) -> int
         control=shared.ProcessControl(dashboard,ROOT)
         metadata={'started_at':shared.stamp(),'status':'failed','profile':'stress','validation':'NOT_RUN',
                   'arguments':arguments,'error':'Legacy --interactive requires the standalone runner; configure embedded runs in the launcher.'}
-        if invocation is not None: metadata['invocation']=list(invocation)
+        if invocation is not None: metadata['invocation']=deepcopy(invocation)
         try: control.render('failed',{'detail':metadata['error']},force=True)
         except shared.PresentationError as error: metadata['error']=shared.sanitize(error)
         return shared.finish(control,metadata,2,on_complete=on_complete)
@@ -294,14 +303,14 @@ def main(argv=None, *, dashboard=None, on_complete=None, invocation=None) -> int
         except KeyboardInterrupt:
             print('\nCancelled by Ctrl-C; no run started.'); return 130
     metadata={'started_at':shared.stamp(),'status':'preflight','exit_code':None,'profile':'stress',
-              'arguments':arguments,'effective_config':effective(args),'validation':'NOT_RUN','calibration':[],
+              'arguments':arguments,'effective_config':effective(args),'validation':'NOT_RUN','tests':'NOT_RUN','calibration':[],
               'menu_choices':menu_choices,
               'memory_evidence':memory_preview(args),
               'preset_notice':'xlarge is an unverified opt-in size; no runtime or resource guarantee' if args.preset=='xlarge' else None,
               'time_limit_scope':'calibration + production + all validation; excludes build/tests',
               'skip_build':args.skip_build,'estimates':estimate(args,[]),'estimates_scope':'production',
               'planned_work':planned_work(args)}
-    if invocation is not None: metadata['invocation']=list(invocation)
+    if invocation is not None: metadata['invocation']=deepcopy(invocation)
     supplied_dashboard=dashboard is not None
     dashboard=dashboard if supplied_dashboard else shared.Dashboard(plain=args.plain,heap_mib=args.heap_mib,title='STATIC STRESS',total=4*args.replications)
     control=shared.ProcessControl(dashboard,ROOT)
@@ -342,7 +351,10 @@ def main(argv=None, *, dashboard=None, on_complete=None, invocation=None) -> int
             for command,name in [([str(ROOT/'mvnw'),'-B','clean','verify'],'build.log'),([sys.executable,'-B','-m','unittest','discover','-s','scripts','-p','test_*.py'],'python-tests.log')]:
                 metadata['status']='build'; shared.save_metadata(outer,metadata)
                 code=control.run(command,outer/name,'build',cwd=ROOT)
-                if code: raise ValueError(f'Build/check failed with exit {code}; see {outer/name}')
+                if code:
+                    metadata['tests']='FAILED'
+                    raise ValueError(f'Build/check failed with exit {code}; see {outer/name}')
+            metadata['tests']='PASS'; shared.save_metadata(outer,metadata)
         jars=list((ROOT/'target').glob('cloudsim-ho-research-v2-*.jar'))
         if len(jars)!=1: raise ValueError('Expected exactly one packaged target JAR')
         retained=outer/'stress.jar'; shutil.copyfile(jars[0],retained); digest=shared.sha256(retained)
