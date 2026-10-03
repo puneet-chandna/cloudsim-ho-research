@@ -36,6 +36,10 @@ class Screen:
     def nodelay(self, value): pass
     def keypad(self, value): pass
     def getch(self): return self.keys.pop(0) if self.keys else -1
+    def get_wch(self):
+        if not self.keys: raise curses.error('no input')
+        key = self.keys.pop(0)
+        return chr(key) if isinstance(key, int) and 0 <= key < 256 else key
     def addstr(self, row, column, text, attr=0):
         assert 0 <= row < self.rows
         assert column + tui.cell_width(text) < self.columns
@@ -74,6 +78,19 @@ class NavigationTests(unittest.TestCase):
         self.assertIn('512', self.app.error)
         self.assertEqual(self.app.values['heap_mib'], '64')
         self.assertEqual(self.app.state, 'config')
+
+    def test_unicode_text_matching_special_key_numbers_stays_text(self):
+        self.app.configure('check')
+        self.app.focus = 1
+        self.app.handle_key('\n')
+        self.app.handle_key('\x15')
+        text = '/tmp/\u0103'+chr(curses.KEY_ENTER)+chr(curses.KEY_RESIZE)
+        for character in text: self.app.handle_key(character)
+        self.assertTrue(self.app.editing)
+        self.assertEqual(self.app.buffer, text)
+        self.app.handle_key('\n')
+        self.assertEqual(self.app.values['output_dir'], text)
+        self.assertEqual(self.app.focus, 1)
 
     def test_frozen_settings_are_visible_and_read_only(self):
         self.keys(10, 10)
@@ -149,6 +166,43 @@ class NavigationTests(unittest.TestCase):
 
 
 class PresentationTests(unittest.TestCase):
+    def test_validation_completion_discloses_individual_and_campaign_evidence(self):
+        from test_stress_validator import StressValidatorTest
+        fixture = StressValidatorTest(); fixture.setUp(); self.addCleanup(fixture.doCleanups)
+        with tempfile.TemporaryDirectory() as directory:
+            screen = Screen(24, 80)
+            app = tui.Application(screen)
+            app.configure('validate')
+            app.values.update(validate=str(fixture.directory), output_dir=directory)
+            self.assertTrue(app.review())
+            app.start()  # Actual dispatcher and independent scientific validator.
+            self.assertEqual(app.badge(), 'VALIDATED')
+            result = app.outcome['validation_result']
+            self.assertEqual(result['scope'], 'individual_run')
+            self.assertIn('unavailable', result['artifact_binding'])
+            # The UI consumes the same documented outcome for a whole campaign;
+            # this fixture asserts display, not scientific campaign validation.
+            campaign = {'scope': 'campaign', 'validation': 'PASS',
+                'artifact_binding': 'retained JAR SHA-256 verified (identity, not authenticity)',
+                'limitations': 'Independent validators retain their documented evidence limits; this is not optimizer replay.',
+                'validated_runs': ['/retained/calibration-100/artifacts/stress-one',
+                                   '/retained/production/artifacts/stress-two']}
+            for outcome in (result, campaign):
+                with self.subTest(scope=outcome['scope']):
+                    app.outcome['validation_result'] = outcome
+                    app.detail_scroll = 0
+                    visible = []
+                    for _ in range(30):
+                        app.draw(); visible.extend(screen.lines.values())
+                        app.handle_key(curses.KEY_NPAGE)
+                    text = '\n'.join(visible)
+                    self.assertIn('Validation scope: '+outcome['scope'], text)
+                    self.assertIn('Artifact binding:', text)
+                    # Remove line-wrap boundaries when checking complete values.
+                    flattened = ''.join(line.strip() for line in visible)
+                    for value in (outcome['artifact_binding'], outcome['limitations'], *outcome['validated_runs']):
+                        self.assertIn(value.replace(' ', ''), flattened.replace(' ', ''))
+
     def test_real_progress_snapshots_feed_fixed_metrics_and_live_deadline(self):
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory)
@@ -257,6 +311,29 @@ class PresentationTests(unittest.TestCase):
 
 
 class LauncherPtyTests(unittest.TestCase):
+    def test_actual_shell_utf8_path_edit_review_and_back_preserve_characters(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session = PtySession(self, Path(directory), 'success')
+            try:
+                session.send(b'\t\r')
+                session.expect(b'Configure check')
+                session.send(b'\t\r\x15'+('/tmp/caf\u00e9'.encode('utf-8'))+b'\r')
+                session.expect('/tmp/caf\u00e9'.encode('utf-8'))
+                session.send(b'\x1bOF\r')
+                session.expect(b'Review settings')
+                session.expect('/tmp/caf\u00e9'.encode('utf-8'))
+                self.assertNotIn('caf\u00c3\u00a9', session.terminal.text())
+                self.assertFalse(session.output.exists())  # Review never launches.
+                session.send(b'\x1b')
+                session.expect(b'Configure check')
+                session.expect('/tmp/caf\u00e9'.encode('utf-8'))
+                session.send(b'\x1b')
+                session.expect(b'Choose an action')
+                session.send(b'q')
+                self.assertEqual(session.process.wait(timeout=5), 0)
+                self.assertEqual(termios.tcgetattr(session.slave), session.before)
+            finally: session.close()
+
     def test_six_real_terminal_states_at_target_sizes_and_monochrome(self):
         for rows, columns, monochrome in ((32, 120, False), (24, 80, False), (24, 80, True)):
             with self.subTest(size=(rows, columns), monochrome=monochrome), tempfile.TemporaryDirectory() as directory:

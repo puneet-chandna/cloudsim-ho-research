@@ -29,6 +29,12 @@ def clip(text, width, *, ascii_only=False):
     return cloudsim.shared.clip_cells(text, max(0, width))
 
 
+def read_key(screen):
+    """Wide curses input returns decoded text or an integer special key."""
+    try: return screen.get_wch()
+    except curses.error: return None  # Nonblocking input queue is empty.
+
+
 class LogTail:
     @staticmethod
     def read(path: Path, *, max_bytes=65536, max_lines=500):
@@ -83,8 +89,8 @@ class TerminalDashboard:
             if control.signum == signal.SIGTERM: self.app.exit_after_job = True
             # A bounded queue prevents a paste flooding supervision.
             for _ in range(32):
-                key = self.screen.getch()
-                if key < 0: break
+                key = read_key(self.screen)
+                if key is None: break
                 self.app.handle_key(key, control)
             self.refresh_log()
             if time.monotonic()-self.app.drawn >= 1 or self.app.dirty:
@@ -247,6 +253,10 @@ class Application:
 
     def handle_key(self, key, control=None):
         self.dirty = True
+        character = key if isinstance(key, str) else None
+        # Only ASCII controls/hotkeys share our integer bindings. Unicode text
+        # must stay distinct from curses' integer special-key namespace.
+        if character is not None and ord(character) < 128: key = ord(character)
         down = key in (curses.KEY_DOWN, 9)
         up = key in (curses.KEY_UP, curses.KEY_BTAB)
         enter = key in (10, 13, curses.KEY_ENTER)
@@ -286,7 +296,8 @@ class Application:
                 return
             if key in (curses.KEY_BACKSPACE, 127, 8): self.buffer = self.buffer[:-1]
             elif key == 21: self.buffer = ''
-            elif 32 <= key < 256: self.buffer += chr(key)
+            elif character is not None and character.isprintable(): self.buffer += character
+            elif isinstance(key, int) and 32 <= key < 256: self.buffer += chr(key)
             return
         if self.state == 'home':
             if down: self.home_index = (self.home_index+1)%len(HOME)
@@ -518,6 +529,14 @@ class Application:
                      'Log: '+str(retained_log),
                      'Validation: '+str(result.get('validation', 'NOT_RUN')),
                      'Tests: '+str(result.get('tests', 'NOT_RUN'))]
+            validation = result.get('validation_result')
+            if isinstance(validation, dict):
+                binding = str(validation.get('artifact_binding', 'unavailable'))
+                texts += ['Validation scope: '+str(validation.get('scope', 'unavailable')),
+                          ('WARNING: ' if binding.startswith('unavailable') else '')+'Artifact binding: '+binding,
+                          'Validation limitations: '+str(validation.get('limitations', 'unavailable')),
+                          'Validated runs:']
+                texts += [str(path) for path in validation.get('validated_runs', [])]
             texts += [str(result.get('ui_warning') or ''), str(result.get('diagnostic') and 'WARNING: source/artifact diagnostics' or '')]
             texts += ['WARNING: '+warning for warning in (self.preview or {}).get('warnings', [])]
             if result.get('claims') is not None and result.get('validation') == 'PASS':
@@ -544,8 +563,8 @@ class Application:
                 handlers[number] = signal.signal(number, on_signal)
             while not self.exit_requested:
                 if self.pending_signal: return 128+self.pending_signal if self.pending_signal == signal.SIGTERM else 0
-                key = self.screen.getch()
-                if key >= 0: self.handle_key(key)
+                key = read_key(self.screen)
+                if key is not None: self.handle_key(key)
                 if self.dirty or time.monotonic()-self.drawn >= 1: self.draw()
                 time.sleep(.025)
             return 143 if self.exit_after_job else 0
