@@ -16,6 +16,7 @@ import tempfile
 import time
 import unicodedata
 import cloudsim_runtime
+import cloudsim_build
 from datetime import datetime, timezone
 from contextlib import ExitStack
 
@@ -112,12 +113,13 @@ def check_java_options(env):
             raise ValueError(f'{name} is set; clear it explicitly so the requested JVM limits remain effective')
 
 
-def java_command(java, heap_mib, jar, outer, config=None, *, profile='research'):
+def java_command(java, heap_mib, jar, outer, config=None, *, profile='research', workers=1):
     profile_total(profile)
     command = [str(java),'-Xms256m',f'-Xmx{heap_mib}m','-XX:+UseG1GC','-XX:+ExitOnOutOfMemoryError',
                '-Xlog:gc*:file=gc.log:time,uptime,level,tags:filecount=3,filesize=5M',
                '-jar',str(jar),'--profile',profile,'--output-dir',str(outer/profile)]
     if config is not None: command += ['--config',str(config)]
+    if workers > 1: command.insert(command.index('-jar'), f'-Dcloudsim.workers={workers}')
     return command
 
 
@@ -354,9 +356,31 @@ def heap_value(value):
     return int(value)
 
 
+def worker_value(value):
+    if value == 'auto': return value
+    if not re.fullmatch(r'[0-9]+', value) or not 1 <= int(value) <= 32:
+        raise argparse.ArgumentTypeError('workers must be auto or an integer from 1 to 32')
+    return int(value)
+
+
+def available_cpus():
+    try: return max(1, len(os.sched_getaffinity(0)))
+    except (AttributeError, OSError): return max(1, os.cpu_count() or 1)
+
+
+def execution_settings(requested, heap_mib):
+    cpus = available_cpus()
+    heap_bound = max(1, heap_mib // 512)
+    workers = min(cpus, heap_bound, 32, 32 if requested == 'auto' else requested)
+    return {'requested_workers': requested, 'workers': workers, 'available_cpus': cpus,
+            'shared_heap_mib': heap_mib, 'heap_worker_bound': heap_bound,
+            'policy': 'Independent cases share one bounded JVM heap; at most one worker per 512 MiB and available CPU. This is a concurrency bound, not a measured per-case memory guarantee.'}
+
+
 def check_environment(control, heap_mib: int) -> tuple[Path, int]:
     check_java_options(control.env)
     def verify(home):
+        tools = {}
         with tempfile.TemporaryDirectory(prefix='cloudsim-preflight-') as temporary:
             for name in ('java','javac'):
                 tool = home/'bin'/name
@@ -365,6 +389,12 @@ def check_environment(control, heap_mib: int) -> tuple[Path, int]:
                 result = control.run([str(tool),'-version'],log,'preflight',timeout=20)
                 if result or not re.search(r'(?:version\s+"?|javac\s+)21(?:[.\s"+-]|$)',log.read_text(errors='replace')):
                     raise ValueError(f'{name} must be version 21; select a full JDK 21 with JAVA_HOME')
+                tools[name] = {'path': str(tool.resolve()), 'version': log.read_text(errors='replace').strip()}
+        release = home/'release'
+        tools['release_sha256'] = sha256(release) if release.is_file() else None
+        modules = home/'lib/modules'
+        tools['modules_sha256'] = sha256(modules) if modules.is_file() else None
+        control.toolchain = tools
         return home
     control.env = cloudsim_runtime.java_environment(control.env, ROOT, verify=verify)
     java = Path(control.env['JAVA_HOME'])/'bin/java' if control.env.get('JAVA_HOME') else Path('/missing-java')
@@ -412,12 +442,16 @@ def main(argv=None, *, profile='research', dashboard=None, on_complete=None, inv
     parser.add_argument('--config',type=Path,help='existing properties file; only master.seed and log.level are configurable')
     parser.add_argument('--plain','--no-tui',action='store_true',help='plain status lines')
     parser.add_argument('--skip-build',action='store_true',help='skip Maven clean verify and Python discovery; use the existing packaged JAR')
+    parser.add_argument('--force-build',action='store_true',help='run full verification even when a matching tested build exists')
+    parser.add_argument('--workers',type=worker_value,default='auto',help='independent case workers: auto or 1..32, bounded by CPU and shared heap')
     parser.add_argument('--check',action='store_true',help='check JDK/environment/memory only; do not build or run research')
     args = parser.parse_args(argv)
+    if args.skip_build and args.force_build: parser.error('--force-build and --skip-build are incompatible')
     outer = None
     metadata = {'started_at':stamp(),'status':'preflight','exit_code':None,'profile':profile,'heap_mib':args.heap_mib,
                 'skip_build':args.skip_build,'validation':'NOT_RUN','tests':'NOT_RUN',
                 'arguments':list(argv if argv is not None else sys.argv[1:])}
+    metadata['execution'] = execution_settings(args.workers, args.heap_mib)
     if invocation is not None: metadata['invocation'] = deepcopy(invocation)
     supplied_dashboard = dashboard is not None
     dashboard = dashboard if supplied_dashboard else Dashboard(plain=args.plain,heap_mib=args.heap_mib,title=profile.upper(),total=total)
@@ -449,7 +483,7 @@ def main(argv=None, *, profile='research', dashboard=None, on_complete=None, inv
         code = 128+error.signum
         metadata.update(status='interrupted',error=f'Interrupted by signal {error.signum}')
     except (OSError,ValueError,KeyError,subprocess.SubprocessError) as error:
-        code = getattr(control,'last_exit_code',0) or 1
+        code = getattr(error,'exit_code',0) or getattr(control,'last_exit_code',0) or 1
         metadata.update(status='failed',error=sanitize(error))
     finally:
         outer = control.root if control.root!=ROOT else None
@@ -464,9 +498,31 @@ def main(argv=None, *, profile='research', dashboard=None, on_complete=None, inv
     return code
 
 
+def prepare_artifact(args, metadata, control, outer, profile, *, root=None):
+    root = ROOT if root is None else root
+    retained = outer/f'{profile}.jar'
+    if args.skip_build:
+        control.render('build', {'detail': 'SKIPPED: diagnostic build skip; verification NOT RUN.'}, force=True)
+        with cloudsim_build.build_lock(root, control):
+            jars = list((root/'target').glob('cloudsim-ho-research-v2-*.jar'))
+            if len(jars) != 1: raise ValueError('Expected exactly one packaged target JAR')
+            source = jars[0]
+            shutil.copyfile(source, retained)
+        metadata['build'] = 'SKIPPED_DIAGNOSTIC'
+    else:
+        metadata['status'] = 'build'; save_metadata(outer, metadata)
+        source = cloudsim_build.ensure_verified_build(root, control, metadata, outer, force=args.force_build)
+        shutil.copyfile(source, retained)
+        expected = metadata['build_receipt']['artifact']['sha256']
+        if sha256(retained) != expected or sha256(source) != expected:
+            metadata['tests'] = 'FAILED'
+            raise ValueError('Campaign JAR does not match its verified receipt; no experiment was started.')
+    return retained, source
+
+
 def run_profile(args,profile,total,java,metadata,control):
     dashboard = control.dashboard
-    # Keep the original sequential build/run/validation protocol and retained paths.
+    # Build receipts preserve full verification; experiments still validate independently.
     outer = control.root
     metadata['status'] = 'provenance'; save_metadata(outer,metadata)
     for arguments,name in [(['status','--porcelain'],'source-status'),(['rev-parse','HEAD'],'source-revision')]:
@@ -477,23 +533,11 @@ def run_profile(args,profile,total,java,metadata,control):
     metadata.update(source_revision=revision,source_dirty=bool(status),source_status=status,java=str(java),
                     config=str(args.config) if args.config else None,output_directory=str(outer))
     save_metadata(outer,metadata)
-    if args.skip_build:
-        control.render('build',{'detail':'SKIPPED: Maven clean verify and Python test discovery (--skip-build).'},force=True)
-    else:
-        for command,log in [(maven_command('clean','verify'),'build.log'),
-                            ([sys.executable,'-B','-m','unittest','discover','-s','scripts','-p','test_*.py'],'python-tests.log')]:
-            metadata['status']='build'; save_metadata(outer,metadata)
-            code = control.run(command,outer/log,'build',cwd=ROOT)
-            if code:
-                metadata['tests']='FAILED'
-                raise ValueError(f'Build/check failed with exit {code}; see {outer/log}')
-        metadata['tests']='PASS'; save_metadata(outer,metadata)
-    jars = list((ROOT/'target').glob('cloudsim-ho-research-v2-*.jar'))
-    if len(jars)!=1: raise ValueError('Expected exactly one packaged target/cloudsim-ho-research-v2-*.jar')
-    retained = outer/f'{profile}.jar'; shutil.copyfile(jars[0],retained)
+    retained, artifact_source = prepare_artifact(args, metadata, control, outer, profile)
+    save_metadata(outer,metadata)
     digest = sha256(retained)
-    metadata.update(artifact_sha256=digest,artifact_source=str(jars[0]))
-    command = java_command(java,args.heap_mib,retained,outer,args.config,profile=profile)
+    metadata.update(artifact_sha256=digest,artifact_source=str(artifact_source))
+    command = java_command(java,args.heap_mib,retained,outer,args.config,profile=profile,workers=metadata['execution']['workers'])
     metadata.update(java_command=command,status=profile); save_metadata(outer,metadata)
     require_memory(args.heap_mib); control.check()
     code = control.run(command,outer/f'{profile}.log',profile,cwd=outer,

@@ -12,8 +12,8 @@ from unittest.mock import patch
 
 HAS_TEXTUAL = importlib.util.find_spec('textual') is not None
 if HAS_TEXTUAL:
-    from textual.widgets import Input, Select, Button, TabbedContent, Collapsible, DataTable
-    from cloudsim_tui import CloudSimApp, LogView
+    from textual.widgets import Input, Select, Button, TabbedContent, Collapsible, DataTable, Checkbox, Static
+    from cloudsim_tui import CloudSimApp, LogView, Confirm
 
 
 @unittest.skipUnless(HAS_TEXTUAL, 'Install pinned UI dependencies with ./cloudsim.sh --setup')
@@ -138,19 +138,204 @@ class InterfaceTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsInstance(app.screen, LogView)
             self.assertEqual(app.screen.text, 'ARCHIVED RUN LOG')
 
-    async def test_invalid_custom_stress_fields_focus_the_visible_input(self):
+    async def test_invalid_main_stress_fields_focus_the_visible_input(self):
         app = CloudSimApp(output_parent=self.root/'results')
         async with app.run_test(size=(80,24)) as pilot:
             await self.settled(app, pilot)
             app.query_one('#profile', Select).value = 'stress'
-            app.query_one('#search', Select).value = 'custom'; await pilot.pause()
-            for name in ('population','iterations','replications','deadline'):
+            await pilot.pause()
+            for name in ('population','iterations','replications','seed','deadline'):
                 with self.subTest(name=name):
                     field = app.query_one('#'+name, Input); previous = field.value
                     field.value = 'oops'; await app.start_action(); await pilot.pause()
                     self.assertIs(app.focused, field)
                     self.assertFalse(app.busy)
+                    self.assertTrue(app.query_one('#advanced', Collapsible).collapsed)
                     field.value = previous
+
+    async def test_every_stress_preset_uses_editable_main_search_settings(self):
+        import cloudsim
+        app = CloudSimApp(output_parent=self.root/'results')
+        async with app.run_test(size=(120,34)) as pilot:
+            await self.settled(app,pilot)
+            app.query_one('#profile',Select).value='stress'; await pilot.pause()
+            for name,value in (('population','12'),('iterations','7'),('replications','3'),('seed','8765')):
+                app.query_one('#'+name,Input).value=value
+            for preset,(vms,hosts) in cloudsim.stress.PRESETS.items():
+                with self.subTest(preset=preset):
+                    app.query_one('#preset',Select).value=preset;await pilot.pause()
+                    options=app.parsed(app.arguments())
+                    self.assertEqual((options.vms,options.hosts),(vms,hosts))
+                    self.assertEqual((options.population,options.iterations,options.replications,options.seed),(12,7,3,8765))
+                    for name in ('population','iterations','replications','seed'):
+                        field=app.query_one('#'+name,Input)
+                        self.assertTrue(field.display and all(parent.display for parent in field.ancestors))
+                        self.assertFalse(field.disabled)
+                        self.assertIn(app.query_one('#stress-settings'),field.ancestors)
+                        self.assertNotIn(app.query_one('#advanced'),field.ancestors)
+                    self.assertTrue(app.query_one('#advanced',Collapsible).collapsed)
+
+    async def test_frozen_values_are_read_only_and_workers_are_runtime_only(self):
+        import cloudsim
+        app=CloudSimApp(output_parent=self.root/'results')
+        async with app.run_test(size=(120,34)) as pilot:
+            await self.settled(app,pilot)
+            for profile,(n,t,r,_) in cloudsim.FROZEN_SETTINGS.items():
+                app.query_one('#profile',Select).value=profile;await pilot.pause()
+                for name,value in (('population',n),('iterations',t),('replications',r)):
+                    self.assertEqual(str(app.query_one('#locked-'+name,Static).render()),str(value))
+                    self.assertFalse(all(parent.display for parent in app.query_one('#'+name,Input).ancestors))
+                    self.assertNotIn('--'+name,app.arguments())
+                before=cloudsim.preview(app.parsed(app.arguments()))['effective_config']
+                app.query_one('#workers',Select).value='32';await pilot.pause()
+                options=app.parsed(app.arguments())
+                self.assertEqual(options.workers,32)
+                after=cloudsim.preview(options)['effective_config']
+                self.assertEqual(before,after)
+
+    async def test_build_options_are_explicit_and_mutually_exclusive(self):
+        app=CloudSimApp(output_parent=self.root/'results')
+        async with app.run_test() as pilot:
+            await self.settled(app,pilot)
+            self.assertEqual(app.query_one('#workers',Select).value,'auto')
+            force=app.query_one('#force-build',Checkbox); skip=app.query_one('#skip-build',Checkbox)
+            force.value=True;await pilot.pause()
+            self.assertIn('--force-build',app.arguments())
+            self.assertNotIn('--skip-build',app.arguments())
+            skip.value=True;await pilot.pause()
+            self.assertFalse(force.value)
+            self.assertIn('--skip-build',app.arguments())
+            self.assertNotIn('--force-build',app.arguments())
+            force.value=True;await pilot.pause()
+            self.assertFalse(skip.value)
+            self.assertTrue(app.parsed(app.arguments()).force_build)
+
+    async def test_main_form_remains_keyboard_accessible_after_resize(self):
+        app=CloudSimApp(output_parent=self.root/'results')
+        async with app.run_test(size=(120,34)) as pilot:
+            await self.settled(app,pilot)
+            app.query_one('#profile',Select).value='stress';await pilot.pause()
+            for width,height in ((120,34),(80,24),(60,18),(120,34)):
+                await pilot.resize_terminal(width,height);await pilot.pause()
+                self.assertEqual(app.screen.has_class('narrow'),width<100)
+                self.assertEqual(app.screen.has_class('compact'),width<74 or height<22)
+                if width==80: self.assertGreater(app.query_one('#form').region.width,70)
+                for name in ('population','iterations','replications','seed','workers','heap'):
+                    field=app.query_one('#'+name)
+                    field.focus();await pilot.pause()
+                    self.assertIs(app.focused,field)
+                    self.assertTrue(app.query_one('#form').content_region.overlaps(field.region))
+                button=app.query_one('#start',Button)
+                self.assertGreater(button.region.width,0)
+                self.assertLessEqual(button.region.bottom,height-1)
+                self.assertTrue(app.query_one('#advanced',Collapsible).collapsed)
+
+    async def test_large_plan_explains_one_full_campaign_and_exact_calibrations(self):
+        app=CloudSimApp(output_parent=self.root/'results')
+        async with app.run_test(size=(120,34)) as pilot:
+            await self.settled(app,pilot)
+            app.query_one('#profile',Select).value='stress';await pilot.pause()
+            app.query_one('#preset',Select).value='large';await pilot.pause()
+            options=app.parsed(app.arguments())
+            self.assertEqual((options.vms,options.hosts,options.population,options.iterations,options.replications),(10000,2000,30,40,5))
+            summary=str(app.query_one('#summary',Static).render())
+            for value in ('At this size only','100 VMs / 20 hosts','500 VMs / 100 hosts','10,000 VMs / 2,000 hosts','N10 / T10 / R1','shared heap','verified build'):
+                self.assertIn(value,summary)
+
+    async def test_stress_parameters_fit_the_initial_standard_viewports(self):
+        app=CloudSimApp(output_parent=self.root/'results')
+        async with app.run_test(size=(120,34)) as pilot:
+            await self.settled(app,pilot)
+            app.query_one('#profile',Select).value='stress';await pilot.pause()
+            for width,height in ((120,34),(80,24)):
+                await pilot.resize_terminal(width,height);await pilot.pause()
+                viewport=app.query_one('#form').content_region
+                for name in ('vms','hosts','population','iterations','replications','seed','workers','heap','deadline'):
+                    with self.subTest(size=(width,height),field=name):
+                        self.assertTrue(viewport.contains_region(app.query_one('#'+name).region))
+
+    async def test_progress_cancel_stays_visible_and_confirmable_after_resize(self):
+        from types import SimpleNamespace
+        signals=[]
+        app=CloudSimApp(output_parent=self.root/'results')
+        async with app.run_test(size=(120,34)) as pilot:
+            await self.settled(app,pilot)
+            app.query_one('#flow').current='progress'
+            app.busy=True
+            app.started=__import__('time').monotonic()
+            app.stage='production'
+            app.progress={'done':0,'total':20,'evaluations':0,
+                          'detail':'2 workers active. Native evaluations are computing; completed cases publish after each case finishes. '*3}
+            app.process=SimpleNamespace(returncode=None,send_signal=signals.append)
+            try:
+                app.tick();await pilot.pause()
+                for width,height in ((120,34),(80,24),(60,18)):
+                    await pilot.resize_terminal(width,height);await pilot.pause()
+                    button=app.query_one('#cancel-job',Button)
+                    self.assertGreater(button.region.width,0)
+                    self.assertLessEqual(button.region.bottom,height-1)
+                    await pilot.click('#cancel-job');await pilot.pause()
+                    self.assertIsInstance(app.screen,Confirm)
+                    self.assertEqual(signals,[])
+                    await pilot.press('escape');await pilot.pause()
+                await pilot.click('#cancel-job');await pilot.pause()
+                app.screen.query_one('#confirm',Button).press();await pilot.pause()
+                self.assertEqual(signals,[signal.SIGINT])
+            finally:
+                app.process=None;app.busy=False
+
+    async def test_legacy_setup_check_with_profile_is_not_an_experiment(self):
+        app=CloudSimApp(output_parent=self.root/'results')
+        async with app.run_test() as pilot:
+            await self.settled(app,pilot)
+            app.show_result(dict(profile='research',status='checked',exit_code=0,validation='NOT_RUN'))
+            await pilot.pause()
+            self.assertEqual(str(app.query_one('#outcome').render()),'Setup ready')
+            self.assertNotIn('Independent validation:',str(app.query_one('#result-details').render()))
+
+    async def test_invalid_frozen_properties_reveal_and_focus_the_config_entry(self):
+        app=CloudSimApp(output_parent=self.root/'results')
+        config=self.root/'frozen.properties'
+        cases=((b'master.seed=oops\n','master.seed must be signed decimal'),
+               (b'log.level=TRACE\n','log.level must be INFO or DEBUG'),
+               (b'population=999\n','Unknown property: population'),
+               (b'heap=999\n','Unknown property: heap'),
+               (b'master.seed=\\u00XX\n','Malformed Unicode escape in config'),
+               (b'log.level=\xff\n','Config must contain valid UTF-8'))
+        async with app.run_test(size=(80,24)) as pilot:
+            await self.settled(app,pilot)
+            entry=app.query_one('#config-path',Input)
+            advanced=app.query_one('#advanced',Collapsible)
+            for contents,message in cases:
+                with self.subTest(contents=contents):
+                    config.write_bytes(contents)
+                    entry.value=str(config);advanced.collapsed=True;await pilot.pause()
+                    with patch.object(app,'begin') as begin:
+                        await app.start_action();await pilot.pause()
+                        begin.assert_not_called()
+                    self.assertFalse(advanced.collapsed)
+                    self.assertIs(app.focused,entry)
+                    self.assertTrue(entry.display and all(parent.display for parent in entry.ancestors))
+                    self.assertEqual(entry.value,str(config))
+                    self.assertIn(message,str(app.query_one('#form-error',Static).render()))
+                    self.assertFalse(app.busy)
+            # CLI value errors take precedence even with a bad properties file.
+            app.query_one('#heap',Input).value='oops';advanced.collapsed=True
+            await app.start_action();await pilot.pause()
+            self.assertIs(app.focused,app.query_one('#heap',Input))
+            self.assertTrue(advanced.collapsed)
+
+    async def test_theme_change_preserves_the_run_and_reduced_motion_stays_static(self):
+        app=CloudSimApp(output_parent=self.root/'results')
+        app.animation_level='none'
+        async with app.run_test(size=(80,24)) as pilot:
+            await self.settled(app,pilot)
+            arguments=app.arguments()
+            for theme in ('cloudsim-ember','cloudsim-paper','cloudsim'):
+                app.query_one('#theme',Select).value=theme;await pilot.pause()
+                self.assertEqual(app.theme,theme)
+                self.assertEqual(app.arguments(),arguments)
+            self.assertEqual(app.query_one('#configure-body').styles.opacity,1)
 
     async def test_dead_worker_still_cleans_verified_owned_child(self):
         app = CloudSimApp(output_parent=self.root/'results')
@@ -235,3 +420,38 @@ class InterfaceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(saved['exit_code'],137)
             app.show_result(result);await pilot.pause()
             self.assertIn(str(directory),str(app.query_one('#result-details').render()))
+
+    async def test_results_selects_experiment_and_explains_ineligible_actions(self):
+        app=CloudSimApp(output_parent=self.root/'results')
+        entries={
+            'check':dict(profile='research',status='checked',exit_code=0,validation='NOT_RUN',started_at='2099-01-03T00:00:00Z'),
+            'report':dict(action='validate',status='complete',exit_code=0,validation='PASS',started_at='2099-01-02T00:00:00Z'),
+            'experiment':dict(profile='smoke',status='complete',exit_code=0,validation='PASS',started_at='2099-01-01T00:00:00Z')}
+        for name,data in entries.items():
+            folder=self.root/'results'/name;folder.mkdir(parents=True)
+            (folder/'runner.json').write_text(json.dumps(data))
+        async with app.run_test(size=(120,34)) as pilot:
+            await self.settled(app,pilot)
+            app.action_tab('results');await pilot.pause()
+            self.assertEqual(app.selected_result()['output_directory'],str(self.root/'results/experiment'))
+            table=app.query_one('#recent',DataTable)
+            for name,reason in (('check','setup check'),('report','validation report')):
+                table.move_cursor(row=table.get_row_index(str(self.root/'results'/name)));await pilot.pause()
+                self.assertTrue(app.query_one('#validate-selected',Button).disabled)
+                self.assertIn(reason,str(app.query_one('#results-detail').render()).lower())
+            table.move_cursor(row=table.get_row_index(str(self.root/'results/experiment')));await pilot.pause()
+            self.assertFalse(app.query_one('#validate-selected',Button).disabled)
+            app.set_busy(True);await pilot.pause()
+            self.assertTrue(app.query_one('#validate-selected',Button).disabled)
+            self.assertIn('running',str(app.query_one('#results-detail').render()).lower())
+            app.set_busy(False)
+
+    async def test_validation_report_displays_explicit_pass(self):
+        app=CloudSimApp(output_parent=self.root/'results')
+        async with app.run_test() as pilot:
+            await self.settled(app,pilot)
+            app.show_result(dict(action='validate',status='complete',exit_code=0,validation='PASS',
+                                 validation_result={'scope':'campaign','artifact_binding':'verified','limitations':'recorded evidence'}))
+            await pilot.pause()
+            self.assertIn('Validated',str(app.query_one('#outcome').render()))
+            self.assertIn('Independent validation: PASS',str(app.query_one('#result-details').render()))

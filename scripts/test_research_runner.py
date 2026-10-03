@@ -44,6 +44,23 @@ class RunnerChecks(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name)
 
+    def test_retained_campaign_copy_must_match_verified_receipt(self):
+        from types import SimpleNamespace
+        source = self.base/'cached.jar'; source.write_bytes(b'original verified artifact')
+        receipt = {'artifact': {'sha256': hashlib.sha256(source.read_bytes()).hexdigest()}}
+        outer = self.base/'campaign'; outer.mkdir()
+        control = SimpleNamespace()
+        args = SimpleNamespace(skip_build=False, force_build=False)
+        metadata = {'build_receipt': receipt, 'tests': 'PASS'}
+        original_copy = shutil.copyfile
+        def corrupt_copy(selected, destination):
+            selected.write_bytes(b'unverified replacement')
+            return original_copy(selected, destination)
+        with patch.object(runner.cloudsim_build, 'ensure_verified_build', return_value=source), \
+             patch.object(runner.shutil, 'copyfile', side_effect=corrupt_copy), \
+             self.assertRaisesRegex(ValueError, 'verified receipt'):
+            runner.prepare_artifact(args, metadata, control, outer, 'smoke')
+
     def test_real_help_and_invalid_cli_do_not_start_children(self):
         for arguments, code in [(['--help'],0),(['--heap-mib','511'],2),
                                 (['--heap-mib','1.5'],2),(['--profile','smoke'],2)]:
@@ -336,6 +353,7 @@ class RunnerChecks(unittest.TestCase):
         source=source.replace("if __name__=='__main__':", "require_memory=lambda heap:4*1024**3\n\nif __name__=='__main__':")
         (root/'scripts/research_runner.py').write_text(source)
         shutil.copyfile(ROOT/'scripts/cloudsim_runtime.py',root/'scripts/cloudsim_runtime.py')
+        shutil.copyfile(ROOT/'scripts/cloudsim_build.py',root/'scripts/cloudsim_build.py')
         shutil.copyfile(ROOT/'run-research.sh',root/'run-research.sh'); (root/'run-research.sh').chmod(0o755)
         jdk = root/'jdk space/bin'; jdk.mkdir(parents=True)
         prefix = '#!'+sys.executable+'\n'

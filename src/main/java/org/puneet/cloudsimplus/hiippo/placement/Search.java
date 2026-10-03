@@ -79,6 +79,7 @@ public final class Search {
         for(double g:genes) if(!Double.isFinite(g)) return Optional.empty();
         var ledger=new PlacementLedger(inputs); var ids=new ArrayList<Integer>(); int hosts=inputs.hosts().size();
         for(int vm=0;vm<genes.length;vm++) {
+            if(Thread.currentThread().isInterrupted()) throw new java.util.concurrent.CancellationException("Case search cancelled");
             int host=Math.min(hosts-1,(int)Math.floor(Math.clamp(genes[vm],0,1)*hosts));
             if(!ledger.canPlace(vm,host)) {
                 host=-1; double least=Double.POSITIVE_INFINITY;
@@ -97,6 +98,7 @@ public final class Search {
         double[] x=new double[dimensions]; for(int j=0;j<dimensions;j++) x[j]=random.nextDouble(); return x;
     }
     private Candidate evaluate(double[] proposal,int iteration,String phase,int member,long dominant,Candidate incumbent,boolean eligible) throws IOException {
+        if(Thread.currentThread().isInterrupted()) throw new java.util.concurrent.CancellationException("Case search cancelled");
         if(evaluations>=budget) throw new IllegalStateException("Budget exhausted");
         double[] x=proposal.clone(); boolean finite=true;
         for(int j=0;j<x.length;j++) { if(!Double.isFinite(x[j])) finite=false; else x[j]=Math.clamp(x[j],0,1); }

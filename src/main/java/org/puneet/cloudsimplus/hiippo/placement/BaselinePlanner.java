@@ -11,6 +11,7 @@ public final class BaselinePlanner {
     private static Optional<Result> plan(ScenarioSpec.Inputs inputs,boolean bestFit) {
         var ledger=new PlacementLedger(inputs); var ids=new ArrayList<Integer>();
         for(var vm:inputs.vms()) {
+            if(Thread.currentThread().isInterrupted()) throw new java.util.concurrent.CancellationException("Case placement cancelled");
             int selected=-1; double best=Double.POSITIVE_INFINITY;
             for(var host:inputs.hosts()) if(ledger.canPlace(vm.id(),host.id())) {
                 double score=bestFit?ledger.residualAfter(vm.id(),host.id()):0;

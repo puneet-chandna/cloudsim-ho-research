@@ -43,6 +43,30 @@ class LauncherTests(unittest.TestCase):
             args = self.cli.parse_args(['--profile', profile])
             self.assertEqual((args.action, args.profile), ('profile', profile))
 
+    def test_workers_are_runtime_controls_and_force_build_is_explicit(self):
+        for profile in ('smoke', 'explore', 'research', 'stress'):
+            args = self.cli.parse_args(['--profile', profile, '--workers', '3', '--force-build', '--dry-run'])
+            self.assertEqual(args.workers, 3)
+            self.assertIn('--force-build', self.cli.runner_args(args))
+            with patch.object(self.cli.shared, 'available_cpus', return_value=12):
+                preview = self.cli.preview(args)
+            self.assertEqual(preview['execution']['workers'], 2)
+            self.assertIn('-Dcloudsim.workers=2', preview['commands']['java'][-1])
+            self.assertEqual(preview['execution']['requested_workers'], 3)
+        for arguments in (['--check', '--workers', '2'], ['--build', '--force-build'],
+                          ['--profile', 'smoke', '--force-build', '--skip-build'],
+                          ['--profile', 'smoke', '--workers', '0'],
+                          ['--profile', 'stress', '--workers', '33']):
+            self.rejected(arguments)
+
+    def test_worker_bounds_use_cpu_and_shared_heap(self):
+        with patch.object(self.cli.shared, 'available_cpus', return_value=12):
+            for requested, heap, expected in [('auto', 512, 1), ('auto', 1024, 2),
+                                               (1, 4096, 1), (32, 4096, 8), ('auto', 32768, 12)]:
+                self.assertEqual(self.cli.shared.execution_settings(requested, heap)['workers'], expected)
+        for value in ('', '-1', '1.0', '١', 'AUTO'):
+            with self.assertRaises(Exception): self.cli.shared.worker_value(value)
+
     def test_profile_setup_failures_retain_diagnostics_before_launch(self):
         runtime = self.base/'runtime only'/'bin'
         runtime.mkdir(parents=True)
@@ -211,17 +235,24 @@ class LauncherTests(unittest.TestCase):
             self.assertEqual(results[0]['invocation'], invocation)
 
     def test_maintenance_commands_retained_and_stop_on_exact_failure(self):
-        for action, exits, expected, count in [('build', [0], 0, 1), ('test', [19], 19, 1),
-                                              ('test', [0, 23], 23, 2), ('test', [0, 0], 0, 2)]:
+        for action, exits, expected, count in [('build', [0], 0, 1), ('test', [19], 19, 2),
+                                              ('test', [0, 23], 23, 3), ('test', [0, 0], 0, 3)]:
             args = self.cli.parse_args(['--'+action, '--output-dir', str(self.base)])
+            project = self.base/(action+'-'+str(expected))
+            (project/'target').mkdir(parents=True)
+            (project/'target/cloudsim-ho-research-v2-2.0.0.jar').write_bytes(b'packaged fixture')
             completed = []
+            def controlled(command, log, *positional, **keywords):
+                if command[0] == 'git': log.write_text(''); return 0
+                return exits.pop(0)
             with patch.object(self.cli.shared, 'check_environment', return_value=(Path('/java'), 4*1024**3)), \
-                 patch.object(self.cli.shared.ProcessControl, 'run', side_effect=exits) as run, \
+                 patch.object(self.cli, 'ROOT', project), \
+                 patch.object(self.cli.shared.ProcessControl, 'run', side_effect=controlled) as run, \
                  redirect_stdout(io.StringIO()):
                 self.assertEqual(self.cli.execute(args, on_complete=completed.append), expected)
             self.assertEqual(run.call_count, count)
-            commands = [call.args[0] for call in run.call_args_list]
-            expected_maven = [str(ROOT/'mvnw'), '-B', '-Dmaven.repo.local='+str(ROOT/'.cloudsim/maven/repository')]
+            commands = [call.args[0] for call in run.call_args_list if call.args[0][0] != 'git']
+            expected_maven = [str(project/'mvnw'), '-B', '-Dmaven.repo.local='+str(project/'.cloudsim/maven/repository')]
             expected_maven += ['-Dmaven.test.skip=true', 'clean', 'package'] if action == 'build' else ['clean', 'verify']
             self.assertEqual(commands[0], expected_maven)
             record = json.loads((Path(completed[0]['output_directory'])/'runner.json').read_text())

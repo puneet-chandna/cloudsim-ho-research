@@ -117,6 +117,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument('--output-dir', type=stress.output_path, help='parent for unique retained outputs')
     parser.add_argument('--config', type=stress.output_path, help='frozen profiles only: master.seed and log.level')
     parser.add_argument('--skip-build', action='store_true', help='diagnostic profile run using the existing JAR')
+    parser.add_argument('--force-build', action='store_true', help='force full build/tests instead of reusing a matching verified artifact')
+    parser.add_argument('--workers', type=shared.worker_value, default='auto', help='independent case workers: auto or 1..32; bounded by CPU and shared heap')
     parser.add_argument('--preset', choices=stress.PRESETS)
     for field in stress.FIELDS: parser.add_argument('--'+field, type=stress.positive)
     parser.add_argument('--seed', type=stress.seed_value)
@@ -129,7 +131,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     options.action = 'profile' if options.profile else next((a for a in ('check', 'build', 'test', 'validate', 'setup') if getattr(options, a)), None)
     if arguments and options.action is None: parser.error('select an action: --profile, --check, --build, --test or --validate')
     if options.action != 'profile':
-        incompatible = {'--config', '--skip-build', '--dry-run', *('--'+field.replace('_', '-') for field in STRESS_FLAGS)}
+        incompatible = {'--config', '--skip-build', '--force-build', '--workers', '--dry-run', *('--'+field.replace('_', '-') for field in STRESS_FLAGS)}
         if options.action == 'validate': incompatible.add('--heap-mib')
         if set(flags) & incompatible: parser.error('profile settings require an applicable --profile action')
     elif options.profile != 'stress':
@@ -140,6 +142,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         try: read_frozen_config(options.config)
         except (OSError, ValueError) as error: parser.error(str(error))
     elif options.config is not None: parser.error('--config is incompatible with --profile stress')
+    if options.skip_build and options.force_build: parser.error('--force-build and --skip-build are incompatible')
     options.output_dir = (options.output_dir or ROOT/('results/stress' if options.profile == 'stress' else 'results')).resolve()
     if options.validate is not None: options.validate = options.validate.resolve()
     if options.profile == 'stress':
@@ -153,6 +156,8 @@ def runner_args(options: argparse.Namespace) -> list[str]:
     arguments = ['--heap-mib', str(options.heap_mib), '--output-dir', str(options.output_dir)]
     if options.plain or not sys.stdout.isatty(): arguments.append('--plain')
     if options.skip_build: arguments.append('--skip-build')
+    if options.force_build: arguments.append('--force-build')
+    arguments += ['--workers', str(options.workers)]
     if options.config is not None: arguments += ['--config', str(options.config)]
     if options.profile == 'stress':
         for field in STRESS_FLAGS:
@@ -175,7 +180,7 @@ def _effective(options):
                       scenarios=scenarios, **{'evaluation.budget': str(population+3*population*iterations),
                                              'expected.cases': str(shared.profile_total(options.profile))})
     else: result = {}
-    result.update(heap_mib=options.heap_mib, output_dir=str(options.output_dir), skip_build=options.skip_build,
+    result.update(heap_mib=options.heap_mib, output_dir=str(options.output_dir), skip_build=options.skip_build, force_build=options.force_build,
                   config=str(options.config) if options.config else None)
     return result
 
@@ -183,6 +188,7 @@ def _effective(options):
 def preview(options: argparse.Namespace) -> dict:
     if options.action != 'profile': raise ValueError('Preview requires --profile')
     effective = _effective(options)
+    execution = shared.execution_settings(options.workers, options.heap_mib)
     memory = stress.memory_preview(options.stress_options if options.profile == 'stress' else argparse.Namespace(preset='small', vms=100, hosts=20))
     java = Path(os.environ['JAVA_HOME'])/'bin/java' if os.environ.get('JAVA_HOME') else Path('java')
     retained = Path('<RETAINED>')
@@ -190,20 +196,21 @@ def preview(options: argparse.Namespace) -> dict:
         plan = stress.planned_work(options.stress_options)
         blocks = [(p, 'stress_calibration', f'calibration-{p.vms}') for p in stress.calibrations(options.stress_options)]
         blocks.append((options.stress_options, 'stress', 'production'))
-        commands = [stress.java_command(java, config, retained/'stress.jar', retained/name/'artifacts', phase)
+        commands = [stress.java_command(java, config, retained/'stress.jar', retained/name/'artifacts', phase,
+                                        workers=1 if phase=='stress_calibration' else execution['workers'])
                     for config, phase, name in blocks]
     else:
         plan = {'expected_cases': shared.profile_total(options.profile),
                 'main_cases': 360 if options.profile == 'research' else shared.profile_total(options.profile),
                 'sensitivity_cases': 90 if options.profile == 'research' else 0}
         commands = [shared.java_command(java, options.heap_mib, retained/(options.profile+'.jar'),
-                                        retained, options.config, profile=options.profile)]
+                                        retained, options.config, profile=options.profile,workers=execution['workers'])]
     launch = [str(ROOT/'cloudsim.sh'), '--profile', options.profile, *runner_args(options)]
     warnings = [value for value in (memory.get('warning'), memory.get('policy_note')) if value]
     if memory['usable_memory_bytes'] is None: warnings.append('Usable memory is unknown; launch requires independent verified headroom.')
     if options.skip_build: warnings.append('Diagnostic --skip-build: existing packaged JAR may differ from current source protocol values.')
     return {'action': options.action, 'profile': options.profile, 'effective_config': effective,
-            'planned_work': plan, 'memory_evidence': memory, 'warnings': warnings,
+            'planned_work': plan, 'execution': execution, 'memory_evidence': memory, 'warnings': warnings,
             'commands': {'launcher': launch, 'launcher_shell': shlex.join(launch), 'java': commands,
                          'java_shell': [shlex.join(command) for command in commands],
                          'java_scope': 'Templates: unique retained output directory is assigned at execution.'},
@@ -264,21 +271,28 @@ def _maintenance(options, dashboard, on_complete, invocation):
                 metadata['status'] = 'checked'; code = 0
                 control.render('checked', {'detail': f'PASS: JDK 21; {available//shared.MIB} MiB usable memory. No experiment executed.'}, force=True)
             else:
-                commands = [(shared.maven_command('-Dmaven.test.skip=true', 'clean', 'package',root=ROOT), 'build.log')] if options.action == 'build' else [
-                    (shared.maven_command('clean', 'verify',root=ROOT), 'build.log'),
-                    ([sys.executable, '-B', '-m', 'unittest', 'discover', '-s', 'scripts', '-p', 'test_*.py'], 'python-tests.log')]
-                for command, name in commands:
-                    metadata.update(status=options.action)
-                    metadata['commands'].append(command); shared.save_metadata(outer, metadata)
-                    code = control.run(command, outer/name, options.action, cwd=ROOT)
-                    if code: raise ValueError(f'{options.action.capitalize()} failed with exit {code}; log: {outer/name}')
+                if options.action == 'test':
+                    code = control.run(['git', 'status', '--porcelain'], outer/'source-status.log', 'provenance', cwd=ROOT,
+                                       timeout=10, stderr_log=outer/'source-status.stderr.log')
+                    if code: raise ValueError(f'Git provenance failed with exit {code}')
+                    status = (outer/'source-status.log').read_text()
+                    metadata.update(source_status=status, source_dirty=bool(status))
+                    shared.cloudsim_build.ensure_verified_build(ROOT, control, metadata, outer, force=True)
+                    code = 0
+                else:
+                    with shared.cloudsim_build.build_lock(ROOT, control):
+                        command = shared.maven_command('-Dmaven.test.skip=true', 'clean', 'package',root=ROOT)
+                        metadata.update(status=options.action)
+                        metadata['commands'].append(command); shared.save_metadata(outer, metadata)
+                        code = control.run(command, outer/'build.log', options.action, cwd=ROOT)
+                        if code: raise ValueError(f'Build failed with exit {code}; log: {outer/"build.log"}')
                 metadata.update(status='complete', tests='PASS' if options.action == 'test' else 'NOT_RUN')
                 detail = 'BUILD COMPLETE; tests NOT RUN' if options.action == 'build' else 'TESTS PASSED'
                 control.render('complete', {'detail': detail+f'; logs: {outer}'}, force=True)
     except shared.Interrupted as error:
         code = 128+error.signum; metadata.update(status='interrupted', error=f'Interrupted by signal {error.signum}')
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
-        code = getattr(control, 'last_exit_code', 0) or code or 1
+        code = getattr(error, 'exit_code', 0) or getattr(control, 'last_exit_code', 0) or code or 1
         metadata.update(status='failed', error=shared.sanitize(error))
     finally:
         if metadata['status'] in ('failed', 'interrupted'):

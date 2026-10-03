@@ -306,6 +306,17 @@ sys.exit(9 if os.environ.get('MODE')=='validator_fail' else 0)
         for text in ('HO replication 4','evaluation 123','V2000/H400/N30/T40/R5','deadline remaining'):
             self.assertIn(text,visible)
 
+    def test_live_computation_is_distinct_from_published_evidence(self):
+        parent=self.base/'artifacts'; run=parent/'stress-one'; run.mkdir(parents=True)
+        (run/'progress.json').write_text(json.dumps({'successful_cases':0,'completed_evaluations':0,
+            'expected_evaluations':36310,'current_case':{'algorithm':'HO','replication':0,'evaluation':0,
+            'computing_evaluation':123,'computing_iteration':2,'computing_stage':'UPDATE','computing_phase':'optimizing'}}))
+        frame=runner.progress(parent,runner.parse_args([]),None,runner.estimate(runner.parse_args([]),[]))
+        self.assertEqual(frame['evaluations'],0)
+        self.assertEqual(frame['done'],0)
+        self.assertIn('computing evaluation 123',frame['detail'])
+        self.assertIn('published evaluations 0/36310',frame['detail'])
+
     def test_no_deadline_still_collects_observed_rss(self):
         control=shared.ProcessControl(shared.Dashboard(io.StringIO(),plain=True),self.base)
         code=control.run([sys.executable,'-c','import time; time.sleep(.2)'],self.base/'measure.log','pilot',

@@ -35,16 +35,45 @@ settings are changed. The launcher uses the selected JDK for checks, Maven and
 simulation and keeps its default Maven downloads under `.cloudsim/maven`.
 
 Run, Results, Tools and Setup stay available during a job. Choose Smoke,
-Explore, Research or Static Stress; stress sizes and advanced options are
-editable while frozen protocol settings remain read-only. Failed attempts keep
+Explore, Research or Static Stress; stress size, population, iterations,
+replications and seed are directly editable while frozen protocol settings remain read-only. Failed attempts keep
 their settings and logs. Ctrl+C opens cancellation, Ctrl+Q quits, and F1 shows
 keyboard help. F2–F5 switch between Run, Results, Tools and Setup. Small
 terminals scroll instead of hiding errors.
+The appearance selector offers Harbor, Ember and Paper palettes. A brief opening
+reveal leaves input available immediately; `TEXTUAL_ANIMATIONS=none` disables
+motion, and `NO_COLOR` is respected.
 
 Automation uses `--profile smoke|explore|research|stress`, `--check`, `--build`,
 `--test` or `--validate DIRECTORY`. Add `--plain` for plain progress. Help,
 dry-run and existing-output validation do not need Java or the terminal UI.
 Setup is explicit; direct experiment actions never download a JDK automatically.
+
+Experiments reuse a tested build when source, Git revision, JDK, Python/UI
+dependencies and the retained JAR hash still match its verification receipt.
+The first run or a changed input runs Maven `clean verify` and the Python suite.
+`--force-build` and Tools → Test explicitly repeat full verification;
+`--skip-build` is a separate diagnostic option. Every experiment still runs its
+independent result validator. Results distinguishes experiments, setup checks
+and validation reports, and explains which selections can be validated.
+
+`--workers auto` (default) runs independent cases concurrently within CPU and
+shared heap limits: at most one worker per 512 MiB, capped at 32. Use
+`--workers 1` for serial execution, or request a count with `--workers 4`.
+Seeds, paired workloads and canonical output order are unchanged; individual
+CloudSim event loops remain sequential. The heap cap is shared across workers.
+The limit bounds concurrency; it does not guarantee that any size fits in RAM.
+Research keeps at most one pending case per worker because it retains full
+traces. Stress can queue up to four cases per worker (128 maximum), retaining
+scalar evidence in temporary disk spools so faster cases can advance to the
+next replication while a slower optimizer runs. Scientific rows are still
+published in their canonical order.
+
+Stress runs the selected full campaign only. Short calibration campaigns use
+N10/T10/R1 at up to 100 VMs, 500 VMs and the selected size first. For Large,
+these are 100/20, 500/100 and 10000/2000 VMs/hosts, followed by the full Large
+campaign. It does not run the full intermediate presets. Calibrations run
+serially so their resource measurements remain comparable.
 
 From the supplied v2 source checkout (not a fresh clone of the public default
 branch), run:

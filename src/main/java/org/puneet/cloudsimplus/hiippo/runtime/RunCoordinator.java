@@ -4,7 +4,7 @@ import org.puneet.cloudsimplus.hiippo.placement.*;
 import org.puneet.cloudsimplus.hiippo.scenario.*;
 import java.util.*;
 
-/** Fixed sequential protocol matrix; no retry, fallback placement, or partial-data analysis. */
+/** Fixed protocol matrix with bounded independent cases and canonical publication. */
 public final class RunCoordinator {
     private RunCoordinator() {}
     public record CaseResult(PlacementPlan plan,double objectiveWatts,int evaluations,List<Search.Trace> trace,
@@ -22,6 +22,7 @@ public final class RunCoordinator {
     }
     public static void execute(RunConfig config,RunOutput output) throws Exception { execute(config,output,RunCoordinator::evaluate); }
     static void execute(RunConfig config,RunOutput output,CaseRunner runner) throws Exception {
+        if(output.workers()>1) { executeParallel(config,output,runner); return; }
         ScenarioSpec spec=null;
         try {
             for(var key:config.profile().cases()) {
@@ -44,6 +45,43 @@ public final class RunCoordinator {
             }
             output.analyze();
             output.complete();
+        } catch(Exception e) {
+            try { output.fail(code(e),e.toString()); } catch(Exception diagnostic) { e.addSuppressed(diagnostic); }
+            throw e;
+        }
+    }
+    private record Work(Profile.CaseKey key,ScenarioSpec spec,Exception preparationFailure) {}
+    private static void executeParallel(RunConfig config,RunOutput output,CaseRunner runner) throws Exception {
+        var keys=config.profile().cases(); ScenarioSpec spec=null;
+        try {
+            for(int offset=0;offset<keys.size();) {
+                var window=new ArrayList<Work>();
+                var tasks=new ArrayList<java.util.concurrent.Callable<CaseResult>>();
+                while(offset<keys.size() && window.size()<output.workers()) {
+                    var key=keys.get(offset++); Exception failure=null;
+                    try { if(spec==null || !sameWorkload(spec,key)) spec=ScenarioGenerator.generate(config.masterSeed(),key.phase(),key.scenario(),key.replication()); }
+                    catch(Exception e) { spec=null; failure=e; }
+                    var work=new Work(key,spec,failure); window.add(work);
+                    tasks.add(()->{ if(work.preparationFailure()!=null) throw work.preparationFailure(); return runner.run(work.spec(),work.key()); });
+                    if(failure!=null) break;
+                }
+                try(var executor=new CaseExecutor<>(output.workers(),tasks)) {
+                    for(int i=0;i<window.size();i++) {
+                        var work=window.get(i); output.begin(work.key()); CaseResult result=null;
+                        try {
+                            if(work.spec()!=null) output.addSpecification(work.spec());
+                            result=executor.await(i); output.success(work.key(),work.spec(),result);
+                        } catch(Exception e) {
+                            executor.close();
+                            var trace=e instanceof NoFeasiblePlacement n?n.trace:e instanceof SimulationFailure s?s.trace:result==null?List.<Search.Trace>of():result.trace();
+                            try { output.caseFailed(work.key(),work.spec(),code(e),e.toString(),trace); }
+                            catch(Exception diagnostic) { e.addSuppressed(diagnostic); }
+                            throw e;
+                        }
+                    }
+                }
+            }
+            output.analyze(); output.complete();
         } catch(Exception e) {
             try { output.fail(code(e),e.toString()); } catch(Exception diagnostic) { e.addSuppressed(diagnostic); }
             throw e;

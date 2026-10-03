@@ -18,6 +18,7 @@ public record StressConfig(int vmCount,int hostCount,int population,int iteratio
     }
 
     public static StressConfig parse(String[] args) {
+        CaseExecutor.workers();
         var flags=Set.of("--profile","--vms","--hosts","--population","--iterations","--replications",
             "--seed","--experiment-phase","--output-dir");
         var options=new HashMap<String,String>();

@@ -18,6 +18,22 @@ from stress_validator import load, require
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def campaign_selection_error(metadata):
+    """Explain unsupported selections before inspecting any scientific evidence."""
+    if metadata.get('status')=='checked' or metadata.get('action')=='check':
+        return 'This is a setup check; no experiment was run. Select a completed experiment.'
+    action=metadata.get('action')
+    if action=='validate':
+        return 'This is a validation report. Select the original experiment directory it checked.'
+    if action and action!='profile':
+        return f'This is a {shared.sanitize(action)} action; select a completed experiment.'
+    if metadata.get('profile') not in (*shared.FROZEN_PROFILES,'stress'):
+        return 'This directory has no supported experiment profile.'
+    if metadata.get('status')!='complete' or type(metadata.get('exit_code')) is not int or metadata['exit_code']!=0 or metadata.get('validation')!='PASS':
+        return 'The experiment is incomplete or unsuccessful. Select a completed experiment; partial evidence is available in Details.'
+    return None
+
+
 def _inside(root, value):
     require(isinstance(value, (str, Path)) and bool(str(value).strip()), 'Missing evidence path')
     path = Path(value)
@@ -81,6 +97,8 @@ def _inspect(directory):
         require(set(root.rglob('run.json'))=={root/'run.json'}, 'Multiple unrelated runs in selected directory')
         return [(root,_kind(root))], None, None
     metadata=load(root/'runner.json')
+    selection_error=campaign_selection_error(metadata)
+    require(selection_error is None, selection_error)
     require(metadata.get('status')=='complete' and type(metadata.get('exit_code')) is int
             and metadata['exit_code']==0 and metadata.get('validation')=='PASS', 'Campaign is incomplete or unsuccessful')
     profile=metadata.get('profile')

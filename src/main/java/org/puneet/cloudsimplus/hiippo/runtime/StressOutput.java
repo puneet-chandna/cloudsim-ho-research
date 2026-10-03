@@ -29,11 +29,17 @@ public final class StressOutput implements AutoCloseable {
     private int attempted,successful,failed,caseEvaluations;
     private long completedEvaluations,lastProgress;
     private Double best;
+    private String computingPhase;
+    private Search.Evaluation computingEvaluation;
+    private int workers;
     private StressOutput(StressConfig config,Path directory) { this.config=config; this.directory=directory; }
     public Path directory() { return directory; }
+    int workers() { return workers; }
     public static StressOutput create(StressConfig config) throws Exception {
+        int workers=CaseExecutor.workers();
         Files.createDirectories(config.outputRoot());
         var output=new StressOutput(config,Files.createDirectory(config.outputRoot().resolve("stress-"+UUID.randomUUID())));
+        output.workers=workers;
         try {
             var m=output.manifest;
             m.put("experiment_kind","static_stress"); m.put("stress_schema_version",1); m.put("profile","stress");
@@ -50,6 +56,7 @@ public final class StressOutput implements AutoCloseable {
             m.put("git_revision",revision); m.put("git_dirty",dirty); m.put("java_version",System.getProperty("java.runtime.version"));
             m.put("cloudsim_version","8.5.7"); m.put("os",System.getProperty("os.name")+" "+System.getProperty("os.version"));
             m.put("arch",System.getProperty("os.arch")); m.put("max_heap_bytes",Runtime.getRuntime().maxMemory());
+            m.put("execution_workers",workers);
             m.put("effective_config",config.effective()); m.put("expected_cases",config.expectedCases());
             m.put("expected_evaluations",config.replications()*(2L*config.evaluationBudget()+2)); m.put("files",output.hashes); m.put("error",null);
             m.put("evidence_limit",EVIDENCE_LIMIT);
@@ -76,7 +83,7 @@ public final class StressOutput implements AutoCloseable {
     }
     void begin(Profile.CaseKey key) throws IOException {
         if(current!=null || failed!=0 || !"RUNNING".equals(manifest.get("state")) || attempted>=config.expectedCases()) throw new IllegalStateException("Invalid stress lifecycle");
-        current=key; caseEvaluations=0; best=null; attempted++; publish();
+        current=key; caseEvaluations=0; best=null; computingPhase=null; computingEvaluation=null; attempted++; publish();
     }
     void specification(ScenarioSpec spec) throws IOException {
         var record=new LinkedHashMap<String,Object>(); record.put("inputs",spec.inputs()); record.put("reference_seconds",spec.referenceSeconds());
@@ -95,6 +102,12 @@ public final class StressOutput implements AutoCloseable {
         evaluations.printRecord(row); caseEvaluations++; completedEvaluations++;
         // Progress is bounded in size and frequency, irrespective of total trace length.
         if(System.nanoTime()-lastProgress>=1_000_000_000L) { evaluations.flush(); publish(); }
+    }
+    /** Optional runtime snapshot; unpublished scalar evidence never enters scientific counters. */
+    void liveProgress(String phase,Search.Evaluation evaluation) throws IOException {
+        if(current==null) throw new IllegalStateException("No active case for live progress");
+        computingPhase=phase; computingEvaluation=evaluation;
+        if(System.nanoTime()-lastProgress>=1_000_000_000L) publish();
     }
     private List<Object> caseRow(ScenarioSpec spec,String status,String code,String message) {
         var row=identity();
@@ -156,6 +169,12 @@ public final class StressOutput implements AutoCloseable {
         if(current!=null) {
             active=new LinkedHashMap<>(); active.put("phase",current.phase()); active.put("scenario",current.scenario()); active.put("replication",current.replication());
             active.put("algorithm",current.algorithm()); active.put("population",current.population()); active.put("iterations",current.iterations()); active.put("evaluation",caseEvaluations);
+            if(computingPhase!=null) {
+                active.put("computing_phase",computingPhase);
+                active.put("computing_evaluation",computingEvaluation==null?0:computingEvaluation.evaluation());
+                active.put("computing_iteration",computingEvaluation==null?null:computingEvaluation.iteration());
+                active.put("computing_stage",computingEvaluation==null?null:computingEvaluation.phase());
+            }
         }
         progress.put("current_case",active); atomic("progress.json",progress); lastProgress=System.nanoTime();
     }

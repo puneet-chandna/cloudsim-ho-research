@@ -66,12 +66,15 @@ def parse_args(argv=None):
     parser.add_argument('--output-dir',type=output_path,default=ROOT/'results/stress',help='parent for unique retained output directories (default: results/stress)')
     parser.add_argument('--plain',action='store_true',help='plain progress lines instead of terminal dashboard')
     parser.add_argument('--skip-build',action='store_true',help='skip Maven clean verify and Python discovery; copy the existing packaged JAR')
+    parser.add_argument('--force-build',action='store_true',help='force full build and verification instead of verified reuse')
+    parser.add_argument('--workers',type=shared.worker_value,default='auto',help='independent case workers: auto or 1..32, bounded by CPU and shared heap')
     parser.add_argument('--dry-run',action='store_true',help='show effective config, counts and uncertain estimates; create no files or child processes')
     parser.add_argument('--interactive',action='store_true',help='terminal-only size and Default/Custom selector; confirm before build/run; incompatible with dry-run or matrix flags')
     arguments=list(argv if argv is not None else sys.argv[1:])
     flags=[arg.split('=',1)[0] for arg in arguments if arg.startswith('--')]
     if len(flags)!=len(set(flags)): parser.error('duplicate options are not supported')
     args=parser.parse_args(arguments)
+    if args.skip_build and args.force_build: parser.error('--force-build and --skip-build are incompatible')
     if args.interactive and set(flags)&{'--preset','--dry-run',*('--'+field for field in FIELDS)}:
         parser.error('--interactive cannot be combined with --dry-run or preset/VM/host/population/iteration/replication flags')
     for field,default in zip(FIELDS,(*PRESETS[args.preset],30,40,5)):
@@ -166,8 +169,8 @@ def show_planned_work(plan,output=None):
     print(f'Combined totals: {totals["expected_cases"]} cases / {totals["expected_evaluations"]} evaluations',file=output)
 
 
-def java_command(java,config,jar,output,phase):
-    command=shared.java_command(java,config.heap_mib,jar,output)
+def java_command(java,config,jar,output,phase,*,workers=1):
+    command=shared.java_command(java,config.heap_mib,jar,output,workers=workers)
     command[command.index('--profile')+1]='stress'
     command[command.index('--output-dir')+1]=str(output)
     for field in FIELDS: command+=['--'+field,str(getattr(config,field))]
@@ -216,6 +219,11 @@ def progress(parent,config,deadline,estimates):
         if any(type(value) is not int or value<0 for value in (evaluations,expected)) or evaluations>expected:
             raise ValueError('invalid evaluation counters')
         detail=f'{active.get("algorithm","?")} replication {active.get("replication","?")} evaluation {active.get("evaluation","?")}; ' if active else ''
+        if active and active.get('computing_phase'):
+            detail=f'{active.get("algorithm","?")} replication {active.get("replication","?")}: {active["computing_phase"]}'
+            if active.get('computing_evaluation') is not None:
+                detail+=f' computing evaluation {active["computing_evaluation"]}, iteration {active.get("computing_iteration","?")} ({active.get("computing_stage","?")})'
+            detail+='; published '
         detail+=f'evaluations {data["completed_evaluations"]}/{data["expected_evaluations"]}'
         return {'done':done,'total':total,'detail':detail,'extra_lines':extra,
                 'evaluations':evaluations,'evaluations_total':expected,**timing,
@@ -310,6 +318,7 @@ def main(argv=None, *, dashboard=None, on_complete=None, invocation=None) -> int
               'time_limit_scope':'calibration + production + all validation; excludes build/tests',
               'skip_build':args.skip_build,'estimates':estimate(args,[]),'estimates_scope':'production',
               'planned_work':planned_work(args)}
+    metadata['execution']=shared.execution_settings(args.workers,args.heap_mib)
     if invocation is not None: metadata['invocation']=deepcopy(invocation)
     supplied_dashboard=dashboard is not None
     dashboard=dashboard if supplied_dashboard else shared.Dashboard(plain=args.plain,heap_mib=args.heap_mib,title='STATIC STRESS',total=4*args.replications)
@@ -347,32 +356,25 @@ def main(argv=None, *, dashboard=None, on_complete=None, invocation=None) -> int
             if code: raise ValueError(f'Git provenance failed; see {outer}/{name}.stderr.log')
         metadata.update(source_revision=(outer/'source-revision.log').read_text().strip(),
                         source_status=(outer/'source-status.log').read_text(),source_dirty=bool((outer/'source-status.log').read_text()))
-        if args.skip_build: control.render('build',{'detail':'SKIPPED: Maven clean verify and Python test discovery (--skip-build).'},force=True)
-        else:
-            for command,name in [(shared.maven_command('clean','verify',root=ROOT),'build.log'),([sys.executable,'-B','-m','unittest','discover','-s','scripts','-p','test_*.py'],'python-tests.log')]:
-                metadata['status']='build'; shared.save_metadata(outer,metadata)
-                code=control.run(command,outer/name,'build',cwd=ROOT)
-                if code:
-                    metadata['tests']='FAILED'
-                    raise ValueError(f'Build/check failed with exit {code}; see {outer/name}')
-            metadata['tests']='PASS'; shared.save_metadata(outer,metadata)
-        jars=list((ROOT/'target').glob('cloudsim-ho-research-v2-*.jar'))
-        if len(jars)!=1: raise ValueError('Expected exactly one packaged target JAR')
-        retained=outer/'stress.jar'; shutil.copyfile(jars[0],retained); digest=shared.sha256(retained)
+        retained,artifact_source=shared.prepare_artifact(args,metadata,control,outer,'stress',root=ROOT)
+        shared.save_metadata(outer,metadata)
+        digest=shared.sha256(retained)
         config_lines=[f'Time limit: {args.time_limit if args.time_limit is not None else "none"} seconds; heap {args.heap_mib} MiB',
-                      'Deadline: calibration + production + validation; excludes build/tests']
+                      'Deadline: calibration + production + validation; excludes build/tests',
+                      f'Production workers: {metadata["execution"]["workers"]}; shared heap {args.heap_mib} MiB. Calibration uses one worker.']
         if metadata['preset_notice']: config_lines.append(metadata['preset_notice'])
         control.render('configuration',{'detail':f'V{args.vms}/H{args.hosts}/N{args.population}/T{args.iterations}/R{args.replications}; seed {args.seed}',
                                          'extra_lines':config_lines},force=True)
-        metadata.update(artifact_sha256=digest,artifact_source=str(jars[0]),deadline_started_at=shared.stamp())
+        metadata.update(artifact_sha256=digest,artifact_source=str(artifact_source),deadline_started_at=shared.stamp())
         deadline=time.monotonic()+args.time_limit if args.time_limit is not None else None
         measurements=[]
         blocks=[(pilot,'stress_calibration',f'calibration-{pilot.vms}') for pilot in calibrations(args)]+[(args,'stress','production')]
         for config,phase,name in blocks:
             control.check(deadline); shared.require_memory(config.heap_mib)
             block=outer/name; block.mkdir(); parent=block/'artifacts'
-            command=java_command(java,config,retained,parent,phase)
-            record={'phase':phase,'effective_config':effective(config),'java_command':command,'validation':'NOT_RUN','directory':str(block)}
+            workers=1 if phase=='stress_calibration' else metadata['execution']['workers']
+            command=java_command(java,config,retained,parent,phase,workers=workers)
+            record={'phase':phase,'effective_config':effective(config),'workers':workers,'java_command':command,'validation':'NOT_RUN','directory':str(block)}
             if phase=='stress_calibration': metadata['calibration'].append(record)
             else: metadata['production']=record; metadata['java_command']=command
             metadata['status']=name; shared.save_metadata(outer,metadata)
@@ -412,7 +414,7 @@ def main(argv=None, *, dashboard=None, on_complete=None, invocation=None) -> int
     except shared.DeadlineExceeded as error:
         code=124; metadata.update(status='timeout',error=str(error))
     except (OSError,ValueError,KeyError,subprocess.SubprocessError) as error:
-        code=code if code not in (0,1) else 1; metadata.update(status='failed',error=shared.sanitize(error))
+        code=getattr(error,'exit_code',0) or (code if code not in (0,1) else 1); metadata.update(status='failed',error=shared.sanitize(error))
     finally:
         if metadata['status'] in ('failed','timeout','interrupted'):
             try: control.render(metadata['status'],{'detail':metadata['error']+f'; retained: {outer}'},force=True)

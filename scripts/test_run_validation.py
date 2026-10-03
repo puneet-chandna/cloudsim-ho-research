@@ -56,6 +56,15 @@ class ExistingValidationTests(unittest.TestCase):
         self.assertEqual([(p.relative_to(self.root).parts[0], kind) for p,kind in targets],
                          [('calibration-100','stress'), ('production','stress')])
 
+    def test_nonexperiment_directories_explain_the_selection_error(self):
+        for metadata,reason in (
+            (dict(profile='research',status='checked',exit_code=0,validation='NOT_RUN'),'setup check'),
+            (dict(action='validate',status='complete',exit_code=0,validation='PASS'),'validation report'),
+            (dict(action='build',status='complete',exit_code=0,validation='NOT_RUN'),'build action')):
+            with self.subTest(metadata=metadata):
+                self.write(self.root/'runner.json',metadata)
+                with self.assertRaisesRegex(ValueError,reason): self.validation.validation_targets(self.root)
+
     def test_incomplete_forged_or_mismatched_campaign_is_rejected(self):
         for case in ('missing', 'duplicate', 'failed', 'config', 'external', 'jar', 'extra', 'forged'):
             with self.subTest(case=case):
