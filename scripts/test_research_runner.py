@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
+from contextlib import redirect_stdout
 from unittest.mock import patch
 
 
@@ -20,6 +21,21 @@ SPEC = importlib.util.spec_from_file_location('research_runner', ROOT/'scripts/r
 runner = importlib.util.module_from_spec(SPEC)
 if SPEC.loader and SPEC.origin and Path(SPEC.origin).exists():
     SPEC.loader.exec_module(runner)
+
+
+class RecordingDashboard:
+    def __init__(self):
+        self.frames = []
+        self.logs = []
+        self.polls = 0
+        self.closed = False
+
+    def render(self,stage,progress=None,pid=None,force=False):
+        self.frames.append((stage,progress or {}))
+
+    def poll(self,control): self.polls += 1
+    def set_log(self,path): self.logs.append(path)
+    def close(self): self.closed = True
 
 
 class RunnerChecks(unittest.TestCase):
@@ -81,6 +97,141 @@ class RunnerChecks(unittest.TestCase):
         self.assertEqual(command[command.index('--profile')+1],'research')
         self.assertEqual(command[command.index('--config')+1],str(self.base/'a config.properties'))
         self.assertTrue(any('filecount=3,filesize=5M' in arg for arg in command))
+
+    def test_frozen_profile_command_preserves_default_arguments(self):
+        expected = ['/jdk/bin/java','-Xms256m','-Xmx1024m','-XX:+UseG1GC',
+            '-XX:+ExitOnOutOfMemoryError',
+            '-Xlog:gc*:file=gc.log:time,uptime,level,tags:filecount=3,filesize=5M',
+            '-jar','/retained/app.jar','--profile','research','--output-dir','/retained/research']
+        self.assertEqual(runner.java_command(Path('/jdk/bin/java'),1024,Path('/retained/app.jar'),Path('/retained')),expected)
+        for profile in ('smoke','explore','research'):
+            command=runner.java_command(Path('/jdk/bin/java'),1024,Path('/retained/app.jar'),Path('/retained'),profile=profile)
+            self.assertEqual(command[8:],['--profile',profile,'--output-dir','/retained/'+profile])
+        with self.assertRaises(ValueError):
+            runner.java_command(Path('/jdk/bin/java'),1024,Path('/retained/app.jar'),self.base,profile='stress')
+
+    def test_selected_frozen_profile_requires_its_exact_counters(self):
+        for profile,total in [('smoke',4),('explore',40),('research',450)]:
+            root=self.base/profile
+            self.manifest(root,profile=profile,expected_cases=total,attempted_cases=total,successful_cases=total)
+            self.assertEqual(runner.completed_run(root,'abc',profile=profile).name,'run-one')
+            for changes in [dict(profile='wrong'),dict(expected_cases=total-1),
+                            dict(attempted_cases=total-1),dict(successful_cases=total-1),
+                            dict(expected_cases=True),dict(failed_cases=1),dict(unattempted_cases=1)]:
+                with self.subTest(profile=profile,changes=changes):
+                    values=dict(profile=profile,expected_cases=total,attempted_cases=total,successful_cases=total)
+                    self.manifest(root,**{**values,**changes})
+                    with self.assertRaises(ValueError): runner.completed_run(root,'abc',profile=profile)
+        root=self.base/'mismatch'; self.manifest(root)
+        with self.assertRaises(ValueError): runner.completed_run(root,'abc',profile='smoke')
+
+    def test_progress_rejects_wrong_profile_and_bounds_by_selected_total(self):
+        for profile,total in [('smoke',4),('explore',40),('research',450)]:
+            root=self.base/profile
+            self.manifest(root,profile=profile,state='RUNNING',attempted_cases=total,successful_cases=total)
+            self.assertEqual(runner.read_progress(root,profile=profile)['stage'],'analysis')
+            self.manifest(root,profile='wrong',attempted_cases=1,successful_cases=0)
+            self.assertIn('unavailable',runner.read_progress(root,profile=profile)['detail'])
+            self.manifest(root,profile=profile,attempted_cases=total+1,successful_cases=total+1)
+            self.assertIn('unavailable',runner.read_progress(root,profile=profile)['detail'])
+
+    def test_supervisor_polls_short_children_and_services_each_iteration(self):
+        dashboard=RecordingDashboard(); control=runner.ProcessControl(dashboard,self.base)
+        log=self.base/'short.log'
+        self.assertEqual(control.run([sys.executable,'-c','pass'],log,'build'),0)
+        self.assertGreaterEqual(dashboard.polls,2)
+        self.assertEqual(dashboard.logs,[log])
+        dashboard.polls=0
+        self.assertEqual(control.run([sys.executable,'-c','import time; time.sleep(.35)'],log,'build'),0)
+        self.assertGreaterEqual(dashboard.polls,4)
+
+    def test_presentation_exception_stops_owned_child_before_propagating(self):
+        marker=self.base/'child.pid'
+        class Broken(RecordingDashboard):
+            def poll(self,control):
+                if marker.exists(): raise RuntimeError('presentation unavailable')
+        dashboard=Broken(); control=runner.ProcessControl(dashboard,self.base)
+        script=f'import os,pathlib,time; pathlib.Path({str(marker)!r}).write_text(str(os.getpid())); time.sleep(60)'
+        with self.assertRaisesRegex(ValueError,'presentation unavailable'):
+            control.run([sys.executable,'-c',script],self.base/'broken.log','build')
+        pid=int(marker.read_text())
+        self.assertFalse(Path(f'/proc/{pid}').exists(),'owned child remains alive')
+
+    def test_poll_can_cancel_before_launch(self):
+        class Cancel(RecordingDashboard):
+            def poll(self,control): control.on_signal(signal.SIGINT,None)
+        marker=self.base/'launched'
+        control=runner.ProcessControl(Cancel(),self.base)
+        with self.assertRaises(runner.Interrupted):
+            control.run([sys.executable,'-c',f'from pathlib import Path; Path({str(marker)!r}).touch()'],self.base/'cancel.log','build')
+        self.assertFalse(marker.exists())
+
+    def test_two_embedded_jobs_restore_signals_and_complete_copy(self):
+        root,env=self.fixture(); capture=io.StringIO(); outcomes=[]
+        previous={number:signal.getsignal(number) for number in (signal.SIGINT,signal.SIGTERM)}
+        dashboard=RecordingDashboard()
+        def completed(metadata):
+            outcomes.append(dict(metadata)); metadata['status']='tampered'
+        with patch.dict(os.environ,env,clear=True),patch.object(runner,'ROOT',root),patch.object(runner,'require_memory',return_value=4*1024**3),redirect_stdout(capture):
+            for i in range(2):
+                code=runner.main(['--skip-build','--output-dir',str(self.base/f'job-{i}')],
+                                 dashboard=dashboard,on_complete=completed,invocation=['./cloudsim.sh','--profile','research'])
+                self.assertEqual(code,0)
+                self.assertTrue(dashboard.closed)
+                self.assertEqual({n:signal.getsignal(n) for n in previous},previous)
+                retained=json.loads((next((self.base/f'job-{i}').iterdir())/'runner.json').read_text())
+                self.assertEqual(retained['status'],'complete')
+                self.assertEqual(retained['invocation'],['./cloudsim.sh','--profile','research'])
+        self.assertEqual(capture.getvalue(),'')
+        self.assertEqual([d['exit_code'] for d in outcomes],[0,0])
+
+    def test_completion_callback_failure_cannot_retain_success(self):
+        root,env=self.fixture(); dashboard=RecordingDashboard()
+        def failed(metadata): raise RuntimeError('completion unavailable')
+        with patch.dict(os.environ,env,clear=True),patch.object(runner,'ROOT',root),patch.object(runner,'require_memory',return_value=4*1024**3),redirect_stdout(io.StringIO()):
+            code=runner.main(['--skip-build','--output-dir',str(self.base/'callback')],dashboard=dashboard,on_complete=failed)
+        self.assertEqual(code,1)
+        retained=json.loads((next((self.base/'callback').iterdir())/'runner.json').read_text())
+        self.assertEqual(retained['status'],'failed'); self.assertIn('completion unavailable',retained['error'])
+
+    def test_completion_callback_cannot_mutate_nested_retained_status(self):
+        control=runner.ProcessControl(RecordingDashboard(),self.base)
+        metadata={'status':'complete','java_command':['java','-jar','app.jar']}
+        def mutate(outcome): outcome['java_command'].clear()
+        self.assertEqual(runner.finish(control,metadata,0,on_complete=mutate),0)
+        self.assertEqual(metadata['java_command'],['java','-jar','app.jar'])
+
+    def test_close_failure_restores_handlers_and_marks_failure(self):
+        class Broken(RecordingDashboard):
+            def close(self): raise RuntimeError('close unavailable')
+        control=runner.ProcessControl(Broken(),self.base)
+        previous={number:signal.getsignal(number) for number in (signal.SIGINT,signal.SIGTERM)}
+        control.install(); metadata={'status':'complete'}
+        self.assertEqual(runner.finish(control,metadata,0),1)
+        self.assertEqual(metadata['status'],'failed')
+        self.assertEqual({n:signal.getsignal(n) for n in previous},previous)
+
+    def test_embedded_dashboard_retains_console_events(self):
+        root,env=self.fixture(); dashboard=RecordingDashboard()
+        with patch.dict(os.environ,env,clear=True),patch.object(runner,'ROOT',root),patch.object(runner,'require_memory',return_value=4*1024**3):
+            self.assertEqual(runner.main(['--skip-build','--output-dir',str(self.base/'console')],dashboard=dashboard),0)
+        log=(next((self.base/'console').iterdir())/'console.log').read_text()
+        self.assertIn('SKIPPED',log); self.assertIn('VALIDATED',log)
+
+    def test_embedded_smoke_explore_do_not_require_research_claims(self):
+        root,env=self.fixture(); java=root/'jdk space/bin/java'
+        source=java.read_text().replace("assert sys.argv[sys.argv.index('--profile')+1]=='research'", "profile=sys.argv[sys.argv.index('--profile')+1]; total={'smoke':4,'explore':40}[profile]")
+        source=source.replace("profile='research',state='COMPLETE',expected_cases=450,attempted_cases=450,successful_cases=450", "profile=profile,state='COMPLETE',expected_cases=total,attempted_cases=total,successful_cases=total")
+        source=source.replace("(run/'analysis/pairwise_primary.csv').write_text('decision\\nNO_CLAIM\\n')",'pass')
+        java.write_text(source)
+        with patch.dict(os.environ,env,clear=True),patch.object(runner,'ROOT',root),patch.object(runner,'require_memory',return_value=4*1024**3),redirect_stdout(io.StringIO()):
+            for profile,total in [('smoke',4),('explore',40)]:
+                dashboard=RecordingDashboard(); outcomes=[]
+                code=runner.main(['--skip-build','--output-dir',str(self.base/profile)],profile=profile,dashboard=dashboard,on_complete=outcomes.append)
+                self.assertEqual(code,0)
+                self.assertEqual(outcomes[0]['profile'],profile)
+                self.assertEqual(dashboard.frames[-1][1]['done'],total)
+                self.assertNotIn('claims',outcomes[0])
 
     def manifest(self, root, **changes):
         run = root/'run-one'; run.mkdir(parents=True,exist_ok=True)

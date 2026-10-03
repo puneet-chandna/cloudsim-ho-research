@@ -34,6 +34,48 @@ class StressRunnerChecks(unittest.TestCase):
     def test_runner_exists(self):
         self.assertTrue(callable(getattr(runner,'main',None)), 'stress runner main is missing')
 
+    def test_embedded_stress_routes_all_text_and_retains_invocation(self):
+        root,env=self.fixture(); dashboard=research_tests.RecordingDashboard(); outcomes=[]; output=io.StringIO()
+        previous={number:signal.getsignal(number) for number in (signal.SIGINT,signal.SIGTERM)}
+        with patch.dict(os.environ,env,clear=True),patch.object(runner,'ROOT',root),patch.object(shared,'require_memory',return_value=4*1024**3),redirect_stdout(output):
+            code=runner.main(['--skip-build','--vms','1','--hosts','1','--output-dir',str(self.base/'embedded')],
+                dashboard=dashboard,on_complete=outcomes.append,invocation=['./cloudsim.sh','--profile','stress'])
+        self.assertEqual(code,0); self.assertEqual(output.getvalue(),'')
+        self.assertTrue(dashboard.closed); self.assertGreater(dashboard.polls,2)
+        self.assertEqual({n:signal.getsignal(n) for n in previous},previous)
+        self.assertEqual(outcomes[0]['invocation'],['./cloudsim.sh','--profile','stress'])
+        self.assertEqual(outcomes[0]['status'],'complete')
+        self.assertTrue(any('Memory:' in frame.get('detail','') for _,frame in dashboard.frames))
+
+    def test_embedded_stress_dry_run_uses_presentation_without_children(self):
+        dashboard=research_tests.RecordingDashboard(); output=io.StringIO(); outcomes=[]
+        with redirect_stdout(output):
+            code=runner.main(['--dry-run','--output-dir',str(self.base/'dry')],dashboard=dashboard,on_complete=outcomes.append)
+        self.assertEqual(code,0); self.assertEqual(output.getvalue(),''); self.assertEqual(list(self.base.iterdir()),[])
+        self.assertTrue(any('Combined totals:' in frame.get('detail','') for _,frame in dashboard.frames))
+        self.assertTrue(dashboard.closed); self.assertEqual(outcomes[0]['exit_code'],0)
+
+    def test_embedded_stress_presentation_failure_is_retained_as_failed(self):
+        root,env=self.fixture()
+        class Broken(research_tests.RecordingDashboard):
+            def render(self,stage,progress=None,pid=None,force=False):
+                if stage=='configuration': raise RuntimeError('screen unavailable')
+                super().render(stage,progress,pid,force)
+        dashboard=Broken(); outcomes=[]
+        with patch.dict(os.environ,env,clear=True),patch.object(runner,'ROOT',root),patch.object(shared,'require_memory',return_value=4*1024**3),redirect_stdout(io.StringIO()):
+            code=runner.main(['--skip-build','--vms','1','--hosts','1','--output-dir',str(self.base/'failed-ui')],dashboard=dashboard,on_complete=outcomes.append)
+        self.assertEqual(code,1); self.assertTrue(dashboard.closed)
+        self.assertEqual(outcomes[0]['status'],'failed'); self.assertIn('screen unavailable',outcomes[0]['error'])
+        data=json.loads((next((self.base/'failed-ui').iterdir())/'runner.json').read_text())
+        self.assertEqual(data['exit_code'],1); self.assertFalse((root/'java.started').exists())
+
+    def test_embedded_stress_rejects_legacy_interactive_without_printing(self):
+        dashboard=research_tests.RecordingDashboard(); output=io.StringIO(); outcomes=[]
+        with redirect_stdout(output):
+            code=runner.main(['--interactive'],dashboard=dashboard,on_complete=outcomes.append)
+        self.assertEqual(code,2); self.assertEqual(output.getvalue(),'')
+        self.assertEqual(outcomes[0]['status'],'failed'); self.assertTrue(dashboard.closed)
+
     @unittest.skipUnless(Path(SPEC.origin).exists(), 'runner implementation pending')
     def test_preset_fieldwise_overrides_and_exact_totals(self):
         config=runner.parse_args(['--preset','medium','--vms','500'])

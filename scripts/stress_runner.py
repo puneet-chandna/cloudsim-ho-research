@@ -3,6 +3,7 @@
 import argparse
 from datetime import datetime, timezone
 import json
+import io
 import math
 import os
 from pathlib import Path
@@ -272,9 +273,17 @@ def select_interactive(arguments,read=input,output=None):
     return args,choices
 
 
-def main(argv=None):
+def main(argv=None, *, dashboard=None, on_complete=None, invocation=None) -> int:
     arguments=list(argv if argv is not None else sys.argv[1:]); args=parse_args(arguments)
     menu_choices=None
+    if args.interactive and dashboard is not None:
+        control=shared.ProcessControl(dashboard,ROOT)
+        metadata={'started_at':shared.stamp(),'status':'failed','profile':'stress','validation':'NOT_RUN',
+                  'arguments':arguments,'error':'Legacy --interactive requires the standalone runner; configure embedded runs in the launcher.'}
+        if invocation is not None: metadata['invocation']=list(invocation)
+        try: control.render('failed',{'detail':metadata['error']},force=True)
+        except shared.PresentationError as error: metadata['error']=shared.sanitize(error)
+        return shared.finish(control,metadata,2,on_complete=on_complete)
     if args.interactive:
         if not sys.stdin.isatty() or not sys.stdout.isatty():
             print('ERROR: --interactive requires terminal stdin and stdout',file=sys.stderr)
@@ -292,26 +301,33 @@ def main(argv=None):
               'time_limit_scope':'calibration + production + all validation; excludes build/tests',
               'skip_build':args.skip_build,'estimates':estimate(args,[]),'estimates_scope':'production',
               'planned_work':planned_work(args)}
-    if menu_choices is None: show_memory(metadata['memory_evidence'])
+    if invocation is not None: metadata['invocation']=list(invocation)
+    supplied_dashboard=dashboard is not None
+    dashboard=dashboard if supplied_dashboard else shared.Dashboard(plain=args.plain,heap_mib=args.heap_mib,title='STATIC STRESS',total=4*args.replications)
+    control=shared.ProcessControl(dashboard,ROOT)
     if args.dry_run:
-        show_planned_work(metadata['planned_work'])
-        print(json.dumps(metadata,indent=2)); print('Java command template: '+shlex.join(java_command(Path('JAVA_HOME/bin/java'),args,Path('RETAINED/stress.jar'),Path('RETAINED/production/artifacts'),'stress')))
-        return 0
-    dashboard=shared.Dashboard(plain=args.plain,heap_mib=args.heap_mib,title='STATIC STRESS',total=4*args.replications)
-    control=shared.ProcessControl(dashboard,ROOT); control.install()
+        code=0
+        try:
+            preview=io.StringIO()
+            show_memory(metadata['memory_evidence'],preview)
+            show_planned_work(metadata['planned_work'],preview)
+            print(json.dumps(metadata,indent=2),file=preview)
+            print('Java command template: '+shlex.join(java_command(Path('JAVA_HOME/bin/java'),args,Path('RETAINED/stress.jar'),Path('RETAINED/production/artifacts'),'stress')),file=preview)
+            if supplied_dashboard: control.render('dry-run',{'detail':preview.getvalue()},force=True)
+            else: print(preview.getvalue(),end='')
+            metadata['status']='dry-run'
+        except shared.PresentationError as error:
+            code=1; metadata.update(status='failed',error=shared.sanitize(error))
+        return shared.finish(control,metadata,code,on_complete=on_complete)
+    control.install()
     outer=console=None; code=1; deadline=None
     try:
-        shared.check_java_options(os.environ)
-        java=Path(os.environ['JAVA_HOME'])/'bin/java' if os.environ.get('JAVA_HOME') else Path(shutil.which('java') or '/missing-java')
-        java=java.resolve(strict=True); javac=java.parent/'javac'
-        if not javac.is_file(): raise ValueError('Select a full JDK 21 with JAVA_HOME (javac missing)')
-        with tempfile.TemporaryDirectory(prefix='stress-preflight-') as temporary:
-            for tool in (java,javac):
-                log=Path(temporary)/tool.name
-                result=control.run([str(tool),'-version'],log,'preflight',timeout=20)
-                if result or not re.search(r'(?:version\s+"?|javac\s+)21(?:[.\s"+-]|$)',log.read_text(errors='replace')):
-                    raise ValueError(f'{tool.name} must be version 21')
-        metadata['usable_memory_bytes']=shared.require_memory(args.heap_mib)
+        if menu_choices is None:
+            if supplied_dashboard:
+                preview=io.StringIO(); show_memory(metadata['memory_evidence'],preview)
+                control.render('preflight',{'detail':preview.getvalue()},force=True)
+            else: show_memory(metadata['memory_evidence'])
+        java,metadata['usable_memory_bytes']=shared.check_environment(control,args.heap_mib)
         args.output_dir=args.output_dir.resolve(); args.output_dir.mkdir(parents=True,exist_ok=True)
         outer=Path(tempfile.mkdtemp(prefix='stress-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-',dir=args.output_dir))
         control.root=outer; console=(outer/'console.log').open('a'); dashboard.console=console
@@ -321,7 +337,7 @@ def main(argv=None):
             if code: raise ValueError(f'Git provenance failed; see {outer}/{name}.stderr.log')
         metadata.update(source_revision=(outer/'source-revision.log').read_text().strip(),
                         source_status=(outer/'source-status.log').read_text(),source_dirty=bool((outer/'source-status.log').read_text()))
-        if args.skip_build: dashboard.render('build',{'detail':'SKIPPED: Maven clean verify and Python test discovery (--skip-build).'},force=True)
+        if args.skip_build: control.render('build',{'detail':'SKIPPED: Maven clean verify and Python test discovery (--skip-build).'},force=True)
         else:
             for command,name in [([str(ROOT/'mvnw'),'-B','clean','verify'],'build.log'),([sys.executable,'-B','-m','unittest','discover','-s','scripts','-p','test_*.py'],'python-tests.log')]:
                 metadata['status']='build'; shared.save_metadata(outer,metadata)
@@ -333,7 +349,7 @@ def main(argv=None):
         config_lines=[f'Time limit: {args.time_limit if args.time_limit is not None else "none"} seconds; heap {args.heap_mib} MiB',
                       'Deadline: calibration + production + validation; excludes build/tests']
         if metadata['preset_notice']: config_lines.append(metadata['preset_notice'])
-        dashboard.render('configuration',{'detail':f'V{args.vms}/H{args.hosts}/N{args.population}/T{args.iterations}/R{args.replications}; seed {args.seed}',
+        control.render('configuration',{'detail':f'V{args.vms}/H{args.hosts}/N{args.population}/T{args.iterations}/R{args.replications}; seed {args.seed}',
                                          'extra_lines':config_lines},force=True)
         metadata.update(artifact_sha256=digest,artifact_source=str(jars[0]),deadline_started_at=shared.stamp())
         deadline=time.monotonic()+args.time_limit if args.time_limit is not None else None
@@ -349,7 +365,7 @@ def main(argv=None):
             metadata['status']=name; shared.save_metadata(outer,metadata)
             estimates=estimate(args,measurements)
             reader=lambda: progress(parent,config,deadline,estimates)
-            dashboard.render(name,reader(),force=True)
+            control.render(name,reader(),force=True)
             code=control.run(command,block/'java.log',name,cwd=block,timeout=None,deadline=deadline,progress_reader=reader)
             record.update(control.last_measurement)
             shared.save_metadata(outer,metadata)
@@ -376,22 +392,20 @@ def main(argv=None):
         diagnostic=metadata['source_dirty'] or args.skip_build or record['artifact_dirty'] is not False or record['artifact_revision']!=metadata['source_revision']
         metadata.update(status='complete',validation='PASS',diagnostic=diagnostic,
                         artifact_revision=record['artifact_revision'],artifact_dirty=record['artifact_dirty'])
-        dashboard.render('complete',{'done':4*args.replications,'detail':f'VALIDATED: {4*args.replications} paired static stress cases; descriptive results only. Retained: {outer}'},force=True)
+        control.render('complete',{'done':4*args.replications,'detail':f'VALIDATED: {4*args.replications} paired static stress cases; descriptive results only. Retained: {outer}'},force=True)
         code=0
     except shared.Interrupted as error:
         code=128+error.signum; metadata.update(status='interrupted',error=f'Interrupted by signal {error.signum}')
-        dashboard.render('interrupted',{'detail':metadata['error']+f'; retained: {outer}'},force=True)
     except shared.DeadlineExceeded as error:
         code=124; metadata.update(status='timeout',error=str(error))
-        dashboard.render('timeout',{'detail':metadata['error']+f'; retained: {outer}'},force=True)
     except (OSError,ValueError,KeyError,subprocess.SubprocessError) as error:
         code=code if code not in (0,1) else 1; metadata.update(status='failed',error=shared.sanitize(error))
-        dashboard.render('failed',{'detail':metadata['error']+f'; retained: {outer}'},force=True)
     finally:
-        control.restore(); metadata.update(exit_code=code,finished_at=shared.stamp(),ui_warning=dashboard.warning)
-        if outer: shared.save_metadata(outer,metadata)
-        if console: console.close()
-        if outer:
+        if metadata['status'] in ('failed','timeout','interrupted'):
+            try: control.render(metadata['status'],{'detail':metadata['error']+f'; retained: {outer}'},force=True)
+            except shared.PresentationError: pass
+        code=shared.finish(control,metadata,code,outer,console,on_complete)
+        if outer and not supplied_dashboard:
             try: print(f'Retained results: {shared.sanitize(outer)}')
             except (OSError,ValueError): pass
     return code
