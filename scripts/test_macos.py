@@ -2,7 +2,9 @@
 import ctypes
 import os
 import signal
+import subprocess
 import sys
+import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -108,6 +110,76 @@ class MacProcessTests(unittest.TestCase):
         self.assertEqual(info['parent'],os.getppid())
         self.assertGreater(info['rss_bytes'],0)
         self.assertIn(os.getpid(),runtime.mac_group_members(os.getpgrp()))
+
+
+@unittest.skipUnless(sys.platform == 'darwin', 'requires native macOS libproc')
+class NativeMacCleanupTests(unittest.TestCase):
+    """Real sessions and an independent ps oracle exercise the libproc ABI."""
+    def alive(self, pid):
+        result = subprocess.run(['/bin/ps', '-p', str(pid), '-o', 'stat='],
+                                capture_output=True, text=True, timeout=3)
+        return result.returncode == 0 and bool(result.stdout.strip()) and not result.stdout.strip().startswith('Z')
+
+    def wait_dead(self, pid):
+        deadline = time.monotonic() + 3
+        while self.alive(pid) and time.monotonic() < deadline:
+            time.sleep(.02)
+        self.assertFalse(self.alive(pid), f'owned process {pid} survived cleanup')
+
+    def child(self, grandchild=False, reap_leader=False):
+        code = 'import time; time.sleep(60)'
+        if grandchild:
+            code = ("import subprocess,sys,time; "
+                    "child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)'],"
+                    "stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); "
+                    "print(child.pid,flush=True); time.sleep(60)")
+        process = subprocess.Popen([sys.executable, '-u', '-c', code], start_new_session=True,
+                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        def cleanup():
+            try: os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError: pass
+            process.wait(timeout=3)
+            process.stdout.close()
+        self.addCleanup(cleanup)
+        identity = runtime.owned_child_identity(process.pid, os.getpid())
+        self.assertIsNotNone(identity, 'native process identity must bind the new session')
+        child_pid = None
+        if grandchild:
+            # Bounded readiness: avoid blocking forever on a child that fails before printing.
+            import select
+            self.assertTrue(select.select([process.stdout], [], [], 3)[0], 'child did not report its descendant')
+            child_pid = int(process.stdout.readline())
+            self.assertTrue(self.alive(child_pid))
+        if reap_leader:
+            process.kill()
+            process.wait(timeout=3)
+        return process, identity, child_pid
+
+    def test_native_cleanup_kills_owned_leader_and_descendant(self):
+        process, identity, descendant = self.child(grandchild=True)
+        runtime.stop_owned_child(identity)
+        process.wait(timeout=3)
+        self.wait_dead(process.pid)
+        self.wait_dead(descendant)
+
+    def test_native_cleanup_reaches_surviving_group_after_leader_is_reaped(self):
+        process, identity, descendant = self.child(grandchild=True, reap_leader=True)
+        self.assertTrue(self.alive(descendant))
+        self.assertIsNone(runtime.mac_process_info(process.pid))
+        runtime.stop_owned_child(identity)
+        self.wait_dead(descendant)
+
+    def test_native_cleanup_refuses_wrong_birth_and_preserves_unrelated_session(self):
+        owned, identity, _ = self.child()
+        unrelated, _, _ = self.child()
+        wrong = dict(identity, start_time=[identity['start_time'][0] + 1, identity['start_time'][1]])
+        runtime.stop_owned_child(wrong)
+        self.assertTrue(self.alive(owned.pid), 'mismatching birth must not authorize killing a live PID')
+        self.assertTrue(self.alive(unrelated.pid))
+        runtime.stop_owned_child(identity)
+        owned.wait(timeout=3)
+        self.wait_dead(owned.pid)
+        self.assertTrue(self.alive(unrelated.pid), 'cleanup must stay within its owned session')
 
 
 if __name__=='__main__': unittest.main()

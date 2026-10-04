@@ -55,6 +55,43 @@ class StatisticsTest(unittest.TestCase):
         self.assertTrue(v.claim(.05,math.log(.95),.009,True))
         self.assertFalse(v.claim(.05,math.log(.95),.01,True))
 
+    def test_holm_restores_original_order_clamps_and_rejects_nonprobabilities(self):
+        # Sorted ranks are .001, .02, .04, then fifteen ones; factors 18,17,16.
+        inputs = [.04,.001,.02] + [1.0]*15
+        expected = [.64,.018,.34] + [1.0]*15
+        for actual, wanted in zip(v.holm(inputs), expected):
+            self.assertAlmostEqual(actual, wanted, places=15)
+        for invalid in (-.001, 1.001, math.nan, math.inf, -math.inf):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                v.holm([invalid] + [.01]*17)
+
+    def test_claim_neighboring_binary64_values_obey_all_three_thresholds(self):
+        for energy, practical, ni in ((True,math.log(.95),.01), (False,-.01,math.log(1.05))):
+            inside_ni = math.nextafter(ni, -math.inf)
+            with self.subTest(energy=energy):
+                self.assertTrue(v.claim(.05, practical, inside_ni, energy))
+                self.assertFalse(v.claim(math.nextafter(.05, math.inf), practical, inside_ni, energy))
+                self.assertFalse(v.claim(.05, math.nextafter(practical, math.inf), inside_ni, energy))
+                self.assertFalse(v.claim(.05, practical, ni, energy))
+                self.assertFalse(v.claim(.05, practical, math.nextafter(ni, math.inf), energy))
+
+    def test_type_seven_quantile_endpoints_singleton_and_invalid_coordinates(self):
+        for coordinate, expected in ((0,1),(.25,1.75),(.5,3),(.75,5),(1,8)):
+            with self.subTest(coordinate=coordinate):
+                self.assertEqual(v.quantile([1,2,4,8], coordinate), expected)
+        self.assertEqual(v.quantile([7], .37), 7)
+        for coordinate in (-.001, 1.001, math.nan, math.inf, -math.inf):
+            with self.subTest(coordinate=coordinate), self.assertRaises(ValueError):
+                v.quantile([1,2], coordinate)
+        with self.assertRaises(ValueError): v.quantile([], .5)
+
+    def test_bca_extreme_bias_and_underflow_report_specific_undefined_reasons(self):
+        self.assertEqual(v.bca([1,2,3], Tape([0]*30), 10), {'reason':'BCA_BIAS_EXTREME'})
+        self.assertEqual(v.bca([1,2,3], Tape([2]*30), 10), {'reason':'BCA_BIAS_EXTREME'})
+        self.assertEqual(v.bca([1e-110,2e-110,3e-110], v.JavaRandom(1), 100),
+                         {'reason':'BCA_JACKKNIFE_UNDEFINED'})
+        self.assertIsNone(v.endpoint({'reason':'','sorted':[1,2,3],'bias':0,'acceleration':1}, .975))
+
 
 def check_corruptions(source):
     """Every semantic mutation is rehashed: checks cannot pass on hashes alone."""

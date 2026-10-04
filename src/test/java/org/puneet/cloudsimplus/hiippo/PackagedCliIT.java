@@ -1,6 +1,7 @@
 package org.puneet.cloudsimplus.hiippo;
 
 import com.google.gson.JsonParser;
+import org.apache.commons.csv.CSVFormat;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.*;
@@ -15,12 +16,38 @@ class PackagedCliIT {
         return Path.of(System.getProperty("artifact.path", "target/cloudsim-ho-research-v2-2.0.0.jar")).toAbsolutePath();
     }
     private int run(String... args) throws Exception {
-        var command = new ArrayList<>(List.of(Path.of(System.getProperty("java.home"), "bin", "java").toString(), "-Xmx256m", "-jar", jar().toString()));
+        return runWithJvm(List.of(), args);
+    }
+    private int runWithJvm(List<String> jvmOptions, String... args) throws Exception {
+        var command = new ArrayList<>(List.of(Path.of(System.getProperty("java.home"), "bin", "java").toString(), "-Xmx256m"));
+        command.addAll(jvmOptions);
+        command.addAll(List.of("-jar", jar().toString()));
         command.addAll(List.of(args));
         var p = new ProcessBuilder(command).directory(temp.toFile()).redirectErrorStream(true)
             .redirectOutput(temp.resolve("console.txt").toFile()).start();
         if (!p.waitFor(30, TimeUnit.SECONDS)) { p.destroyForcibly().waitFor(); fail("CLI did not terminate promptly"); }
         return p.exitValue();
+    }
+    private void validate(Path directory, String validator) throws Exception {
+        var log = temp.resolve("validator-console.txt");
+        var process = new ProcessBuilder("python3", Path.of("scripts", validator).toAbsolutePath().toString(), directory.toString())
+            .redirectErrorStream(true).redirectOutput(log.toFile()).start();
+        if (!process.waitFor(30, TimeUnit.SECONDS)) { process.destroyForcibly().waitFor(); fail("Output validator did not terminate promptly"); }
+        assertEquals(0, process.exitValue(), Files.readString(log));
+        assertTrue(Files.readString(log).startsWith("VALID"), Files.readString(log));
+        Files.delete(log);
+    }
+    private List<Map<String,String>> scientificRows(Path directory, String relative) throws Exception {
+        try(var reader=Files.newBufferedReader(directory.resolve(relative));
+            var parser=CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build().parse(reader)) {
+            var rows = new ArrayList<Map<String,String>>();
+            for(var record:parser) {
+                var row=new LinkedHashMap<>(record.toMap());
+                row.remove("run_id"); row.remove("allocation_wall_ns");
+                rows.add(row);
+            }
+            return rows;
+        }
     }
     @Test void informationalCommandsHaveNoSideEffects() throws Exception {
         for (var args : List.of(new String[]{}, new String[]{"--help"}, new String[]{"--version"})) {
@@ -101,6 +128,7 @@ class PackagedCliIT {
         try(var dirs=Files.list(temp.resolve("results"))) {
             var runs=dirs.toList(); assertEquals(2,runs.size());
             for(var dir:runs) {
+                validate(dir, "statistics_validator.py");
                 var m=JsonParser.parseString(Files.readString(dir.resolve("run.json"))).getAsJsonObject();
                 assertEquals("COMPLETE",m.get("state").getAsString());
                 var libraries=m.getAsJsonObject("library_versions");
@@ -144,6 +172,7 @@ class PackagedCliIT {
             assertEquals(24401,Files.readAllLines(dir.resolve("raw/optimizer_trace.csv")).size());
             assertEquals(9,Files.readAllLines(dir.resolve("analysis/scenario_summary.csv")).size());
             assertTrue(Files.isRegularFile(dir.resolve("analysis/report.md")));
+            validate(dir, "statistics_validator.py");
         }
     }
     @Test void invalidOutputIsRuntimeFailure() throws Exception {
@@ -154,9 +183,11 @@ class PackagedCliIT {
         var args=new String[]{"--profile","stress","--vms","10","--hosts","3","--population","4","--iterations","2","--replications","2","--seed","123456","--experiment-phase","stress","--output-dir","stress results"};
         assertEquals(0,run(args));
         try(var dirs=Files.list(temp.resolve("stress results"))) {
-            var manifest=JsonParser.parseString(Files.readString(dirs.findFirst().orElseThrow().resolve("run.json"))).getAsJsonObject();
+            var directory=dirs.findFirst().orElseThrow();
+            var manifest=JsonParser.parseString(Files.readString(directory.resolve("run.json"))).getAsJsonObject();
             assertEquals("COMPLETE",manifest.get("state").getAsString()); assertEquals(8,manifest.get("successful_cases").getAsInt());
             assertTrue(manifest.get("artifact_sha256").getAsString().matches("[a-f0-9]{64}"));
+            validate(directory, "stress_validator.py");
         }
         var duplicate=new ArrayList<>(List.of(args)); duplicate.addAll(List.of("--profile","stress"));
         assertEquals(2,run(duplicate.toArray(String[]::new)));
@@ -173,5 +204,29 @@ class PackagedCliIT {
         assertEquals(2,run("--profile","smoke","--config","bad.properties"));
         assertEquals(1,run("--profile","smoke","--config","missing.properties"));
         assertFalse(Files.exists(temp.resolve("results")));
+    }
+    @Test void packagedSerialAndParallelRunsPreserveEveryScientificRow() throws Exception {
+        var directories = new ArrayList<Path>();
+        for(int workers:List.of(1,3)) {
+            String output="workers " + workers;
+            assertEquals(0,runWithJvm(List.of("-Dcloudsim.workers="+workers),"--profile","smoke","--output-dir",output));
+            try(var paths=Files.list(temp.resolve(output))) { directories.add(paths.findFirst().orElseThrow()); }
+            validate(directories.getLast(), "statistics_validator.py");
+            var manifest=JsonParser.parseString(Files.readString(directories.getLast().resolve("run.json"))).getAsJsonObject();
+            assertEquals(workers, manifest.get("execution_workers").getAsInt());
+        }
+        for(String name:List.of("raw/main_results.csv","raw/placements.csv","raw/optimizer_trace.csv")) {
+            var serial=scientificRows(directories.getFirst(),name);
+            assertFalse(serial.isEmpty(), name);
+            assertEquals(serial,scientificRows(directories.getLast(),name),name);
+        }
+        assertArrayEquals(Files.readAllBytes(directories.getFirst().resolve("effective.properties")),
+                          Files.readAllBytes(directories.getLast().resolve("effective.properties")));
+    }
+    @Test void packagedInvalidWorkerSettingsFailBeforeOutputCreation() throws Exception {
+        for(String workers:List.of("0","33","-1","1.5","bad")) {
+            assertEquals(2,runWithJvm(List.of("-Dcloudsim.workers="+workers),"--profile","smoke"),workers);
+            assertFalse(Files.exists(temp.resolve("results")),workers);
+        }
     }
 }

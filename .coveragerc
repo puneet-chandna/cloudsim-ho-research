@@ -1,0 +1,18 @@
+[run]
+branch = True
+source = scripts
+omit =
+    scripts/test_*.py
+    scripts/probe_frozen_metric_gaps.py
+data_file = .cloudsim/coverage/.coverage
+relative_files = True
+
+[report]
+show_missing = True
+precision = 1
+
+[html]
+directory = .cloudsim/coverage/html
+
+[json]
+output = .cloudsim/coverage/coverage.json

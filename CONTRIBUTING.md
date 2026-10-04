@@ -25,6 +25,39 @@ without the fix. Preserve the independent Python oracles and frozen contract;
 do not add retries, skip unfavorable cases, tune on test seeds or replace
 undefined statistics with artificial jitter.
 
+Run the complete Python suite for launcher, build-cache, resource, cancellation,
+validator and terminal-UI changes; the small statistics suite alone does not
+cover those workflows:
+
+```sh
+./cloudsim.sh --setup
+.cloudsim/venv/bin/python -B -m unittest discover -s scripts -p 'test_*.py'
+```
+
+Optional Python branch-coverage reports use a project-local test tool:
+
+```sh
+.cloudsim/venv/bin/python -m pip install coverage==7.15.4
+.cloudsim/venv/bin/python -m coverage erase
+.cloudsim/venv/bin/python -B -m coverage run -m unittest discover -s scripts -p 'test_*.py'
+.cloudsim/venv/bin/python -m coverage report
+.cloudsim/venv/bin/python -m coverage html
+.cloudsim/venv/bin/python -m coverage json
+```
+
+Reports are retained in `.cloudsim/coverage/`. This measures production Python
+modules exercised inside the unittest process, excluding test code. It does
+not instrument child interpreters, copied fixture scripts, the JVM or native
+OS libraries. Read per-file missing branches alongside packaged integration
+and native-platform results; a high percentage cannot establish correctness.
+The suite includes independent numeric oracles, real subprocess cancellation,
+resource-limit checks, semantic corruption tests and packaged CLI acceptance.
+Use hand-computed expectations or an independent oracle for new tests, assert
+the failure reason for rejected inputs, and keep real process tests bounded
+with unconditional cleanup. Document a newly discovered bug with its command,
+expected/actual behavior and regression criterion before changing production
+behavior. Known open findings are tracked in [TEST_FINDINGS.md](TEST_FINDINGS.md).
+
 The only executable main is `App`. Current packages are `scenario`, `placement`
 and `runtime`. The old runners, algorithm/policy implementations, property files
 and legacy tests were retired after caller checks; use Git history to investigate
