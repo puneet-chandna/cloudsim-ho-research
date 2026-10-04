@@ -1,15 +1,73 @@
-<p align="center"><img src="logo/dark.svg" alt="CloudSim HO Research V2" width="500"></p>
+<p align="center"><img src="logo/dark.svg" alt="Lattora" width="500"></p>
 
-# CloudSim HO Research V2
+# Lattora
 
 A bounded, reproducible comparison of Hippopotamus Optimization (HO), GA,
 FirstFit and BestFit for static VM placement using CloudSim Plus 8.5.7.
-The current source version is **2.0.0**. Historical pre-v2 results are
+The current source version is **2.1.0**. Historical pre-v2 results are
 invalid research evidence. No algorithm winner or real datacenter saving is claimed.
 
-These instructions describe the local recovery checkout. The v2 changes and
-artifact have not been published; use the reviewed local source for now.
-The public default branch and live documentation may still describe legacy code.
+Lattora is the terminal workbench; CloudSim Plus remains the simulation engine.
+Standalone release candidates bundle Python, the Textual UI, a Java 21 runtime,
+the prebuilt engine and independent validators. Experiments work offline after
+installation. Supported targets are glibc Linux x86-64, glibc Linux ARM64 and
+native Apple Silicon macOS. Windows, Intel macOS, 32-bit ARM and Alpine/musl
+standalone packages are deferred.
+
+## Install and use
+
+**2.1.0 is being prepared. The public installer becomes available only after
+native release acceptance and launch approval.** Once the stable release is
+published:
+
+```sh
+curl -fsSL https://github.com/puneet-chandna/cloudsim-ho-research/releases/latest/download/install.sh | bash
+lattora
+```
+
+No Python, Java, Git or Maven installation is needed. The installer needs Bash,
+curl, tar, awk and `sha256sum` or `shasum`. It verifies the archive, checks all
+components and stages a version before activating it. It adds `~/.local/bin`
+to Bash, Zsh or Fish configuration once; open a new terminal or use the printed
+activation command. To leave shell configuration untouched, append
+`| bash -s -- --no-modify-path`. To choose a version, use
+`| bash -s -- --version 2.1.0`. An unrelated existing `lattora` command is preserved.
+
+```sh
+lattora run --profile smoke
+lattora run --profile research --workers 2 --heap-mib 1024
+lattora run --profile stress --vms 100 --hosts 20 --population 10 --iterations 4 --replications 1 --time-limit 5m
+lattora validate /path/to/retained/campaign --plain
+lattora doctor
+lattora --version
+lattora update --check
+lattora update                 # latest stable Lattora release
+lattora update 2.1.0           # specific stable version
+lattora rollback
+lattora completion bash        # also zsh and fish
+lattora uninstall              # retains experiments and settings
+```
+
+Updates are explicit; opening the app never checks the network. Legacy releases
+without a Lattora manifest are ignored. Failed downloads, integrity checks or
+installation health checks preserve the active version. Running sessions keep
+their original runtime and engine while later commands use the activated version.
+Installed experiments report release verification separately and keep local
+build/tests marked `NOT_RUN`.
+
+Application versions live in `~/.local/share/lattora/versions/`; the command is
+`~/.local/bin/lattora`. On Linux, results use
+`${XDG_DATA_HOME:-~/.local/share}/lattora/results`, settings use
+`${XDG_CONFIG_HOME:-~/.config}/lattora/settings.json`, and cache uses
+`${XDG_CACHE_HOME:-~/.cache}/lattora`. On macOS, results and settings use
+`~/Library/Application Support/lattora/` and cache uses
+`~/Library/Caches/lattora/`. Explicit output and configuration paths are resolved
+from the invocation directory. Updates, rollback and uninstall retain user data.
+Uninstall refuses while an app session is running.
+
+[Distribution and release guide](DISTRIBUTION.md) describes local archive builds,
+native acceptance and the draft-only release workflow. Source development
+continues through `./cloudsim.sh` and `./lattora.sh`.
 
 The executable contract is the [frozen configuration](src/main/resources/protocol.properties)
 and [`RunConfig.effective()`](src/main/java/org/puneet/cloudsimplus/hiippo/runtime/RunConfig.java),
@@ -30,7 +88,7 @@ For the integrated Linux/macOS terminal app, start `./cloudsim.sh`. First launch
 to install the pinned terminal UI into `.cloudsim/venv`; Setup can download a
 checksum-verified JDK 21 into `.cloudsim/jdk` or select an installed JDK.
 `./cloudsim.sh --setup` performs project-local setup directly (automatic JDK
-download supports Linux x86-64 and native Apple Silicon macOS). No global Java alternatives or shell
+download supports Linux x86-64, Linux ARM64 and native Apple Silicon macOS). No global Java alternatives or shell
 settings are changed. The launcher uses the selected JDK for checks, Maven and
 simulation and keeps its default Maven downloads under `.cloudsim/maven`.
 
@@ -145,8 +203,8 @@ java -version
 javac -version
 python3 --version
 ./mvnw -B clean verify
-java -jar target/cloudsim-ho-research-v2-2.0.0.jar --help
-java -Xmx4g -jar target/cloudsim-ho-research-v2-2.0.0.jar --profile smoke --output-dir results/smoke
+java -jar target/cloudsim-ho-research-v2-*.jar --help
+java -Xmx4g -jar target/cloudsim-ho-research-v2-*.jar --profile smoke --output-dir results/smoke
 ```
 
 The application prints the unique run directory. Validate that exact directory:
@@ -168,7 +226,7 @@ native exit code (Python is invoked as `python`):
 ```powershell
 .\mvnw.cmd -B '-Dmaven.test.skip=true' clean package
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-java -Xmx4g -jar target/cloudsim-ho-research-v2-2.0.0.jar --profile smoke --output-dir results/smoke
+java -Xmx4g -jar target/cloudsim-ho-research-v2-*.jar --profile smoke --output-dir results/smoke
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 # Substitute the run directory printed above:
 python scripts/statistics_validator.py results/smoke/<run-directory>
@@ -193,18 +251,17 @@ remain local.
 All four algorithms run in every main replication. Research additionally runs
 HO on Small with nine distinct one-at-a-time (OAT) N/T settings and ten paired
 sensitivity replications. The shared (30,40) setting is counted once. These
-settings and the **100-VM ceiling** are fixed; larger scenarios, GPU, parallel
-execution, Pareto optimization, overcommit and migrations are future work.
+settings and the **100-VM ceiling** are fixed; larger frozen scenarios, GPU, Pareto optimization, overcommit and migrations are future work.
 
 ```sh
-java -Xmx4g -jar target/cloudsim-ho-research-v2-2.0.0.jar --profile explore --output-dir results/explore
+java -Xmx4g -jar target/cloudsim-ho-research-v2-*.jar --profile explore --output-dir results/explore
 # Linux only; for a portable supervised run use ./cloudsim.sh --profile research:
-timeout 12h java -Xmx4g -jar target/cloudsim-ho-research-v2-2.0.0.jar --profile research --output-dir results/research
+timeout 12h java -Xmx4g -jar target/cloudsim-ho-research-v2-*.jar --profile research --output-dir results/research
 ```
 
 Validate each complete directory with the same Python command. A timeout or
-interruption leaves incomplete evidence; never combine fragments. Stable 2.0.0
-requires all **450 local Linux cases** from the exact versioned artifact, valid
+interruption leaves incomplete evidence; never combine fragments. Stable Lattora releases
+require all **450 Research cases on each distribution target** from the exact versioned artifact, valid
 independent analyses and two reviewer approvals. That acceptance is not implied
 by the version number or smoke/explore checks.
 

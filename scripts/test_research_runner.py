@@ -369,6 +369,7 @@ class RunnerChecks(unittest.TestCase):
         (root/'scripts/research_runner.py').write_text(source)
         shutil.copyfile(ROOT/'scripts/cloudsim_runtime.py',root/'scripts/cloudsim_runtime.py')
         shutil.copyfile(ROOT/'scripts/cloudsim_build.py',root/'scripts/cloudsim_build.py')
+        shutil.copyfile(ROOT/'scripts/lattora_context.py',root/'scripts/lattora_context.py')
         shutil.copyfile(ROOT/'run-research.sh',root/'run-research.sh'); (root/'run-research.sh').chmod(0o755)
         jdk = root/'jdk space/bin'; jdk.mkdir(parents=True)
         prefix = '#!'+sys.executable+'\n'

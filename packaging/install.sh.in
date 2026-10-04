@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Generated for a release. Runtime archives and checksums are pinned below.
+version='@VERSION@'
+repository='puneet-chandna/cloudsim-ho-research'
+modify_path=true
+requested_version=''
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --no-modify-path) modify_path=false; shift ;;
+    --version) [[ $# -ge 2 ]] || { echo 'Missing --version value' >&2; exit 2; }; requested_version="${2#v}"; shift 2 ;;
+    --help) echo 'Usage: install.sh [--version X.Y.Z] [--no-modify-path]'; exit 0 ;;
+    *) echo "Unknown option: $1" >&2; exit 2 ;;
+  esac
+done
+if [[ -n "$requested_version" && "$requested_version" != "$version" ]]; then
+  [[ "$requested_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo 'Invalid stable version' >&2; exit 2; }
+  args=(); if [[ "$modify_path" == false ]]; then args+=(--no-modify-path); fi
+  curl -fsSL "https://github.com/$repository/releases/download/v$requested_version/install.sh" | bash -s -- "${args[@]}"
+  exit
+fi
+case "$(uname -s)/$(uname -m)" in
+  Linux/x86_64|Linux/amd64) target=linux-x86_64 ;;
+  Linux/aarch64|Linux/arm64) target=linux-arm64 ;;
+  Darwin/arm64|Darwin/aarch64) target=macos-arm64 ;;
+  *) echo 'Unsupported platform. Use Linux x86-64/ARM64 or Apple Silicon macOS.' >&2; exit 1 ;;
+esac
+if [[ "$target" == linux-* ]] && ! getconf GNU_LIBC_VERSION >/dev/null 2>&1; then
+  echo 'Unsupported libc: Lattora requires glibc; Alpine/musl is not supported.' >&2; exit 1
+fi
+case "$target" in
+@ASSETS_CASE@
+  *) echo 'Unsupported target in this release.' >&2; exit 1 ;;
+esac
+scratch="$(mktemp -d "${TMPDIR:-/tmp}/lattora-install.XXXXXXXX")"
+trap 'rm -rf -- "$scratch"' EXIT
+curl -fL --retry 2 --connect-timeout 20 "https://github.com/$repository/releases/download/v$version/$asset" -o "$scratch/bundle.tar.gz"
+if command -v sha256sum >/dev/null 2>&1; then
+  actual="$(sha256sum "$scratch/bundle.tar.gz")"; actual="${actual%% *}"
+elif command -v shasum >/dev/null 2>&1; then
+  actual="$(shasum -a 256 "$scratch/bundle.tar.gz")"; actual="${actual%% *}"
+else
+  echo 'Install sha256sum or shasum to verify downloads.' >&2; exit 1
+fi
+[[ "$actual" == "$checksum" ]] || { echo 'Download checksum mismatch. Nothing was installed.' >&2; exit 1; }
+[[ "$(wc -c < "$scratch/bundle.tar.gz" | tr -d ' ')" == "$size" ]] || { echo 'Download size mismatch.' >&2; exit 1; }
+tar -tzf "$scratch/bundle.tar.gz" > "$scratch/entries"
+root="${asset%.tar.gz}"
+awk -v root="$root" '(/^\// || /(^|\/)\.\.($|\/)/ || /\r/ || ($0 != root && $0 != root "/" && index($0, root "/") != 1)) {bad=1} END {exit bad}' "$scratch/entries" || { echo 'Unsafe archive paths.' >&2; exit 1; }
+tar -tvzf "$scratch/bundle.tar.gz" > "$scratch/types"
+awk 'substr($0,1,1) != "-" && substr($0,1,1) != "d" {bad=1} END {exit bad}' "$scratch/types" || { echo 'Archive links or special files are not allowed.' >&2; exit 1; }
+mkdir "$scratch/extracted"
+tar -xzf "$scratch/bundle.tar.gz" -C "$scratch/extracted"
+args=(); if [[ "$modify_path" == false ]]; then args+=(--no-modify-path); fi
+"$scratch/extracted/$root/bin/lattora" _install "${args[@]}"

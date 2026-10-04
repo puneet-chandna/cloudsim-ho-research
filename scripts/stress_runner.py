@@ -352,11 +352,7 @@ def main(argv=None, *, dashboard=None, on_complete=None, invocation=None) -> int
             else: show_memory(metadata['memory_evidence'])
         java,metadata['usable_memory_bytes']=shared.check_environment(control,args.heap_mib)
         metadata.update(output_directory=str(outer),java=str(java)); shared.save_metadata(outer,metadata)
-        for command,name in [(['status','--porcelain'],'source-status'),(['rev-parse','HEAD'],'source-revision')]:
-            code=control.run(['git',*command],outer/f'{name}.log','provenance',cwd=ROOT,timeout=10,stderr_log=outer/f'{name}.stderr.log')
-            if code: raise ValueError(f'Git provenance failed; see {outer}/{name}.stderr.log')
-        metadata.update(source_revision=(outer/'source-revision.log').read_text().strip(),
-                        source_status=(outer/'source-status.log').read_text(),source_dirty=bool((outer/'source-status.log').read_text()))
+        shared.capture_provenance(control,metadata,outer,root=ROOT)
         retained,artifact_source=shared.prepare_artifact(args,metadata,control,outer,'stress',root=ROOT)
         shared.save_metadata(outer,metadata)
         digest=shared.sha256(retained)

@@ -30,10 +30,12 @@ def jdk_download():
     machine = platform.machine().lower()
     if sys.platform == 'linux' and machine in ('x86_64', 'amd64'):
         return JDK_URL, JDK_SHA256
+    if sys.platform == 'linux' and machine in ('arm64', 'aarch64'):
+        return JDK_URL.replace('x64_linux', 'aarch64_linux'), '23e37e026f12f3e706f18938ff611db3032d075b09d0879a25d06718c773e223'
     if sys.platform == 'darwin' and machine in ('arm64', 'aarch64'):
         arch = 'aarch64'
         return JDK_URL.replace('x64_linux', arch+'_mac'), MAC_JDK_SHA256[arch]
-    raise ValueError('Automatic JDK setup supports Linux x86-64 and macOS Apple Silicon. Select an installed JDK 21 on this platform.')
+    raise ValueError('Automatic JDK setup supports Linux x86-64/ARM64 and macOS Apple Silicon. Select an installed JDK 21 on this platform.')
 
 
 def mac_command(command):
@@ -306,6 +308,8 @@ def setup(report=print):
 
 
 def ensure_ui():
+    from lattora_context import get_context
+    if get_context(ROOT).bundled: return True
     pinned = (ROOT/'scripts/requirements-tui.txt').read_text().strip().split('==')[1]
     try:
         if importlib.metadata.version('textual')==pinned: return True

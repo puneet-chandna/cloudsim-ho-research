@@ -22,6 +22,8 @@ from textual.widgets import (Button, Checkbox, Collapsible, ContentSwitcher, Dat
                              Select, Static, TabbedContent, TabPane, TextArea)
 
 import cloudsim
+import lattora_context
+import lattora_install
 import cloudsim_runtime as runtime
 from cloudsim_results import build_result_summary
 from run_validation import campaign_selection_error
@@ -97,7 +99,7 @@ class LogView(ModalScreen):
 
 
 class CloudSimApp(App):
-    TITLE = 'CloudSim'
+    TITLE = 'Lattora'
     SUB_TITLE = 'Experiment workbench'
     ENABLE_COMMAND_PALETTE = False
     CSS = '''
@@ -225,7 +227,13 @@ class CloudSimApp(App):
 
     def __init__(self, output_parent=None):
         super().__init__()
-        self.output_parent = Path(output_parent or ROOT/'results').resolve()
+        self.context = lattora_context.get_context(ROOT)
+        self.preferences = {}
+        self.preferences_error = None
+        if self.context.bundled and self.context.config.exists():
+            try: self.preferences = lattora_context.load_json(self.context.config)
+            except ValueError as error: self.preferences_error = str(error)
+        self.output_parent = Path(output_parent or self.context.results).resolve()
         self.ready = False
         self.busy = True
         self.process = None
@@ -272,10 +280,10 @@ class CloudSimApp(App):
 
     def compose(self) -> ComposeResult:
         with Horizontal(id='masthead'):
-            yield Static('CloudSim  /  Workbench', id='brand', markup=False)
+            yield Static('Lattora  /  Workbench', id='brand', markup=False)
             yield Static('Checking setup…', id='readiness', markup=False)
             yield Select([('Harbor','cloudsim'),('Ember','cloudsim-ember'),('Paper','cloudsim-paper')],
-                         value='cloudsim', allow_blank=False, id='theme', compact=True, tooltip='Color theme · appearance only')
+                         value=self.preferences.get('theme','cloudsim') if self.preferences.get('theme','cloudsim') in ('cloudsim','cloudsim-ember','cloudsim-paper') else 'cloudsim', allow_blank=False, id='theme', compact=True, tooltip='Color theme · appearance only')
         with TabbedContent(initial='run'):
             with TabPane('Run', id='run'):
                 with ContentSwitcher(initial='configure', id='flow'):
@@ -319,10 +327,10 @@ class CloudSimApp(App):
                                         yield Select([('Auto','auto'), *[(str(i),str(i)) for i in range(1,33)]],
                                                      value='auto', allow_blank=False, id='workers', compact=True,
                                                      tooltip='Independent cases run concurrently within the CPU and shared Java heap limits. Search settings stay unchanged.')
-                                    with Vertical(): yield from self.field('Java heap · MiB', 'heap', '1024')
+                                    with Vertical(): yield from self.field('Java heap · MiB', 'heap', str(self.preferences.get('heap_mib',1024)))
                                     with Vertical(id='stress-deadline'): yield from self.field('Deadline', 'deadline', '2h')
                                 yield Static('', id='runtime-note', markup=False)
-                                with Collapsible(title='Files & build options', id='advanced'):
+                                with Collapsible(title='Files' if self.context.bundled else 'Files & build options', id='advanced'):
                                     yield from self.field('Save results under', 'output', str(self.output_parent))
                                     with Vertical(id='frozen-config'):
                                         yield from self.field('Properties file · seed / log level only', 'config-path')
@@ -381,8 +389,8 @@ class CloudSimApp(App):
                     yield Button('Validate selected', id='validate-selected')
             with TabPane('Tools', id='tools'):
                 with VerticalScroll():
-                    yield Static('Project tools', classes='heading')
-                    yield Static('Checks and build logs are retained. Validation preserves the selected evidence.', markup=False)
+                    yield Static('Runtime & validation' if self.context.bundled else 'Project tools', classes='heading')
+                    yield Static(('Lattora '+self.context.version+' · verified release engine. Local tests: NOT_RUN.' if self.context.bundled else 'Checks and build logs are retained.')+' Validation preserves the selected evidence.', markup=False)
                     with Horizontal(classes='actions'):
                         yield Button('Check setup', id='check')
                         yield Button('Build', id='build')
@@ -397,13 +405,19 @@ class CloudSimApp(App):
                                  'The download is checksum-verified. System Java and shell settings are preserved.',
                                  id='setup-copy', markup=False)
                     yield Button('Install local JDK 21 (198 MiB)', variant='primary', id='install-jdk')
-                    yield from self.field('Installed JDK 21 directory', 'jdk-path')
+                    if not self.context.bundled: yield from self.field('Installed JDK 21 directory', 'jdk-path')
+                    else: yield Input('',id='jdk-path', classes='hidden')
                     with Horizontal(classes='actions'):
                         yield Button('Use this JDK', id='select-jdk')
                         yield Button('Check again', id='check-again')
         yield Footer()
 
     def on_mount(self):
+        if self.context.bundled:
+            for selector in ('#build','#test','#force-build','#skip-build','#install-jdk','#select-jdk','#jdk-path'):
+                self.query_one(selector).display = False
+            self.query_one('#setup-copy', Static).update('Python, the terminal UI, engine and Java runtime are bundled. Updates are manual: lattora update.\nResults: '+str(self.context.results)+'\nSettings: '+str(self.context.config))
+        if self.preferences_error: self.notify(self.preferences_error+'; settings were preserved.', severity='warning')
         self.query_one('#recent', DataTable).add_columns('Run / action', 'Started (UTC)', 'Outcome', 'Validation')
         self.profile_visibility()
         self.responsive_layout()
@@ -427,7 +441,7 @@ class CloudSimApp(App):
         screen = self.screen_stack[0]
         screen.set_class(size.width < 100, 'narrow')
         screen.set_class(size.width < 74 or size.height < 22, 'compact')
-        self.query_one('#brand', Static).update('CloudSim' if screen.has_class('compact') else 'CloudSim  /  Workbench')
+        self.query_one('#brand', Static).update('Lattora' if screen.has_class('compact') else 'Lattora  /  Workbench')
 
     def on_resize(self, event):
         if self.is_mounted:
@@ -436,7 +450,17 @@ class CloudSimApp(App):
 
     @on(Select.Changed, '#theme')
     def change_theme(self, event):
-        if event.value is not Select.NULL: self.theme = str(event.value)
+        if event.value is not Select.NULL:
+            self.theme = str(event.value)
+            if self.context.bundled and not self.preferences_error:
+                self.preferences['theme'] = self.theme
+                self.save_preferences()
+
+    def save_preferences(self):
+        try:
+            self.context.config.parent.mkdir(parents=True, exist_ok=True)
+            lattora_install._atomic_json(self.context.config,self.preferences)
+        except OSError as error: self.notify('Could not save settings: '+clean(error),severity='warning')
 
     def set_busy(self, busy):
         self.busy = busy
@@ -491,7 +515,7 @@ class CloudSimApp(App):
         self.query_one('#profile').focus()
 
     def action_help(self):
-        self.push_screen(LogView('CloudSim help',
+        self.push_screen(LogView('Lattora help',
             'Run: choose a profile and start. Tab moves between controls; Enter activates; arrow keys select.\n'
             'Stress size, population N, iterations T, replications R and seed are editable on the main form.\n'
             'Frozen profiles display their fixed protocol. Workers and shared heap change runtime only.\n'
@@ -508,7 +532,7 @@ class CloudSimApp(App):
             if confirmed:
                 self.exit_after_job = True
                 if self.process and self.process.returncode is None: self.process.send_signal(signal.SIGTERM)
-        self.push_screen(Confirm('A job is running. Cancel it and close CloudSim?', 'Cancel & quit'), decision)
+        self.push_screen(Confirm('A job is running. Cancel it and close Lattora?', 'Cancel & quit'), decision)
 
     def action_cancel(self):
         if not self.busy or not self.process: return
@@ -594,7 +618,7 @@ class CloudSimApp(App):
             options = self.parsed(self.arguments())
             preview = cloudsim.preview(options)
             execution = preview['execution']
-            build = 'Diagnostic: build / tests skipped' if options.skip_build else 'Fresh build + tests requested' if options.force_build else 'Reuse verified build; rebuild if changed'
+            build = 'Verified release engine; local build/tests NOT_RUN' if self.context.bundled else 'Diagnostic: build / tests skipped' if options.skip_build else 'Fresh build + tests requested' if options.force_build else 'Reuse verified build; rebuild if changed'
             if self.current_profile == 'stress':
                 plan = preview['planned_work']
                 work = plan['combined_totals']['expected_cases']
@@ -612,7 +636,7 @@ class CloudSimApp(App):
             lines += ['Runtime', f'{execution["workers"]} workers · {options.heap_mib:,} MiB shared heap']
             if self.current_profile == 'stress':
                 lines += ['Deadline: '+self.query_one('#deadline', Input).value+' · after build/tests']
-            lines += ['', 'Build and tests', build]
+            lines += ['', 'Release verification' if self.context.bundled else 'Build and tests', build]
             self.query_one('#runtime-note', Static).update(
                 f'Auto → {execution["workers"]} case workers · CPU / shared heap bound' if str(options.workers)=='auto'
                 else f'{execution["workers"]} case workers · shared heap across all workers')
@@ -644,6 +668,10 @@ class CloudSimApp(App):
             self.query_one('#'+field, Input).focus(); return
         if not self.ready: self.action_setup(); return
         self.query_one('#form-error').display = False
+        if self.context.bundled and not self.preferences_error:
+            options = self.parsed(arguments)
+            self.preferences.update(heap_mib=options.heap_mib)
+            self.save_preferences()
         self.last_args = arguments; self.last_action = 'profile'
         self.begin(arguments)
 
@@ -884,7 +912,7 @@ class CloudSimApp(App):
     def refresh_results(self):
         selected=self.selected_result()
         selected_path=selected.get('output_directory') if selected else None
-        parents = {self.output_parent, ROOT/'results', ROOT/'results/stress'}
+        parents = {self.output_parent, self.context.results, self.context.results/'stress'}
         value = self.query_one('#output', Input).value
         if value: parents.add(Path(value).expanduser().resolve())
         records = []

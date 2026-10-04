@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class PackagedCliIT {
     @TempDir Path temp;
     private Path jar() throws Exception {
-        return Path.of(System.getProperty("artifact.path", "target/cloudsim-ho-research-v2-2.0.0.jar")).toAbsolutePath();
+        return Path.of(System.getProperty("artifact.path", "target/cloudsim-ho-research-v2-2.1.0.jar")).toAbsolutePath();
     }
     private int run(String... args) throws Exception {
         return runWithJvm(List.of(), args);
@@ -77,7 +77,9 @@ class PackagedCliIT {
             assertEquals(Files.readString(Path.of("src/main/resources/logback.xml")), new String(jar.getInputStream(jar.getEntry("logback.xml")).readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
             var a = jar.getManifest().getMainAttributes();
             assertEquals("org.puneet.cloudsimplus.hiippo.App", a.getValue("Main-Class"));
-            assertEquals("2.0.0", a.getValue("Implementation-Version"));
+            assertEquals(javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(Path.of("pom.xml").toFile()).getDocumentElement().getElementsByTagName("version").item(0).getTextContent(),
+                a.getValue("Implementation-Version"));
             assertTrue(a.getValue("Git-Revision").matches("[a-f0-9]{40}"));
             assertTrue(Set.of("true", "false").contains(a.getValue("Git-Dirty")));
         }

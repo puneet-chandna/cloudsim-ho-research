@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """One entry point for frozen CloudSim experiments and static stress."""
 import argparse
+import lattora_context
 from copy import deepcopy
 import json
 import os
@@ -106,18 +107,18 @@ def read_frozen_config(path: Path | None) -> dict:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False,
-        epilog='No arguments opens the terminal app. Linux or macOS (Apple Silicon), Python 3.11+ and full JDK 21 are required to run. Help and dry-run require no JDK.')
+        epilog=('No arguments opens Lattora. Python, Java and the terminal UI are bundled; experiments work offline.' if lattora_context.get_context().bundled else 'No arguments opens Lattora. Linux or macOS (Apple Silicon), Python 3.11+ and full JDK 21 are required to run. Help and dry-run require no JDK.'))
     actions = parser.add_mutually_exclusive_group()
     actions.add_argument('--profile', choices=(*shared.FROZEN_PROFILES, 'stress'))
-    for action in ('check', 'build', 'test', 'setup'): actions.add_argument('--'+action, action='store_true')
+    for action in ('check', 'build', 'test', 'setup'): actions.add_argument('--'+action, action='store_true', help=argparse.SUPPRESS if lattora_context.get_context().bundled and action in ('build','test','setup') else None)
     actions.add_argument('--validate', type=stress.output_path, metavar='DIRECTORY')
     parser.add_argument('--plain', action='store_true', help='plain progress; automatic for nonterminal output')
     parser.add_argument('--dry-run', action='store_true', help='preview a profile without children or output creation')
     parser.add_argument('--heap-mib', type=shared.heap_value, default=1024)
     parser.add_argument('--output-dir', type=stress.output_path, help='parent for unique retained outputs')
     parser.add_argument('--config', type=stress.output_path, help='frozen profiles only: master.seed and log.level')
-    parser.add_argument('--skip-build', action='store_true', help='diagnostic profile run using the existing JAR')
-    parser.add_argument('--force-build', action='store_true', help='force full build/tests instead of reusing a matching verified artifact')
+    parser.add_argument('--skip-build', action='store_true', help=argparse.SUPPRESS if lattora_context.get_context().bundled else 'diagnostic profile run using the existing JAR')
+    parser.add_argument('--force-build', action='store_true', help=argparse.SUPPRESS if lattora_context.get_context().bundled else 'force full build/tests instead of reusing a matching verified artifact')
     parser.add_argument('--workers', type=shared.worker_value, default='auto', help='independent case workers: auto or 1..32; bounded by CPU and shared heap')
     parser.add_argument('--preset', choices=stress.PRESETS)
     for field in stress.FIELDS: parser.add_argument('--'+field, type=stress.positive)
@@ -143,7 +144,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         except (OSError, ValueError) as error: parser.error(str(error))
     elif options.config is not None: parser.error('--config is incompatible with --profile stress')
     if options.skip_build and options.force_build: parser.error('--force-build and --skip-build are incompatible')
-    options.output_dir = (options.output_dir or ROOT/('results/stress' if options.profile == 'stress' else 'results')).resolve()
+    context = lattora_context.get_context(ROOT)
+    if context.bundled and (options.action in ('build','test','setup') or options.skip_build or options.force_build):
+        parser.error('Build/test/setup controls require a source checkout; use lattora doctor or lattora update.')
+    default_output = context.results if context.bundled else ROOT/('results/stress' if options.profile == 'stress' else 'results')
+    options.output_dir = (options.output_dir or default_output).resolve()
     if options.validate is not None: options.validate = options.validate.resolve()
     if options.profile == 'stress':
         # The existing parser owns defaults, integer bounds, matrix and heap guards.
@@ -173,7 +178,7 @@ def runner_args(options: argparse.Namespace) -> list[str]:
 def _effective(options):
     if options.profile == 'stress': result = stress.effective(options.stress_options)
     elif options.profile:
-        result = _properties((ROOT/'src/main/resources/protocol.properties').read_text(encoding='utf-8'))
+        result = _properties(lattora_context.get_context(ROOT).protocol.read_text(encoding='utf-8'))
         population, iterations, replications, scenarios = FROZEN_SETTINGS[options.profile]
         result.update(read_frozen_config(options.config), profile=options.profile,
                       population=str(population), iterations=str(iterations), replications=str(replications),
@@ -205,7 +210,7 @@ def preview(options: argparse.Namespace) -> dict:
                 'sensitivity_cases': 90 if options.profile == 'research' else 0}
         commands = [shared.java_command(java, options.heap_mib, retained/(options.profile+'.jar'),
                                         retained, options.config, profile=options.profile,workers=execution['workers'])]
-    launch = [str(ROOT/'cloudsim.sh'), '--profile', options.profile, *runner_args(options)]
+    launch = [('lattora' if lattora_context.get_context(ROOT).bundled else str(ROOT/'cloudsim.sh')), '--profile', options.profile, *runner_args(options)]
     warnings = [value for value in (memory.get('warning'), memory.get('policy_note')) if value]
     if memory['usable_memory_bytes'] is None: warnings.append('Usable memory is unknown; launch requires independent verified headroom.')
     if options.skip_build: warnings.append('Diagnostic --skip-build: existing packaged JAR may differ from current source protocol values.')
@@ -269,7 +274,7 @@ def _maintenance(options, dashboard, on_complete, invocation):
             metadata.update(java=str(java), usable_memory_bytes=available)
             if options.action == 'check':
                 metadata['status'] = 'checked'; code = 0
-                control.render('checked', {'detail': f'PASS: JDK 21; {available//shared.MIB} MiB usable memory. No experiment executed.'}, force=True)
+                control.render('checked', {'detail': f'PASS: Java 21; {available//shared.MIB} MiB usable memory. No experiment executed.'}, force=True)
             else:
                 if options.action == 'test':
                     code = control.run(['git', 'status', '--porcelain'], outer/'source-status.log', 'provenance', cwd=ROOT,

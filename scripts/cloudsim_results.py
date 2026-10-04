@@ -81,7 +81,13 @@ def build_result_summary(metadata):
     receipt=metadata.get('build_receipt',{})
     tested=receipt.get('tested_at') if isinstance(receipt,dict) else None
     if tested: build_detail+='; originally tested '+str(tested)
-    result['checks'].append({'label':'Build verification','status':str(tests),'detail':build_detail})
+    if build == 'RELEASE_VERIFIED':
+        release = metadata.get('release_verification', {})
+        passed = isinstance(release,dict) and release.get('java')=='PASS' and release.get('python')=='PASS'
+        result['checks'].append({'label':'Release verification','status':'RECORDED_PASS' if passed else 'UNKNOWN',
+                                'detail':'Release CI verification recorded; local build/tests '+str(tests)+'.'})
+    else:
+        result['checks'].append({'label':'Build verification','status':str(tests),'detail':build_detail})
     if profile=='stress':
         result['checks'].append({'label':'Hypothesis tests','status':'NOT_APPLICABLE',
                                  'detail':'Stress is descriptive; BCa, wild-bootstrap and Holm run in frozen Research.'})
@@ -207,7 +213,7 @@ def build_result_summary(metadata):
         result['algorithms']=algorithms
     except (OSError,ValueError,KeyError,TypeError,OverflowError,csv.Error) as error:
         result['overview']=[];result['algorithms']=[]
-        result['checks']=[c for c in result['checks'] if c['label'] in ('Independent validation','Build verification')
+        result['checks']=[c for c in result['checks'] if c['label'] in ('Independent validation','Build verification','Release verification')
                           or c['label']=='Hypothesis tests' and c['status']=='NOT_APPLICABLE']
         result['error']='Result summary unavailable: '+str(error)
     return result

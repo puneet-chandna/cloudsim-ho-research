@@ -17,6 +17,7 @@ import time
 import unicodedata
 import cloudsim_runtime
 import cloudsim_build
+import lattora_context
 from datetime import datetime, timezone
 from contextlib import ExitStack
 
@@ -385,6 +386,17 @@ def execution_settings(requested, heap_mib):
 
 def check_environment(control, heap_mib: int) -> tuple[Path, int]:
     check_java_options(control.env)
+    context = lattora_context.get_context(ROOT)
+    if context.bundled:
+        context.manifest()
+        java = context.java
+        control.env.update(JAVA_HOME=str(java.parent.parent))
+        with tempfile.TemporaryDirectory(prefix='lattora-preflight-') as temporary:
+            log = Path(temporary)/'java'
+            code = control.run([str(java), '-version'], log, 'preflight', timeout=20)
+            if code or not re.search(r'version\s+"21(?:[.\s"+-]|$)', log.read_text(errors='replace')):
+                raise ValueError('Bundled Java 21 is unavailable; reinstall Lattora.')
+        return java, require_memory(heap_mib)
     def verify(home):
         tools = {}
         with tempfile.TemporaryDirectory(prefix='cloudsim-preflight-') as temporary:
@@ -507,6 +519,23 @@ def main(argv=None, *, profile='research', dashboard=None, on_complete=None, inv
 def prepare_artifact(args, metadata, control, outer, profile, *, root=None):
     root = ROOT if root is None else root
     retained = outer/f'{profile}.jar'
+    context = lattora_context.get_context(root)
+    if context.bundled:
+        if args.skip_build or args.force_build:
+            raise ValueError('Build controls require a source checkout; installed Lattora uses its verified release.')
+        manifest = context.manifest()
+        source = root/'engine/app.jar'
+        provenance = lattora_context.jar_provenance(source)
+        if (provenance.get('Implementation-Version') != manifest['version']
+                or provenance.get('Git-Revision') != manifest['source_revision']
+                or provenance.get('Git-Dirty') != str(manifest['source_dirty']).lower()):
+            raise ValueError('Installed engine provenance does not match the distribution manifest.')
+        metadata.update(context.release_metadata())
+        shutil.copyfile(source, retained)
+        if sha256(retained) != manifest['files']['engine/app.jar']['sha256']:
+            raise ValueError('Retained engine integrity failed.')
+        control.render('build', {'detail':'Verified release engine; local build/tests NOT RUN. Experiment validation runs freshly.'}, force=True)
+        return retained, source
     if args.skip_build:
         control.render('build', {'detail': 'SKIPPED: diagnostic build skip; verification NOT RUN.'}, force=True)
         with cloudsim_build.build_lock(root, control):
@@ -526,18 +555,29 @@ def prepare_artifact(args, metadata, control, outer, profile, *, root=None):
     return retained, source
 
 
+def capture_provenance(control, metadata, outer, *, root=None):
+    root = ROOT if root is None else root
+    context = lattora_context.get_context(root)
+    if context.bundled:
+        metadata.update(context.release_metadata())
+        return
+    for arguments, name in [(['status','--porcelain'],'source-status'), (['rev-parse','HEAD'],'source-revision')]:
+        code = control.run(['git', *arguments], outer/f'{name}.log', 'provenance', cwd=root,
+                           timeout=10, stderr_log=outer/f'{name}.stderr.log')
+        if code: raise ValueError(f'Git provenance failed with exit {code}; see {outer}/{name}.stderr.log')
+    status = (outer/'source-status.log').read_text(errors='replace')
+    metadata.update(source_status=status, source_dirty=bool(status),
+                    source_revision=(outer/'source-revision.log').read_text().strip())
+
+
 def run_profile(args,profile,total,java,metadata,control):
     dashboard = control.dashboard
     # Build receipts preserve full verification; experiments still validate independently.
     outer = control.root
     metadata['status'] = 'provenance'; save_metadata(outer,metadata)
-    for arguments,name in [(['status','--porcelain'],'source-status'),(['rev-parse','HEAD'],'source-revision')]:
-        code = control.run(['git',*arguments],outer/f'{name}.log','preflight',cwd=ROOT,timeout=10,stderr_log=outer/f'{name}.stderr.log')
-        if code: raise ValueError(f'Git provenance failed with exit {code}; see {outer}/{name}.stderr.log')
-    status = (outer/'source-status.log').read_text(errors='replace')
-    revision = (outer/'source-revision.log').read_text(errors='replace').strip()
-    metadata.update(source_revision=revision,source_dirty=bool(status),source_status=status,java=str(java),
-                    config=str(args.config) if args.config else None,output_directory=str(outer))
+    capture_provenance(control, metadata, outer)
+    status = metadata['source_status']; revision = metadata['source_revision']
+    metadata.update(java=str(java), config=str(args.config) if args.config else None, output_directory=str(outer))
     save_metadata(outer,metadata)
     retained, artifact_source = prepare_artifact(args, metadata, control, outer, profile)
     save_metadata(outer,metadata)

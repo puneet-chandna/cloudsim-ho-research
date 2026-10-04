@@ -95,6 +95,7 @@ def _maven_distribution(root, env):
 def _inputs(root, control, metadata, python):
     paths = {root/'pom.xml', root/'mvnw'}
     paths.update(root.glob('*.sh'))
+    paths.update(path for path in (root/'packaging').rglob('*') if path.is_file())
     if (root/'mvnw.cmd').is_file(): paths.add(root/'mvnw.cmd')
     complete = True
     for directory in (root/'.mvn', root/'src'):

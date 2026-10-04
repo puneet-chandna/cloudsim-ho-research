@@ -15,7 +15,7 @@ supported setup. Run a focused test during changes, then:
 ```sh
 ./mvnw -B clean verify
 python3 -B -m unittest discover -s scripts -p 'test_statistics_validator.py'
-java -Xmx4g -jar target/cloudsim-ho-research-v2-2.0.0.jar --profile smoke --output-dir results/smoke
+java -Xmx4g -jar target/cloudsim-ho-research-v2-*.jar --profile smoke --output-dir results/smoke
 python3 scripts/statistics_validator.py results/smoke/<run-directory>
 ```
 
@@ -88,3 +88,5 @@ Keep README and companion documentation consistent with tested commands,
 configuration keys, outputs and limitations. Explain behavioral/protocol changes
 and evidence in the PR; obtain two reviews before integration. Follow the
 [code of conduct](CODE_OF_CONDUCT.md).
+
+Standalone Lattora archives and release acceptance: [distribution guide](DISTRIBUTION.md).

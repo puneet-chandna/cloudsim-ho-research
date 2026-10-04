@@ -40,11 +40,11 @@ jobs:
       - name: Retain and independently validate four-case smoke
         shell: bash
         run: |
-          java -Xmx4g -jar target/cloudsim-ho-research-v2-2.0.0.jar --profile smoke --output-dir target/ci-smoke
+          java -Xmx4g -jar target/cloudsim-ho-research-v2-*.jar --profile smoke --output-dir target/ci-smoke
           runs=(target/ci-smoke/*)
           test "${#runs[@]}" -eq 1
           python3 scripts/statistics_validator.py "${runs[0]}"
-          python3 -c 'import hashlib,json,pathlib; jar=pathlib.Path("target/cloudsim-ho-research-v2-2.0.0.jar"); run=next(pathlib.Path("target/ci-smoke").iterdir()); assert json.loads((run/"run.json").read_text())["artifact_sha256"]==hashlib.sha256(jar.read_bytes()).hexdigest()'
+          python3 -c 'import hashlib,json,pathlib; jar=next(pathlib.Path("target").glob("cloudsim-ho-research-v2-*.jar")); run=next(pathlib.Path("target/ci-smoke").iterdir()); assert json.loads((run/"run.json").read_text())["artifact_sha256"]==hashlib.sha256(jar.read_bytes()).hexdigest()'
 
   macos-validation:
     # macos-15 is Apple Silicon; Intel macOS is outside the supported scope.
@@ -115,12 +115,14 @@ jobs:
           if ($IsWindows) { .\mvnw.cmd -B '-Dmaven.test.skip=true' clean package }
           else { ./mvnw -B '-Dmaven.test.skip=true' clean package }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          java -Xmx4g -jar target/cloudsim-ho-research-v2-2.0.0.jar --profile smoke --output-dir target/ci-smoke
+          $jar = @(Get-ChildItem target/cloudsim-ho-research-v2-*.jar)
+          if ($jar.Count -ne 1) { throw 'Expected one packaged engine' }
+          java -Xmx4g -jar $jar[0].FullName --profile smoke --output-dir target/ci-smoke
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $runs = @(Get-ChildItem -Directory target/ci-smoke)
           if ($runs.Count -ne 1) { throw 'Expected one smoke run' }
           python scripts/statistics_validator.py $runs[0].FullName
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $manifest = Get-Content (Join-Path $runs[0].FullName 'run.json') -Raw | ConvertFrom-Json
-          $artifactHash = (Get-FileHash target/cloudsim-ho-research-v2-2.0.0.jar -Algorithm SHA256).Hash.ToLowerInvariant()
+          $artifactHash = (Get-FileHash $jar[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($manifest.artifact_sha256 -ne $artifactHash) { throw 'Artifact hash mismatch' }

@@ -1,4 +1,4 @@
-Third-party inventory for cloudsim-ho-research-v2 2.0.0
+Third-party inventory for Lattora engine (cloudsim-ho-research-v2)
 
 These are the exact runtime artifacts included in the shaded JAR. Coordinates
 are sorted; declarations come from the pinned Maven POMs/parent POMs and
