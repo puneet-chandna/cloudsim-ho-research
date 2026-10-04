@@ -56,7 +56,7 @@ Use hand-computed expectations or an independent oracle for new tests, assert
 the failure reason for rejected inputs, and keep real process tests bounded
 with unconditional cleanup. Document a newly discovered bug with its command,
 expected/actual behavior and regression criterion before changing production
-behavior. Known open findings are tracked in [TEST_FINDINGS.md](TEST_FINDINGS.md).
+behavior. Findings and their regression evidence are tracked in [TEST_FINDINGS.md](TEST_FINDINGS.md).
 
 The only executable main is `App`. Current packages are `scenario`, `placement`
 and `runtime`. The old runners, algorithm/policy implementations, property files

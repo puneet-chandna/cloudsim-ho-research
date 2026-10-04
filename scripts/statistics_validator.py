@@ -285,6 +285,24 @@ def check_identity(row, key, run):
     require([row[f] for f in IDENTITY] == ['2',run]+list(map(text,key)), 'Duplicate, missing, reordered or wrong case identity')
 
 
+def frozen_metrics(spec, placement):
+    """Independent integral for a feasible, strictly reserved frozen workload.
+
+    Each VM starts its single full-utilization cloudlet at the common release,
+    runs for its reference duration, then draws no CPU power. Used hosts retain
+    idle power until the longest cloudlet finishes; unused hosts stay off.
+    validate_raw verifies canonical inputs and feasibility before calling this.
+    """
+    hosts = spec['inputs']['hosts']
+    horizon = max(spec['reference_seconds'])
+    work = [0.0]*len(hosts)
+    for vm,host,duration in zip(spec['inputs']['vms'],placement,spec['reference_seconds']):
+        work[host] += vm['pes']*vm['mipsPerPe']*duration
+    energy = sum(host['idleW']*horizon+(host['maxW']-host['idleW'])*integral/(host['pes']*host['mipsPerPe'])
+                 for host,integral in zip(hosts,work) if integral)
+    return energy,horizon
+
+
 def validate_raw(directory, manifest):
     profile,master,run = manifest['profile'],manifest['master_seed'],manifest['run_id']
     keys = matrix(profile)
@@ -320,6 +338,7 @@ def validate_raw(directory, manifest):
         vms,hosts = spec['inputs']['vms'],spec['inputs']['hosts']
         require(row['vm_count']==str(len(vms)) and row['host_count']==str(len(hosts)),'Wrong sizes')
         used = [[0]*5 for _ in hosts]
+        placement = []
         for vm in vms:
             p = next(placements)
             check_identity(p,key,run)
@@ -327,6 +346,7 @@ def validate_raw(directory, manifest):
             host = int(p['host_id'])
             require(0<=host<len(hosts),'Nonexistent host')
             require(vm['mipsPerPe']<=hosts[host]['mipsPerPe'],'Per-PE MIPS exceeds capacity')
+            placement.append(host)
             for j,value in enumerate([vm['pes'],vm['pes']*vm['mipsPerPe'],vm['ramMiB'],vm['bwMbps'],vm['storageMiB']]): used[host][j] += value
         require(all(all(v<=cap for v,cap in zip(usage,[16,48000,32768,10000,1000000])) for usage in used),'Infeasible stored placement')
         objective = sum(h['idleW']+(h['maxW']-h['idleW'])*u[1]/48000 for h,u in zip(hosts,used) if u[0])
@@ -340,6 +360,10 @@ def validate_raw(directory, manifest):
         close(row['sla_rate'],violations/len(vms),'SLA denominator')
         horizon = finite(row['horizon_s'])
         require(0<horizon<=spec['censor_s'] and (not censored or horizon==spec['censor_s']),'Invalid horizon')
+        expected_energy,expected_horizon = frozen_metrics(spec,placement)
+        close(horizon,expected_horizon,'frozen horizon')
+        close(energy,expected_energy,'frozen energy')
+        require((completed,failed,censored,violations)==(len(vms),0,0,0),'Invalid frozen completion/SLA counts')
         require(int(row['allocation_wall_ns'])>=0,'Negative wall time')
         n,t = key[4:]
         budget = n+3*n*t if n else 1

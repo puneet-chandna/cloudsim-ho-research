@@ -1,8 +1,8 @@
-"""Opt-in reproductions for TEST_FINDINGS.md; not a dataset acceptance gate.
+"""Acceptance regressions for coherent frozen-metric corruption.
 
-Supply a valid Explore run. Each expected failure means a documented, coherent
-metric forgery was accepted. Unexpected success means a rejection was added and
-the finding/probe needs review. Missing fixtures and unexpected exceptions error.
+Supply a valid Explore run. The original must pass; all four coherently
+rehashed metric forgeries must reject with their specific physical-model error.
+Temporary copies preserve the original. These checks also run in Maven verify.
 """
 import argparse
 import contextlib
@@ -18,7 +18,7 @@ import unittest
 import statistics_validator as validator
 
 
-class FrozenMetricGaps(unittest.TestCase):
+class FrozenMetricRegressionTests(unittest.TestCase):
     source = None
 
     @classmethod
@@ -51,10 +51,11 @@ class FrozenMetricGaps(unittest.TestCase):
         elif mutation == 'test_rejects_coherently_changed_horizon':
             for row in raw:
                 row['horizon_s'] = str(float(row['horizon_s']) * 1.5)
-        elif mutation == 'test_rejects_coherent_failure_and_sla_counts':
+        elif mutation in ('test_rejects_coherent_failure_and_sla_counts', 'test_rejects_coherent_sla_without_failure'):
             for row in raw:
-                row['completed_cloudlets'] = str(int(row['vm_count']) - 1)
-                row['failed_cloudlets'] = '1'
+                failed = int(mutation == 'test_rejects_coherent_failure_and_sla_counts')
+                row['completed_cloudlets'] = str(int(row['vm_count']) - failed)
+                row['failed_cloudlets'] = str(failed)
                 row['censored_cloudlets'] = '0'
                 row['sla_violations'] = '1'
                 row['sla_rate'] = str(1 / int(row['vm_count']))
@@ -75,33 +76,44 @@ class FrozenMetricGaps(unittest.TestCase):
         for name in manifest['files']:
             manifest['files'][name] = hashlib.sha256((self.directory / name).read_bytes()).hexdigest()
         manifest_path.write_text(json.dumps(manifest) + '\n')
-        # Run outside the expected-failure methods so I/O/fixture/programming errors
-        # remain errors. Only acceptance (no ValueError) reproduces a known gap.
+        # Fixture and unexpected programming/I/O errors remain test errors.
         self.rejection = None
         try:
             with contextlib.redirect_stdout(io.StringIO()): validator.validate(self.directory)
         except ValueError as error:
             self.rejection = error
 
-    @unittest.expectedFailure
     def test_rejects_coherently_scaled_energy(self):
         self.assertIsInstance(self.rejection, ValueError, 'FROZEN-METRICS-1: forged energy was accepted')
+        self.assertIn('frozen energy', str(self.rejection))
 
-    @unittest.expectedFailure
     def test_rejects_coherently_changed_horizon(self):
         self.assertIsInstance(self.rejection, ValueError, 'FROZEN-METRICS-1: forged horizon was accepted')
+        self.assertIn('frozen horizon', str(self.rejection))
 
-    @unittest.expectedFailure
     def test_rejects_coherent_failure_and_sla_counts(self):
         self.assertIsInstance(self.rejection, ValueError, 'FROZEN-METRICS-1: forged completion/SLA was accepted')
+        self.assertIn('frozen completion/SLA', str(self.rejection))
+
+    def test_rejects_coherent_sla_without_failure(self):
+        self.assertIsInstance(self.rejection, ValueError, 'FROZEN-METRICS-1: forged SLA was accepted')
+        self.assertIn('frozen completion/SLA', str(self.rejection))
+
+
+def check_coherent_metrics(directory):
+    FrozenMetricRegressionTests.source = Path(directory).resolve()
+    suite = unittest.defaultTestLoader.loadTestsFromTestCase(FrozenMetricRegressionTests)
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
+    if not result.wasSuccessful():
+        raise AssertionError('Coherent frozen-metric corruption regression failed')
+    print('PASS: 4 rehashed coherent metric forgeries rejected with physical-model errors')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('directory', type=Path, help='Valid Explore run to copy; original is preserved')
-    FrozenMetricGaps.source = parser.parse_args().directory.resolve()
-    suite = unittest.defaultTestLoader.loadTestsFromTestCase(FrozenMetricGaps)
-    result = unittest.TextTestRunner(verbosity=2).run(suite)
-    if result.wasSuccessful() and len(result.expectedFailures) == 3:
-        print('REPRODUCED FROZEN-METRICS-1: 3 coherent metric forgeries accepted; this is not an acceptance PASS')
-    raise SystemExit(0 if result.wasSuccessful() else 1)
+    args = parser.parse_args()
+    try:
+        check_coherent_metrics(args.directory)
+    except AssertionError:
+        raise SystemExit(1)

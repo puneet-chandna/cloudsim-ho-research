@@ -118,6 +118,8 @@ class NativeMacCleanupTests(unittest.TestCase):
     def alive(self, pid):
         result = subprocess.run(['/bin/ps', '-p', str(pid), '-o', 'stat='],
                                 capture_output=True, text=True, timeout=3)
+        if result.returncode not in (0,1):
+            raise RuntimeError(f'ps probe failed for PID {pid} (exit {result.returncode}): {result.stderr.strip()}')
         return result.returncode == 0 and bool(result.stdout.strip()) and not result.stdout.strip().startswith('Z')
 
     def wait_dead(self, pid):
@@ -180,6 +182,59 @@ class NativeMacCleanupTests(unittest.TestCase):
         owned.wait(timeout=3)
         self.wait_dead(owned.pid)
         self.assertTrue(self.alive(unrelated.pid), 'cleanup must stay within its owned session')
+
+
+class MacCleanupOracleTests(unittest.TestCase):
+    """The ps observation contract runs on every host; real sessions remain native."""
+    def setUp(self):
+        self.observer = NativeMacCleanupTests()
+
+    def result(self, code=0, status='', error=''):
+        return SimpleNamespace(returncode=code, stdout=status, stderr=error)
+
+    def test_unknown_ps_exit_is_an_error_instead_of_dead_process_evidence(self):
+        for code in (2,127,-9):
+            with self.subTest(code=code), patch.object(subprocess, 'run', return_value=self.result(code, error='probe failed')):
+                with self.assertRaisesRegex(RuntimeError, 'probe failed'):
+                    self.observer.alive(123)
+
+    def test_wait_dead_cannot_pass_when_ps_probe_fails(self):
+        with patch.object(subprocess, 'run', return_value=self.result(2, error='probe failed')):
+            with self.assertRaisesRegex(RuntimeError, 'probe failed'):
+                self.observer.wait_dead(123)
+
+    def test_wait_dead_propagates_a_probe_error_after_observing_live_process(self):
+        states = iter([self.result(status='S\n')])
+        def probe(*args, **kwargs): return next(states, self.result(2, error='probe failed'))
+        with patch.object(subprocess, 'run', side_effect=probe), \
+             patch.object(time, 'sleep'):
+            with self.assertRaisesRegex(RuntimeError, 'probe failed'):
+                self.observer.wait_dead(123)
+
+    def test_missing_pid_exit_one_is_exited_and_ps_query_is_bounded(self):
+        with patch.object(subprocess, 'run', return_value=self.result(1)) as query:
+            self.assertFalse(self.observer.alive(123))
+            query.assert_called_once_with(['/bin/ps','-p','123','-o','stat='],
+                                          capture_output=True, text=True, timeout=3)
+            self.observer.wait_dead(123)
+
+    def test_exit_zero_distinguishes_live_and_zombie_states(self):
+        for status, expected in (('R\n',True),(' S+\n',True),('Z\n',False),(' Z+\n',False)):
+            with self.subTest(status=status), patch.object(subprocess, 'run', return_value=self.result(status=status)):
+                self.assertEqual(self.observer.alive(123), expected)
+                if not expected: self.observer.wait_dead(123)
+
+    def test_wait_dead_fails_if_process_stays_alive_through_deadline(self):
+        with patch.object(subprocess, 'run', return_value=self.result(status='S\n')), \
+             patch.object(time, 'monotonic', side_effect=[0,4]):
+            with self.assertRaisesRegex(AssertionError, 'survived cleanup'):
+                self.observer.wait_dead(123)
+
+    def test_ps_launch_and_timeout_failures_are_not_swallowed(self):
+        for error in (OSError('ps unavailable'), subprocess.TimeoutExpired('/bin/ps',3)):
+            with self.subTest(error=error), patch.object(subprocess, 'run', side_effect=error):
+                with self.assertRaises(type(error)):
+                    self.observer.alive(123)
 
 
 if __name__=='__main__': unittest.main()

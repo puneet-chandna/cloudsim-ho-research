@@ -21,6 +21,22 @@ class Tape:
     def integer(self, bound): return next(self.entries)
 
 
+class FrozenMetricsTest(unittest.TestCase):
+    def test_independent_integral_accounts_for_multipe_work_idle_tails_and_unused_hosts(self):
+        spec = {'inputs':{
+            'hosts':[{'pes':4,'mipsPerPe':250,'idleW':100,'maxW':200},
+                     {'pes':2,'mipsPerPe':1000,'idleW':200,'maxW':500},
+                     {'pes':2,'mipsPerPe':1000,'idleW':999,'maxW':1999}],
+            'vms':[{'pes':2,'mipsPerPe':100}, {'pes':1,'mipsPerPe':200}, {'pes':1,'mipsPerPe':500}]},
+            'reference_seconds':[10,30,20]}
+        # Host 0: 100*30 + .1*(200*10+200*30) = 3800 J.
+        # Host 1: 200*30 + .15*(500*20) = 7500 J. Host 2 stays off.
+        # Moving VM 1 to host 1 changes these to 3200 + 8400 J.
+        for placement,energy in (([0,0,1],11300),([0,1,1],11600)):
+            with self.subTest(placement=placement):
+                self.assertEqual(v.frozen_metrics(spec,placement),(energy,30))
+
+
 class StatisticsTest(unittest.TestCase):
     def test_ordered_binary64_mean_controls_strict_bootstrap_ties(self):
         self.assertEqual(v.mean([1e16,1,-1e16]),0.0)
@@ -135,6 +151,8 @@ def check_corruptions(source):
             else: raise AssertionError('Validator accepted corruption: '+variant)
     print(f'PASS: {len(variants)} rehashed raw/analysis/configuration corruption variants rejected')
     check_metadata(source)
+    from probe_frozen_metric_gaps import check_coherent_metrics
+    check_coherent_metrics(source)
 
 
 def check_metadata(source):
