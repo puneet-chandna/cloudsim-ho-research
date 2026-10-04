@@ -267,8 +267,7 @@ sys.exit(9 if os.environ.get('MODE')=='validator_fail' else 0)
             data=json.loads((next(output.iterdir())/'runner.json').read_text())
             self.assertEqual(data['status'],'interrupted'); self.assertEqual(data['exit_code'],128+number)
             self.assertNotIn(b'VALIDATED',stdout)
-            stat=Path(f'/proc/{descendant}/stat')
-            self.assertTrue(not stat.exists() or stat.read_text().split()[2]=='Z','live orphan remains')
+            self.assertTrue(research_tests.wait_for_exit(descendant),'live orphan remains')
 
     def test_shared_absolute_deadline_checks_after_short_child_exit(self):
         control=shared.ProcessControl(shared.Dashboard(io.StringIO(),plain=True),self.base)

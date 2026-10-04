@@ -46,6 +46,48 @@ jobs:
           python3 scripts/statistics_validator.py "${runs[0]}"
           python3 -c 'import hashlib,json,pathlib; jar=pathlib.Path("target/cloudsim-ho-research-v2-2.0.0.jar"); run=next(pathlib.Path("target/ci-smoke").iterdir()); assert json.loads((run/"run.json").read_text())["artifact_sha256"]==hashlib.sha256(jar.read_bytes()).hexdigest()'
 
+  macos-validation:
+    # macos-15 is Apple Silicon; Intel macOS is outside the supported scope.
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      JAVA_HOME: ''
+      MAVEN_ARGS: ''
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - name: Install the project-local Apple Silicon JDK and terminal UI
+        shell: bash
+        run: |
+          test "$(uname -m)" = arm64
+          ./cloudsim.sh --setup
+          ./cloudsim.sh --check --plain --output-dir .cloudsim/ci/check
+          ./run-research.sh --check --plain
+      - name: Verify the packaged artifact, native probes and terminal workflows
+        shell: bash
+        run: ./cloudsim.sh --test --plain --output-dir .cloudsim/ci/test
+      - name: Run and independently validate every frozen profile
+        shell: bash
+        run: |
+          for profile in smoke explore research; do
+            ./cloudsim.sh --profile "$profile" --workers 1 --plain --output-dir ".cloudsim/ci/$profile"
+          done
+      - name: Run bounded static stress with native RSS monitoring
+        shell: bash
+        run: |
+          ./cloudsim.sh --profile stress --vms 100 --hosts 20 --population 10 --iterations 4 --replications 1 --workers 2 --time-limit 5m --plain --output-dir .cloudsim/ci/stress
+          .cloudsim/venv/bin/python -B - <<'PY'
+          import json
+          from pathlib import Path
+          metadata = json.loads(next(Path('.cloudsim/ci/stress').glob('stress-*/runner.json')).read_text())
+          assert metadata['status'] == 'complete' and metadata['validation'] == 'PASS'
+          assert metadata['production']['sampled_peak_rss_bytes'] > 0
+          PY
+
   release-smoke:
     if: github.event_name == 'workflow_dispatch'
     strategy:

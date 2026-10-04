@@ -23,6 +23,22 @@ if SPEC.loader and SPEC.origin and Path(SPEC.origin).exists():
     SPEC.loader.exec_module(runner)
 
 
+def process_alive(pid):
+    """Independent POSIX check; a zombie has exited but awaits its owner's reap."""
+    result = subprocess.run(['/bin/ps','-p',str(pid),'-o','stat='],capture_output=True,text=True,timeout=5)
+    if result.returncode not in (0,1): raise RuntimeError(result.stderr)
+    status = result.stdout.strip()
+    return bool(status) and not status.startswith('Z')
+
+
+def wait_for_exit(pid):
+    deadline = time.monotonic()+2
+    while process_alive(pid):
+        if time.monotonic() >= deadline: return False
+        time.sleep(.02)
+    return True
+
+
 class RecordingDashboard:
     def __init__(self):
         self.frames = []
@@ -172,7 +188,7 @@ class RunnerChecks(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'presentation unavailable'):
             control.run([sys.executable,'-c',script],self.base/'broken.log','build')
         pid=int(marker.read_text())
-        self.assertFalse(Path(f'/proc/{pid}').exists(),'owned child remains alive')
+        self.assertTrue(wait_for_exit(pid),'owned child remains alive')
 
     def test_poll_can_cancel_before_launch(self):
         class Cancel(RecordingDashboard):
@@ -342,8 +358,7 @@ class RunnerChecks(unittest.TestCase):
         while not marker.exists() and time.monotonic()<deadline: time.sleep(.02)
         self.assertTrue(marker.exists()); descendant = int(marker.read_text())
         parent.send_signal(signal.SIGTERM); self.assertEqual(parent.wait(timeout=8),143)
-        stat = Path(f'/proc/{descendant}/stat')
-        self.assertTrue(not stat.exists() or stat.read_text().split()[2]=='Z','live orphan remains')
+        self.assertTrue(wait_for_exit(descendant),'live orphan remains')
 
     def fixture(self):
         root = self.base/'project space'; (root/'scripts').mkdir(parents=True)
@@ -433,8 +448,7 @@ if os.environ.get('MODE')=='linger':
             retained=next(output.iterdir()); metadata=json.loads((retained/'runner.json').read_text())
             self.assertEqual(metadata['status'],'interrupted'); self.assertEqual(metadata['exit_code'],128+number)
             self.assertIn('interrupted',(retained/'console.log').read_text())
-            stat=Path(f'/proc/{descendant}/stat')
-            self.assertTrue(not stat.exists() or stat.read_text().split()[2]=='Z','live orphan remains')
+            self.assertTrue(wait_for_exit(descendant),'live orphan remains')
 
     def test_git_stdout_provenance_excludes_stderr_and_retains_warnings(self):
         root,env=self.fixture(); git=root/'jdk space/bin/git'
@@ -477,8 +491,7 @@ if os.environ.get('GIT_HANG_COMMAND') in sys.argv:
                     self.assertEqual(parent.returncode,128+number,error.decode())
                     retained=next(output.iterdir()); metadata=json.loads((retained/'runner.json').read_text())
                     self.assertEqual(metadata['status'],'interrupted'); self.assertEqual(metadata['exit_code'],128+number)
-                    stat=Path(f'/proc/{descendant}/stat')
-                    self.assertTrue(not stat.exists() or stat.read_text().split()[2]=='Z','live provenance orphan remains')
+                    self.assertTrue(wait_for_exit(descendant),'live provenance orphan remains')
                     self.assertFalse((root/'java.started').exists()); self.assertFalse((root/'validator.started').exists())
 
 

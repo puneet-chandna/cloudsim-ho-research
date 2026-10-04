@@ -44,18 +44,10 @@ def clip_cells(text, width):
     return text
 
 
-# Future enhancement: native macOS support for cloudsim.sh and both runners.
-# Linux can host implementation and mocked tests, but is not macOS validation.
-# Before advertising support:
-# - Add macOS physical/available-memory probes and conservative heap headroom;
-#   do not bypass require_memory or treat total RAM as available RAM.
-# - Replace /proc RSS/high-water metrics on macOS, retaining Linux cgroup guards.
-# - Verify JDK 21 discovery, curses/resize, process-group cancellation and cleanup
-#   on native macOS (Apple Silicon; Intel too if claimed as supported).
-# - Run build/tests, frozen profiles, bounded stress and independent validation
-#   on a Mac or macOS CI runner; keep long stress campaigns out of routine CI.
-def physical_memory(proc=Path('/proc')):
-    """Detected Linux MemTotal; separate from available/cgroup launch headroom."""
+def physical_memory(proc=None):
+    """Physical RAM; separate from available-memory launch headroom."""
+    if proc is None and sys.platform == 'darwin': return cloudsim_runtime.mac_physical_memory()
+    proc = Path('/proc') if proc is None else proc
     try:
         match=re.search(r'^MemTotal:\s+(\d+) kB$',(proc/'meminfo').read_text(),re.M)
         if not match or int(match[1])<=0: raise ValueError('Missing or invalid MemTotal')
@@ -64,8 +56,10 @@ def physical_memory(proc=Path('/proc')):
         raise ValueError(f'Cannot verify physical memory: {error}') from error
 
 
-def usable_memory(proc=Path('/proc')):
-    """Linux MemAvailable, constrained by every visible cgroup-v2 ancestor."""
+def usable_memory(proc=None):
+    """Native macOS pages or Linux MemAvailable plus all cgroup-v2 ancestors."""
+    if proc is None and sys.platform == 'darwin': return cloudsim_runtime.mac_usable_memory()
+    proc = Path('/proc') if proc is None else proc
     try:
         match = re.search(r'^MemAvailable:\s+(\d+) kB$', (proc/'meminfo').read_text(), re.M)
         if not match: raise ValueError('Linux available memory evidence unavailable')
@@ -99,7 +93,7 @@ def usable_memory(proc=Path('/proc')):
         raise ValueError(f'Cannot verify Linux/cgroup memory: {error}') from error
 
 
-def require_memory(heap_mib, proc=Path('/proc')):
+def require_memory(heap_mib, proc=None):
     available = usable_memory(proc)
     required = max(3072,heap_mib+1024)*MIB
     if available<required:
@@ -172,10 +166,24 @@ def completed_run(root, artifact_hash, *, profile='research'):
 
 
 def rss(pid):
+    if sys.platform == 'darwin':
+        info = cloudsim_runtime.mac_process_info(pid)
+        return f'{info["rss_bytes"]//MIB} MiB' if info else 'unavailable'
     try:
         match = re.search(r'^VmRSS:\s+(\d+) kB$',Path(f'/proc/{pid}/status').read_text(),re.M)
         return f'{int(match[1])//1024} MiB' if match else 'unavailable'
     except OSError: return 'unavailable'
+
+
+def sampled_rss(pid):
+    """Linux high-water RSS, or instantaneous native macOS RSS (sampled max)."""
+    if sys.platform == 'darwin':
+        info = cloudsim_runtime.mac_process_info(pid)
+        return info['rss_bytes'] if info else None
+    try:
+        match = re.search(r'^VmHWM:\s+(\d+) kB$',Path(f'/proc/{pid}/status').read_text(),re.M)
+        return int(match[1])*1024 if match else None
+    except OSError: return None
 
 
 class Dashboard:
@@ -319,10 +327,8 @@ class ProcessControl:
                     if child.poll() is not None: break
                     if timeout and time.monotonic()-started>timeout: raise ValueError(f'{stage} timed out')
                     if deadline is not None or progress_reader is not None:
-                        try:
-                            match = re.search(r'^VmHWM:\s+(\d+) kB$',Path(f'/proc/{child.pid}/status').read_text(),re.M)
-                            if match: peak=max(peak or 0,int(match[1])*1024)
-                        except OSError: pass
+                        sample = sampled_rss(child.pid)
+                        if sample is not None: peak=max(peak or 0, sample)
                     if time.monotonic()-observed>=1:
                         observed = time.monotonic()
                         progress = progress_reader() if progress_reader else read_progress(self.root/'research') if stage=='research' else {'detail':f'Full output: {log}'}
@@ -436,7 +442,7 @@ def finish(control, metadata, code, outer=None, console=None, on_complete=None):
 
 def main(argv=None, *, profile='research', dashboard=None, on_complete=None, invocation=None) -> int:
     total = profile_total(profile)
-    parser = argparse.ArgumentParser(description=__doc__,epilog='Requires a full JDK 21 (select with JAVA_HOME), Linux memory evidence, and Python 3.11+. Retained outputs are never deleted. Monitoring consumes some runtime resources.')
+    parser = argparse.ArgumentParser(description=__doc__,epilog='Requires a full JDK 21 (select with JAVA_HOME), Linux or macOS memory evidence, and Python 3.11+. Retained outputs are never deleted. Monitoring consumes some runtime resources.')
     parser.add_argument('--output-dir',type=Path,default=ROOT/'results',help='parent for a unique retained runner directory (default: project results)')
     parser.add_argument('--heap-mib',type=heap_value,default=1024,help='Java maximum heap in MiB (default: 1024, minimum: 512)')
     parser.add_argument('--config',type=Path,help='existing properties file; only master.seed and log.level are configurable')

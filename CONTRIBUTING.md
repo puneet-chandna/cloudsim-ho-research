@@ -8,8 +8,8 @@ and independent [optimizer oracle](scripts/optimizer_oracle.py) and
 Report defects with source/JAR version, command, JDK/OS, exit code and retained
 run manifest/logs. Do not treat pre-v2 results or partial datasets as evidence.
 
-Use a full Java 21 JDK, Git, Python 3.10+ available as `python3`, and the included
-Maven 3.9.16 Wrapper on Linux. The [quickstart](README.md#build-and-verify) is the
+Use a full Java 21 JDK, Git, Python 3.11+ available as `python3`, and the included
+Maven 3.9.16 Wrapper on Linux or Apple Silicon macOS. The [quickstart](README.md#build-and-verify) is the
 supported setup. Run a focused test during changes, then:
 
 ```sh
@@ -31,13 +31,21 @@ and legacy tests were retired after caller checks; use Git history to investigat
 old results. Preserve ignored user results/logs. `clean verify` cleans Maven's
 `target` directory, not user results.
 
-PR CI is short Ubuntu build/test/packaged smoke with a ten-minute timeout.
-Manual release CI runs packaged smoke on Ubuntu and Windows, also ten minutes
-per job. Windows uses `mvnw.cmd -Dmaven.test.skip=true clean package` followed by
+PR CI retains Linux build/test/packaged smoke and adds native Apple Silicon
+macOS local setup, build verification, Python/TUI tests, all frozen profiles
+and bounded stress. Manual dispatch also runs these macOS checks and packaged
+smoke on Linux and Windows, with twenty-minute timeouts per job.
+Windows uses `mvnw.cmd -Dmaven.test.skip=true clean package` followed by
 the JAR and `python` validator; it does not claim the Linux test suite passed.
 There are no scheduled/release-triggered publishing or research jobs.
 
-Full research is local Linux only, `-Xmx4g` with an external `timeout 12h`.
+Full research is available through `./cloudsim.sh --profile research` or
+`./run-research.sh` on Linux and Apple Silicon macOS, with supervised deadlines
+and a bounded heap. GNU `timeout` is needed only for the documented raw Linux
+JAR command. Linux memory checks retain cgroup-v2 ancestor limits; macOS uses
+native free/reclaimable page evidence with the same heap headroom. Mac RSS is
+a sampled maximum, not a kernel high-water mark. Intel Macs are outside scope.
+Native macOS CI must pass before treating macOS execution as verified.
 Stable release requires 450 complete cases, independent output/analysis checks,
 artifact/environment provenance and two independent reviewer approvals.
 Smoke/explore are beta validation, not full research acceptance. Publication

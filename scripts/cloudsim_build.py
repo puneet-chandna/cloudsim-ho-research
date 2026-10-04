@@ -157,7 +157,9 @@ def _inputs(root, control, metadata, python):
         digest = _sha256(release) if release.is_file() else None
         selected_jdk['release'] = {'path': str(release), 'sha256': digest}
         complete = complete and bool(digest)
-        runtime = [home/'lib/modules', *sorted((home/'lib').rglob('*.so'))]
+        native = sorted(path for path in (home/'lib').rglob('*')
+                        if path.suffix in ('.so', '.dylib', '.jnilib'))
+        runtime = [home/'lib/modules', *native]
         selected_jdk['runtime_files'] = [
             {'path': str(path), 'sha256': _sha256(path) if path.is_file() else None}
             for path in runtime if path.exists()]

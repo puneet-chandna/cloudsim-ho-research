@@ -479,20 +479,7 @@ class CloudSimApp(App):
 
     def stop_owned_child(self):
         identity = self.child_identity
-        if not identity: return
-        try:
-            leader = Path(f'/proc/{identity["pid"]}/stat')
-            if leader.exists():
-                fields = leader.read_text().rsplit(')',1)[1].split()
-                if fields[19] != identity['start_time']: return  # A reused PID is never owned.
-            # A Linux process group/session keeps its ID while descendants remain,
-            # even after its leader is reaped. Check surviving membership too.
-            for path in Path('/proc').glob('[0-9]*/stat'):
-                try: fields = path.read_text().rsplit(')',1)[1].split()
-                except OSError: continue
-                if int(fields[2]) == identity['pid'] and int(fields[3]) == identity['pid'] and int(fields[19]) >= int(identity['start_time']):
-                    os.killpg(identity['pid'], signal.SIGKILL); break
-        except (OSError, ValueError, TypeError, IndexError): pass
+        runtime.stop_owned_child(identity)
         self.child_identity = None
 
     def action_tab(self, tab): self.query_one(TabbedContent).active = tab
@@ -765,8 +752,10 @@ class CloudSimApp(App):
 
     def tick(self):
         if not self.is_mounted or not self.started: return
+        title = self.query('#stage-title')
+        if not title: return  # Screen children can unmount before the app's timer stops.
         elapsed = int(time.monotonic()-self.started)
-        self.query_one('#stage-title', Static).update(f'{self.stage.replace("-", " ").title()} · {elapsed//60:02}:{elapsed%60:02} elapsed')
+        title.first(Static).update(f'{self.stage.replace("-", " ").title()} · {elapsed//60:02}:{elapsed%60:02} elapsed')
         p = self.progress
         values = []
         if p.get('done') is not None and p.get('total'):

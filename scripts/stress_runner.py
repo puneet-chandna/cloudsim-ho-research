@@ -56,7 +56,7 @@ def output_path(value):
 
 def parse_args(argv=None):
     parser=argparse.ArgumentParser(description=__doc__,allow_abbrev=False,
-        epilog='Requires full JDK 21, Linux/cgroup memory evidence and Python 3.11+. Deadline covers calibration, production and validation; excludes build/tests. Presets are unmeasured proposals, not completion guarantees.')
+        epilog='Requires full JDK 21, Linux/cgroup or macOS memory evidence and Python 3.11+. Deadline covers calibration, production and validation; excludes build/tests. Presets are unmeasured proposals, not completion guarantees.')
     parser.add_argument('--preset',choices=PRESETS,default='small',help='VMs/hosts: micro=50/10, tiny=100/20, small=500/100 (default), medium=2000/400, large=10000/2000, xlarge=20000/4000 (unverified opt-in); all use N30/T40/R5 unless explicitly overridden')
     for field,default in zip(FIELDS,(None,None,30,40,5)):
         parser.add_argument('--'+field,type=positive,help=f'override only this field; default: {default if default is not None else "selected size preset"}')
@@ -119,7 +119,8 @@ def memory_preview(config):
 def show_memory(evidence,output=None):
     output=output if output is not None else sys.stdout
     def gib(value): return f'{value/1024**3:.2f} GiB' if value is not None else 'unknown'
-    print(f'Memory: physical: {gib(evidence["physical_memory_bytes"])}; usable: {gib(evidence["usable_memory_bytes"])} (Linux/cgroup-aware)',file=output)
+    source = 'macOS free/reclaimable pages' if sys.platform == 'darwin' else 'Linux/cgroup-aware'
+    print(f'Memory: physical: {gib(evidence["physical_memory_bytes"])}; usable: {gib(evidence["usable_memory_bytes"])} ({source})',file=output)
     if evidence['warning']: print(evidence['warning'],file=output)
     if evidence['policy_note']: print(evidence['policy_note'],file=output)
 

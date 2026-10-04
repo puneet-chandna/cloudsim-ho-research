@@ -157,6 +157,16 @@ class VerifiedBuildTests(unittest.TestCase):
         self.verify()
         self.assertEqual(self.metadata['build'], 'VERIFIED')
 
+    def test_macos_native_library_changes_invalidate_test_verification(self):
+        library = self.root/'jdk/lib/server/libjvm.dylib'
+        library.parent.mkdir(parents=True)
+        library.write_bytes(b'original macOS JVM')
+        self.verify()
+        self.next_attempt()
+        library.write_bytes(b'changed macOS JVM')
+        self.verify()
+        self.assertEqual(self.metadata['build'], 'VERIFIED')
+
     def test_maven_overrides_cannot_skip_or_filter_verified_tests(self):
         for name in ('MAVEN_ARGS', 'MAVEN_OPTS'):
             with self.subTest(name=name):

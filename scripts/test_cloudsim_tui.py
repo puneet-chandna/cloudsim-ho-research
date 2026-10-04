@@ -10,6 +10,7 @@ import tempfile
 import signal
 import unittest
 from unittest.mock import patch
+from test_research_runner import process_alive
 
 HAS_TEXTUAL = importlib.util.find_spec('textual') is not None
 if HAS_TEXTUAL:
@@ -285,6 +286,14 @@ class InterfaceTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 app.process=None;app.busy=False
 
+    async def test_progress_timer_ignores_removed_screen_during_shutdown(self):
+        app=CloudSimApp(output_parent=self.root/'results')
+        async with app.run_test() as pilot:
+            await self.settled(app,pilot)
+            app.started=__import__('time').monotonic()
+            await app.screen.remove_children()
+            app.tick()
+
     async def test_legacy_setup_check_with_profile_is_not_an_experiment(self):
         app=CloudSimApp(output_parent=self.root/'results')
         async with app.run_test() as pilot:
@@ -354,8 +363,7 @@ class InterfaceTests(unittest.IsolatedAsyncioTestCase):
                 worker.kill(); await worker.wait()
                 await app.stop_worker()
                 for _ in range(100):
-                    stat = Path(f'/proc/{child}/stat')
-                    if not stat.exists() or stat.read_text().rsplit(')',1)[1].split()[0]=='Z': break
+                    if not process_alive(child): break
                     await asyncio.sleep(.02)
                 else: self.fail('Owned child survived worker exit')
             finally:
@@ -394,11 +402,10 @@ class InterfaceTests(unittest.IsolatedAsyncioTestCase):
                 app.process=worker; app.track_child({'pid':child})
                 os.kill(child,signal.SIGTERM)
                 self.assertEqual((await worker.stdout.readline()).strip(),b'reaped')
-                self.assertFalse(Path(f'/proc/{child}').exists())
+                self.assertFalse(process_alive(child))
                 worker.kill(); await worker.wait(); await app.stop_worker()
                 for _ in range(100):
-                    stat=Path(f'/proc/{descendant}/stat')
-                    if not stat.exists() or stat.read_text().rsplit(')',1)[1].split()[0]=='Z': break
+                    if not process_alive(descendant): break
                     await asyncio.sleep(.02)
                 else: self.fail('Owned descendant survived after its leader was reaped')
             finally:

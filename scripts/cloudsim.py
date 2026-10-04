@@ -106,7 +106,7 @@ def read_frozen_config(path: Path | None) -> dict:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False,
-        epilog='No arguments opens the terminal app. Linux, Python 3.11+ and full JDK 21 are required to run. Help and dry-run require no JDK.')
+        epilog='No arguments opens the terminal app. Linux or macOS (Apple Silicon), Python 3.11+ and full JDK 21 are required to run. Help and dry-run require no JDK.')
     actions = parser.add_mutually_exclusive_group()
     actions.add_argument('--profile', choices=(*shared.FROZEN_PROFILES, 'stress'))
     for action in ('check', 'build', 'test', 'setup'): actions.add_argument('--'+action, action='store_true')

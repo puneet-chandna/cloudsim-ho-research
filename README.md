@@ -20,17 +20,17 @@ checked independently by the [output validator](scripts/statistics_validator.py)
 ## Build and verify
 
 Use a full **Java 21 JDK** (`java` and `javac`), Git and **Python 3.11+**.
-Linux tests require the executable `python3` for independent stdlib oracles.
-Wrapper bootstrap on Linux requires `unzip` and either `sha256sum` or `shasum`.
+Linux and macOS tests require the executable `python3` for independent stdlib oracles.
+Wrapper bootstrap requires `unzip` and either `sha256sum` or `shasum`.
 The included Maven Wrapper pins Maven 3.9.16; no global Maven installation is
 needed. Initial setup needs network access to download Maven and dependencies.
 Set `JAVA_HOME` to the JDK and put its `bin` directory on `PATH`.
 
-For the integrated Linux terminal app, start `./cloudsim.sh`. First launch offers
+For the integrated Linux/macOS terminal app, start `./cloudsim.sh`. First launch offers
 to install the pinned terminal UI into `.cloudsim/venv`; Setup can download a
 checksum-verified JDK 21 into `.cloudsim/jdk` or select an installed JDK.
 `./cloudsim.sh --setup` performs project-local setup directly (automatic JDK
-download currently supports Linux x86-64). No global Java alternatives or shell
+download supports Linux x86-64 and native Apple Silicon macOS). No global Java alternatives or shell
 settings are changed. The launcher uses the selected JDK for checks, Maven and
 simulation and keeps its default Maven downloads under `.cloudsim/maven`.
 
@@ -48,6 +48,63 @@ Automation uses `--profile smoke|explore|research|stress`, `--check`, `--build`,
 `--test` or `--validate DIRECTORY`. Add `--plain` for plain progress. Help,
 dry-run and existing-output validation do not need Java or the terminal UI.
 Setup is explicit; direct experiment actions never download a JDK automatically.
+
+### macOS quickstart (Apple Silicon)
+
+Use a native ARM64 terminal and an up-to-date Python 3.11+ installation with
+`venv`/`pip`. The Python bundled with macOS may be too old. If you use
+[Homebrew](https://brew.sh/), `brew install python git` supplies the prerequisites;
+otherwise install Python from [python.org](https://www.python.org/downloads/macos/)
+and Git separately. Check `uname -m` reports `arm64` and `python3 --version`
+reports 3.11 or newer before starting. Intel Macs and Rosetta execution are
+outside the tested support scope.
+
+From the source checkout:
+
+```sh
+./cloudsim.sh --setup
+./cloudsim.sh --check --plain
+./cloudsim.sh                    # terminal workbench: Run, Results, Tools, Setup
+```
+
+Setup installs the pinned UI and a checksum-verified ARM64 Temurin JDK 21 only
+under `.cloudsim`. You can instead select a full installed JDK in Setup using
+its `Contents/Home` directory. Selection honors `JAVA_HOME`, saved project
+settings, the managed JDK, then `/usr/libexec/java_home -v 21`; it does not treat
+Apple's `/usr/bin/java` stub as a JDK. An explicit `JAVA_HOME` must point to JDK
+21. No Homebrew Java package, global Maven, GNU coreutils or shell changes are
+required by the launcher.
+
+All profiles, both standalone runners, build/test tools and independent result
+validation use the same commands on Linux and Apple Silicon:
+
+```sh
+./cloudsim.sh --test --plain
+./cloudsim.sh --profile smoke --plain
+./cloudsim.sh --profile explore --plain
+./cloudsim.sh --profile research --plain
+# Small bounded stress example; larger campaigns need more time and RAM:
+./cloudsim.sh --profile stress --vms 100 --hosts 20 --population 10 --iterations 4 --replications 1 --time-limit 5m --plain
+./cloudsim.sh --validate /absolute/path/to/retained/run --plain
+```
+
+The runners enforce their own deadlines and process-group cancellation, so
+macOS does not need Linux's `timeout` command. macOS memory checks use
+`sysctl hw.memsize` and `vm_stat`'s actual page size, counting free, inactive
+and speculative pages. Wired memory, compressed pages and swap are excluded;
+the existing minimum 3 GiB usable-memory check and heap-plus-1-GiB headroom
+still apply. These are launch checks, not a memory reservation or a guarantee
+that a large stress campaign fits. Native RSS samples report a sampled peak;
+brief peaks between samples may be missed. Linux retains its `/proc` metrics
+and every visible cgroup-v2 ancestor limit.
+
+Apple Silicon CI exercises local setup, Maven verification, all Python/TUI
+tests (including resize/cancellation and orphan cleanup), Smoke, Explore,
+all 450 Research cases and bounded stress with independent validation.
+That native job must pass before claiming macOS execution is verified;
+Linux tests and simulated macOS probes alone do not establish it.
+
+### Build verification and runtime behavior
 
 Experiments reuse a tested build when source, Git revision, JDK, Python/UI
 dependencies and the retained JAR hash still match its verification receipt.
@@ -104,7 +161,7 @@ shaded JAR. The validator checks manifest/file hashes, raw matrices, canonical
 inputs, placements, budgets, metrics and independent analysis. Keep the exact
 JAR alongside its validated results and compare its SHA-256 to `artifact_sha256`.
 
-Windows support is **packaged smoke only**, not the Linux research/test contract.
+Windows support is **packaged smoke only**, not the Linux/macOS research/test contract.
 In PowerShell, build the package without the Linux oracle suite and check every
 native exit code (Python is invoked as `python`):
 
@@ -118,10 +175,12 @@ python scripts/statistics_validator.py results/smoke/<run-directory>
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 ```
 
-Windows execution and remote CI are separate gates; local Linux validation does
-not establish either. CI runs short PR-only Ubuntu validation and manual
-Ubuntu/Windows packaged smoke, with ten-minute job timeouts. It never publishes
-packages or runs the research matrix.
+Native macOS/Windows execution and remote CI are separate gates; local Linux
+validation does not establish them. CI retains the Linux PR validation and
+manual Linux/Windows packaged smoke, and adds Apple Silicon validation on PRs
+and manual dispatch, with twenty-minute job timeouts. It never publishes
+packages. The macOS job runs the frozen research matrix; long stress campaigns
+remain local.
 
 ## Run profiles and configuration
 
@@ -139,7 +198,7 @@ execution, Pareto optimization, overcommit and migrations are future work.
 
 ```sh
 java -Xmx4g -jar target/cloudsim-ho-research-v2-2.0.0.jar --profile explore --output-dir results/explore
-# Linux only; 12-hour external safety timeout, maximum 4 GiB Java heap:
+# Linux only; for a portable supervised run use ./cloudsim.sh --profile research:
 timeout 12h java -Xmx4g -jar target/cloudsim-ho-research-v2-2.0.0.jar --profile research --output-dir results/research
 ```
 
