@@ -10,6 +10,7 @@ public record RunConfig(Profile profile,long masterSeed,String logLevel,Path out
         if(!Set.of("INFO","DEBUG").contains(logLevel)) throw new IllegalArgumentException("log.level must be INFO or DEBUG");
     }
     public static RunConfig parse(String[] args) throws IOException {
+        CaseExecutor.workers();
         var options=new HashMap<String,String>();
         for(int i=0;i<args.length;i++) {
             String key=args[i];

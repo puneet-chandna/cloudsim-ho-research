@@ -1,0 +1,88 @@
+"""Runtime selection and safe local setup boundaries; no downloads in unit tests."""
+import hashlib
+import io
+import json
+import os
+from pathlib import Path
+import tarfile
+import tempfile
+import unittest
+from unittest.mock import patch
+
+import cloudsim_runtime as runtime
+
+
+class RuntimeTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+
+    def jdk(self, path):
+        (path/'bin').mkdir(parents=True)
+        for name in ('java', 'javac'):
+            (path/'bin'/name).touch()
+        return path
+
+    def test_explicit_jdk_and_child_environment_do_not_change_parent(self):
+        selected = self.jdk(self.root/'chosen jdk')
+        managed = self.jdk(self.root/'.cloudsim/jdk')
+        original = {'JAVA_HOME': str(selected), 'PATH': '/usr/bin', 'OTHER': 'kept'}
+        child = runtime.java_environment(original, self.root)
+        self.assertEqual(child['JAVA_HOME'], str(selected))
+        self.assertEqual(child['PATH'], str(selected/'bin')+os.pathsep+'/usr/bin')
+        self.assertEqual(child['OTHER'], 'kept')
+        self.assertEqual(original['PATH'], '/usr/bin')
+        self.assertNotEqual(child['JAVA_HOME'], str(managed))
+        self.assertEqual(child['MAVEN_USER_HOME'], str(self.root/'.cloudsim/maven'))
+
+    def test_saved_and_managed_jdk_are_selected_without_shell_changes(self):
+        managed = self.jdk(self.root/'.cloudsim/jdk')
+        self.assertEqual(runtime.java_environment({'PATH': '/usr/bin'}, self.root)['JAVA_HOME'], str(managed))
+        chosen = self.jdk(self.root/'saved jdk')
+        runtime.save_java_home(chosen, self.root)
+        self.assertEqual(runtime.java_environment({'PATH': '/usr/bin'}, self.root)['JAVA_HOME'], str(chosen))
+
+    def test_installed_jdk21_is_discovered_when_path_has_full_jdk17(self):
+        old = self.jdk(self.root/'jdk17')
+        valid = self.jdk(self.root/'jdk21')
+        with patch.object(runtime.shutil, 'which', return_value=str(old/'bin/java')), \
+             patch.object(Path, 'glob', return_value=[valid/'bin/javac']), \
+             patch.object(runtime, 'probe_jdk', return_value=valid):
+            self.assertEqual(runtime.java_environment({'PATH':str(old/'bin')}, self.root)['JAVA_HOME'], str(valid))
+
+    def archive(self, name='jdk/bin/java', link=None):
+        path = self.root/'download.tar.gz'
+        with tarfile.open(path, 'w:gz') as archive:
+            info = tarfile.TarInfo(name)
+            if link:
+                info.type = tarfile.SYMTYPE; info.linkname = link
+                archive.addfile(info)
+            else:
+                data = b'java'; info.size = len(data)
+                archive.addfile(info, io.BytesIO(data))
+        return path
+
+    def test_bad_checksum_cannot_extract_or_install(self):
+        path = self.archive()
+        with self.assertRaisesRegex(ValueError, 'checksum'):
+            runtime.extract_jdk(path, '0'*64, self.root/'destination')
+        self.assertFalse((self.root/'destination').exists())
+
+    def test_archive_cannot_escape_destination(self):
+        for name, link in (('../escaped', None), ('jdk/escape', '../../escaped')):
+            with self.subTest(name=name):
+                path = self.archive(name, link)
+                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                with self.assertRaises((ValueError, tarfile.TarError)):
+                    runtime.extract_jdk(path, digest, self.root/'destination')
+                self.assertFalse((self.root/'escaped').exists())
+
+    def test_existing_runtime_is_never_replaced_by_extraction(self):
+        target = self.jdk(self.root/'destination')
+        (target/'user-file').write_text('preserve')
+        path = self.archive()
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        with self.assertRaises(FileExistsError):
+            runtime.extract_jdk(path, digest, target)
+        self.assertEqual((target/'user-file').read_text(), 'preserve')

@@ -30,21 +30,25 @@ public final class RunOutput implements AutoCloseable {
     private final Map<String,ScenarioSpec> specifications=new LinkedHashMap<>();
     private final List<Map<String,Object>> caseRows=new ArrayList<>();
     private RunConfig config;
+    private int workers;
     private Map<String,String> analysis;
     private Map<String,String> analyzedInputs;
     private int attempted,successful,failed;
     private LoggerContext logging;
     private RunOutput(Path directory) { this.directory=directory; }
     public Path directory() { return directory; }
+    int workers() { return workers; }
     public static String version() {
         String value=RunOutput.class.getPackage().getImplementationVersion();
         return value==null?"development (unpackaged)":value;
     }
     public static RunOutput create(RunConfig config) throws Exception {
+        int workers=CaseExecutor.workers();
         var effective=config.effective();
         Files.createDirectories(config.outputRoot());
         var output=new RunOutput(Files.createDirectory(config.outputRoot().resolve("run-"+UUID.randomUUID())));
         output.config=config;
+        output.workers=workers;
         try {
             var m=output.manifest;
             m.put("schema_version",2); m.put("protocol_version",2); m.put("run_id",output.directory.getFileName().toString());
@@ -62,6 +66,7 @@ public final class RunOutput implements AutoCloseable {
             m.put("os",System.getProperty("os.name")+" "+System.getProperty("os.version")); m.put("arch",System.getProperty("os.arch"));
             m.put("cpu",Map.of("available_processors",Runtime.getRuntime().availableProcessors(),"model",cpuModel()));
             m.put("max_heap_bytes",Runtime.getRuntime().maxMemory()); m.put("effective_config",effective);
+            m.put("execution_workers",workers);
             var cases=output.caseRows;
             for(var key:config.profile().cases()) {
                 var row=new LinkedHashMap<String,Object>(); row.put("phase",key.phase()); row.put("scenario",key.scenario());

@@ -10,6 +10,20 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class RunConfigTest {
     @TempDir Path temp;
+    @Test void stressOptionsStayOutsideFrozenProfilesAndEffectiveBytesRemainPinned() throws Exception {
+        for(String flag:List.of("--vms","--hosts","--population","--iterations","--replications","--seed","--experiment-phase"))
+            assertThrows(IllegalArgumentException.class,()->RunConfig.parse(new String[]{"--profile","research",flag,"2"}));
+        assertThrows(IllegalArgumentException.class,()->RunConfig.parse(new String[]{"--profile","stress"}));
+        var hashes=List.of("707f6dd5dbbd7e6d24aa9b4e29abf10ab5f98e2d7507817418fa05e5a5638039",
+            "e624f28523e2075177a7600b3688ee8e552468ffa0f841e6e67e1aff241e7ae2",
+            "cda3580d7e26804aaae39a1c51492f7b61e187e299ba8c8bec03ce3f631ffce4");
+        int i=0;
+        for(String profile:List.of("smoke","explore","research")) {
+            var bytes=new StringBuilder();
+            RunConfig.parse(new String[]{"--profile",profile}).effective().forEach((k,v)->bytes.append(k).append('=').append(v).append('\n'));
+            assertEquals(hashes.get(i++),org.puneet.cloudsimplus.hiippo.scenario.Seeds.hash(bytes.toString()));
+        }
+    }
     @Test void profilesHaveFrozenBudgetsAndMatrices() throws Exception {
         var names=new String[]{"smoke","explore","research"};
         var budgets=new int[]{130,1220,3630}; var cases=new int[]{4,40,450};

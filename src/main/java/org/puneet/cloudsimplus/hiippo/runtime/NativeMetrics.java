@@ -14,6 +14,7 @@ public final class NativeMetrics {
                          int completed,int failed,int censored,double horizonSeconds,double releaseSeconds) {}
 
     public static Result run(ScenarioSpec spec,PlacementPlan plan) {
+        if(Thread.currentThread().isInterrupted()) throw new java.util.concurrent.CancellationException("Case simulation cancelled");
         return run(spec,PlannedSimulation.create(spec.inputs(),plan));
     }
     static Result run(ScenarioSpec spec,PlannedSimulation run) {
@@ -43,6 +44,7 @@ public final class NativeMetrics {
         try {
             simulation.startSync();
             while(simulation.isRunning()) {
+                if(Thread.currentThread().isInterrupted()) throw new java.util.concurrent.CancellationException("Case simulation cancelled");
                 double limit=(Double.isFinite(release[0])?release[0]:0)+spec.censorSeconds();
                 double processingTime=simulation.clock(); long before=delivered[0];
                 // runFor advances one event timestamp, bounded by limit; no periodic CPU sampling.

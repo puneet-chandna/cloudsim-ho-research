@@ -2,6 +2,7 @@
 """Build, run the fixed research matrix, and independently validate its retained artifact."""
 import argparse
 import csv
+from copy import deepcopy
 import hashlib
 import json
 import os
@@ -14,11 +15,19 @@ import sys
 import tempfile
 import time
 import unicodedata
+import cloudsim_runtime
+import cloudsim_build
 from datetime import datetime, timezone
 from contextlib import ExitStack
 
 ROOT = Path(__file__).resolve().parents[1]
 MIB = 1024**2
+FROZEN_PROFILES = {'smoke':4, 'explore':40, 'research':450}
+
+
+def profile_total(profile):
+    if profile not in FROZEN_PROFILES: raise ValueError('Profile must be smoke, explore or research')
+    return FROZEN_PROFILES[profile]
 
 
 def sanitize(value):
@@ -33,6 +42,26 @@ def clip_cells(text, width):
         if used+cells>width: return text[:index]
         used += cells
     return text
+
+
+# Future enhancement: native macOS support for cloudsim.sh and both runners.
+# Linux can host implementation and mocked tests, but is not macOS validation.
+# Before advertising support:
+# - Add macOS physical/available-memory probes and conservative heap headroom;
+#   do not bypass require_memory or treat total RAM as available RAM.
+# - Replace /proc RSS/high-water metrics on macOS, retaining Linux cgroup guards.
+# - Verify JDK 21 discovery, curses/resize, process-group cancellation and cleanup
+#   on native macOS (Apple Silicon; Intel too if claimed as supported).
+# - Run build/tests, frozen profiles, bounded stress and independent validation
+#   on a Mac or macOS CI runner; keep long stress campaigns out of routine CI.
+def physical_memory(proc=Path('/proc')):
+    """Detected Linux MemTotal; separate from available/cgroup launch headroom."""
+    try:
+        match=re.search(r'^MemTotal:\s+(\d+) kB$',(proc/'meminfo').read_text(),re.M)
+        if not match or int(match[1])<=0: raise ValueError('Missing or invalid MemTotal')
+        return int(match[1])*1024
+    except (OSError,ValueError) as error:
+        raise ValueError(f'Cannot verify physical memory: {error}') from error
 
 
 def usable_memory(proc=Path('/proc')):
@@ -84,47 +113,61 @@ def check_java_options(env):
             raise ValueError(f'{name} is set; clear it explicitly so the requested JVM limits remain effective')
 
 
-def java_command(java, heap_mib, jar, outer, config=None):
+def java_command(java, heap_mib, jar, outer, config=None, *, profile='research', workers=1):
+    profile_total(profile)
     command = [str(java),'-Xms256m',f'-Xmx{heap_mib}m','-XX:+UseG1GC','-XX:+ExitOnOutOfMemoryError',
                '-Xlog:gc*:file=gc.log:time,uptime,level,tags:filecount=3,filesize=5M',
-               '-jar',str(jar),'--profile','research','--output-dir',str(outer/'research')]
+               '-jar',str(jar),'--profile',profile,'--output-dir',str(outer/profile)]
     if config is not None: command += ['--config',str(config)]
+    if workers > 1: command.insert(command.index('-jar'), f'-Dcloudsim.workers={workers}')
     return command
 
 
-def read_progress(root):
+def maven_command(*arguments, root=None):
+    root = ROOT if root is None else root
+    return [str(root/'mvnw'), '-B', '-Dmaven.repo.local='+str(root/'.cloudsim/maven/repository'), *arguments]
+
+
+def read_progress(root, *, profile='research'):
+    total = profile_total(profile)
     try:
         paths = list(root.glob('run-*/run.json'))
         if len(paths)!=1: raise ValueError('waiting for one manifest')
         data = json.loads(paths[0].read_text())
+        if data.get('profile')!=profile: raise ValueError('wrong profile')
         attempted, done = data['attempted_cases'],data['successful_cases']
-        if any(type(v)!=int or not 0<=v<=450 for v in (attempted,done)) or done>attempted:
+        if any(type(v)!=int or not 0<=v<=total for v in (attempted,done)) or done>attempted:
             raise ValueError('invalid counters')
-        detail = 'Cases finished; application analysis in progress' if done==450 else 'Waiting for next case'
+        detail = 'Cases finished; application analysis in progress' if done==total else 'Waiting for next case'
+        active = {}
         if done<attempted:
             active = data['cases'][attempted-1]
+            if not isinstance(active,dict): raise ValueError('invalid active case')
             detail = f"{active['scenario']} / {active['algorithm']} / replication {active['replication']} ({active['phase']})"
         if data.get('error'): detail = str(data['error'])
-        return {'stage':'analysis' if done==450 and data['state']=='RUNNING' else 'research',
-                'done':done,'detail':detail}
+        return {'stage':'analysis' if done==total and data['state']=='RUNNING' else profile,
+                'done':done,'total':total,'detail':detail,
+                **{key:active.get(key) for key in ('algorithm','scenario','replication','phase')}}
     except (OSError,ValueError,KeyError,TypeError,IndexError):
-        return {'stage':'research','done':None,'detail':'Progress snapshot unavailable; child/logs remain authoritative'}
+        return {'stage':profile,'done':None,'total':total,'detail':'Progress snapshot unavailable; child/logs remain authoritative'}
 
 
-def completed_run(root, artifact_hash):
+def completed_run(root, artifact_hash, *, profile='research'):
+    total = profile_total(profile)
+    label = profile.capitalize()
     paths = list(root.iterdir())
     if len(paths)!=1 or not paths[0].is_dir() or paths[0].is_symlink():
-        raise ValueError('Expected exactly one new research run')
+        raise ValueError(f'Expected exactly one new {profile} run')
     path = paths[0]
     data = json.loads((path/'run.json').read_text())
-    if data.get('profile')!='research' or data.get('state')!='COMPLETE' or data.get('error') is not None:
-        raise ValueError('Research run is unsuccessful or incomplete')
-    if any(type(data.get(k))!=int or data[k]!=450 for k in ('expected_cases','attempted_cases','successful_cases')):
-        raise ValueError('Research run does not contain 450 successful cases')
+    if data.get('profile')!=profile or data.get('state')!='COMPLETE' or data.get('error') is not None:
+        raise ValueError(f'{label} run is unsuccessful or incomplete')
+    if any(type(data.get(k))!=int or data[k]!=total for k in ('expected_cases','attempted_cases','successful_cases')):
+        raise ValueError(f'{label} run does not contain {total} successful cases')
     if any(type(data.get(k))!=int or data[k]!=0 for k in ('failed_cases','unattempted_cases')):
-        raise ValueError('Research run contains failed or unattempted cases')
+        raise ValueError(f'{label} run contains failed or unattempted cases')
     if data.get('artifact_sha256')!=artifact_hash:
-        raise ValueError('Research artifact SHA-256 differs from retained JAR')
+        raise ValueError(f'{label} artifact SHA-256 differs from retained JAR')
     return path
 
 
@@ -136,15 +179,21 @@ def rss(pid):
 
 
 class Dashboard:
-    def __init__(self, stream=None, plain=False, console=None, heap_mib=1024):
+    def __init__(self, stream=None, plain=False, console=None, heap_mib=1024, title='RESEARCH', total=450):
         self.stream = stream if stream is not None else sys.stdout
         self.tty = not plain and self.stream.isatty() and os.environ.get('TERM','dumb')!='dumb' and 'NO_COLOR' not in os.environ
         self.console = console
         self.started = time.monotonic()
         self.updated = 0
         self.drawn = False
+        self.line_count = 0
         self.warning = None
         self.heap_mib = heap_mib
+        self.title,self.total = title,total
+
+    def poll(self,control) -> None: pass
+
+    def set_log(self,path: Path | None) -> None: self.log = path
 
     def render(self,stage,progress=None,pid=None,force=False):
         now = time.monotonic()
@@ -154,21 +203,26 @@ class Dashboard:
         done = progress.get('done')
         detail = sanitize(progress.get('detail',''))
         elapsed = int(now-self.started)
-        bar = ('['+'#'*(done*20//450)+'-'*(20-done*20//450)+f'] {done*100//450}% cases') if done is not None else 'Progress: stage in progress'
-        lines = ['CLOUDSIM  /  RESEARCH',f'Stage: {stage}    Elapsed: {elapsed//60:02d}:{elapsed%60:02d}',
-                 f'Cases: {done if done is not None else "-"}/450    Java RSS: {rss(pid) if pid else "-"}    Heap: {self.heap_mib} MiB',bar,detail]
+        total = progress.get('total',self.total)
+        bar = ('['+'#'*(done*20//total)+'-'*(20-done*20//total)+f'] {done*100//total}% cases') if done is not None else 'Progress: stage in progress'
+        lines = [f'CLOUDSIM  /  {self.title}',f'Stage: {stage}    Elapsed: {elapsed//60:02d}:{elapsed%60:02d}',
+                 f'Cases: {done if done is not None else "-"}/{total}    Java RSS: {rss(pid) if pid else "-"}    Heap: {self.heap_mib} MiB',bar,detail]
+        lines += [sanitize(line) for line in progress.get('extra_lines',[])[:3]]
         if self.console:
             self.console.write(' | '.join(lines)+'\n'); self.console.flush()
         try:
             if self.tty:
                 width = max(1,shutil.get_terminal_size((80,24)).columns-1)
-                if self.drawn: self.stream.write('\x1b[5A')
+                if self.drawn:
+                    self.stream.write(f'\x1b[{self.line_count}A')
+                    lines += ['']*max(0,self.line_count-len(lines))
                 else: self.stream.write('\x1b[?25l')
                 for index,line in enumerate(lines):
                     self.stream.write('\x1b[2K'+ ('\x1b[36m' if index==0 else '')+clip_cells(line,width)+('\x1b[0m' if index==0 else '')+'\n')
                 self.drawn = True
+                self.line_count = len(lines)
             else:
-                self.stream.write(f'[{stage}] {elapsed}s | {lines[2]} | {detail}\n')
+                self.stream.write(f'[{stage}] {elapsed}s | {lines[2]} | '+ ' | '.join(lines[4:])+'\n')
             self.stream.flush()
         except (OSError,ValueError) as error:
             self.warning = f'UI_WARNING: dashboard output failed: {sanitize(error)}'
@@ -185,11 +239,35 @@ class Interrupted(Exception):
     def __init__(self,signum): self.signum = signum
 
 
+class DeadlineExceeded(ValueError):
+    pass
+
+
+class PresentationError(ValueError):
+    pass
+
+
 class ProcessControl:
     def __init__(self,dashboard,root):
         self.dashboard,self.root = dashboard,root
+        self.env = dict(os.environ)
         self.signum = None
         self.handlers = {}
+        self.warning = None
+
+    def present(self,method,*args,**kwargs):
+        try:
+            console = getattr(self.dashboard,'console',None)
+            if method=='render' and console and not isinstance(self.dashboard,Dashboard):
+                console.write(f'[{sanitize(args[0])}] {sanitize(args[1] or {})}\n'); console.flush()
+            return getattr(self.dashboard,method)(*args,**kwargs)
+        except (Interrupted,DeadlineExceeded): raise
+        except Exception as error:
+            self.warning = f'UI_WARNING: presentation {method} failed: {sanitize(error)}'
+            raise PresentationError(self.warning) from error
+
+    def render(self,stage,progress=None,pid=None,force=False):
+        return self.present('render',stage,progress,pid,force=force)
 
     def install(self):
         for number in (signal.SIGINT,signal.SIGTERM):
@@ -197,18 +275,23 @@ class ProcessControl:
 
     def on_signal(self,number,frame): self.signum = number
 
-    def check(self):
+    def check(self,deadline=None):
         if self.signum is not None: raise Interrupted(self.signum)
+        if deadline is not None and time.monotonic()>=deadline:
+            raise DeadlineExceeded('Shared experiment deadline exceeded')
 
     def restore(self):
         for number,handler in self.handlers.items(): signal.signal(number,handler)
-        self.dashboard.close()
+        self.handlers.clear()
+        self.present('close')
 
     def stop(self,child):
         try: os.killpg(child.pid,signal.SIGTERM)
         except ProcessLookupError: child.wait(); return
         deadline = time.monotonic()+3
         while time.monotonic()<deadline:
+            try: self.present('poll',self)
+            except Exception: pass  # Presentation must never prevent owned-group cleanup.
             child.poll()
             try: os.killpg(child.pid,0)
             except ProcessLookupError: child.wait(); return
@@ -217,26 +300,41 @@ class ProcessControl:
         except ProcessLookupError: pass
         child.wait(timeout=3)
 
-    def run(self,command,log,stage,cwd=None,timeout=12*60*60,stderr_log=None):
-        self.check()
+    def run(self,command,log,stage,cwd=None,timeout=12*60*60,stderr_log=None,deadline=None,progress_reader=None):
+        self.present('set_log',log)
+        self.present('poll',self)
+        self.check(deadline)
         with ExitStack() as files:
             output = files.enter_context(log.open('wb'))
             errors = files.enter_context(stderr_log.open('wb')) if stderr_log else subprocess.STDOUT
-            child = subprocess.Popen(command,cwd=cwd or self.root,stdout=output,stderr=errors,start_new_session=True)
+            child = subprocess.Popen(command,cwd=cwd or self.root,stdout=output,stderr=errors,start_new_session=True,env=self.env)
+            self.active_pid = child.pid
             started = time.monotonic()
             observed = 0
+            peak = None
             try:
-                while child.poll() is None:
-                    self.check()
+                while True:
+                    self.present('poll',self)
+                    self.check(deadline)
+                    if child.poll() is not None: break
                     if timeout and time.monotonic()-started>timeout: raise ValueError(f'{stage} timed out')
+                    if deadline is not None or progress_reader is not None:
+                        try:
+                            match = re.search(r'^VmHWM:\s+(\d+) kB$',Path(f'/proc/{child.pid}/status').read_text(),re.M)
+                            if match: peak=max(peak or 0,int(match[1])*1024)
+                        except OSError: pass
                     if time.monotonic()-observed>=1:
                         observed = time.monotonic()
-                        progress = read_progress(self.root/'research') if stage=='research' else {'detail':f'Full output: {log}'}
-                        self.dashboard.render(progress.get('stage',stage),progress,child.pid if stage=='research' else None)
+                        progress = progress_reader() if progress_reader else read_progress(self.root/'research') if stage=='research' else {'detail':f'Full output: {log}'}
+                        self.render(progress.get('stage',stage),progress,child.pid if stage=='research' or progress_reader else None)
                     time.sleep(.1)
-                self.check()
-                return child.returncode if child.returncode>=0 else 128-child.returncode
-            finally: self.stop(child)
+                self.check(deadline)
+                self.last_exit_code = child.returncode if child.returncode>=0 else 128-child.returncode
+                return self.last_exit_code
+            finally:
+                self.stop(child)
+                self.active_pid = None
+                self.last_measurement = {'wall_seconds':time.monotonic()-started,'sampled_peak_rss_bytes':peak}
 
 
 def stamp(): return datetime.now(timezone.utc).isoformat()
@@ -258,110 +356,215 @@ def heap_value(value):
     return int(value)
 
 
-def main(argv=None):
+def worker_value(value):
+    if value == 'auto': return value
+    if not re.fullmatch(r'[0-9]+', value) or not 1 <= int(value) <= 32:
+        raise argparse.ArgumentTypeError('workers must be auto or an integer from 1 to 32')
+    return int(value)
+
+
+def available_cpus():
+    try: return max(1, len(os.sched_getaffinity(0)))
+    except (AttributeError, OSError): return max(1, os.cpu_count() or 1)
+
+
+def execution_settings(requested, heap_mib):
+    cpus = available_cpus()
+    heap_bound = max(1, heap_mib // 512)
+    workers = min(cpus, heap_bound, 32, 32 if requested == 'auto' else requested)
+    return {'requested_workers': requested, 'workers': workers, 'available_cpus': cpus,
+            'shared_heap_mib': heap_mib, 'heap_worker_bound': heap_bound,
+            'policy': 'Independent cases share one bounded JVM heap; at most one worker per 512 MiB and available CPU. This is a concurrency bound, not a measured per-case memory guarantee.'}
+
+
+def check_environment(control, heap_mib: int) -> tuple[Path, int]:
+    check_java_options(control.env)
+    def verify(home):
+        tools = {}
+        with tempfile.TemporaryDirectory(prefix='cloudsim-preflight-') as temporary:
+            for name in ('java','javac'):
+                tool = home/'bin'/name
+                if not tool.is_file(): raise ValueError(f'{tool} is missing')
+                log = Path(temporary)/name
+                result = control.run([str(tool),'-version'],log,'preflight',timeout=20)
+                if result or not re.search(r'(?:version\s+"?|javac\s+)21(?:[.\s"+-]|$)',log.read_text(errors='replace')):
+                    raise ValueError(f'{name} must be version 21; select a full JDK 21 with JAVA_HOME')
+                tools[name] = {'path': str(tool.resolve()), 'version': log.read_text(errors='replace').strip()}
+        release = home/'release'
+        tools['release_sha256'] = sha256(release) if release.is_file() else None
+        modules = home/'lib/modules'
+        tools['modules_sha256'] = sha256(modules) if modules.is_file() else None
+        control.toolchain = tools
+        return home
+    control.env = cloudsim_runtime.java_environment(control.env, ROOT, verify=verify)
+    java = Path(control.env['JAVA_HOME'])/'bin/java' if control.env.get('JAVA_HOME') else Path('/missing-java')
+    try: java = java.resolve(strict=True)
+    except OSError as error:
+        raise ValueError(f'Java setup required: the selected Java is unavailable at {java}. '
+                         'Open Setup to select or install a full JDK 21, then Check again.') from error
+    javac = java.parent/'javac'
+    if not javac.is_file():
+        raise ValueError(f'Java setup required: {java} has no matching javac. '
+                         'Use Setup in the app, or run ./cloudsim.sh --setup to install a local JDK 21. '
+                         'Run ./cloudsim.sh --check to confirm setup; changing experiment settings cannot fix this.')
+    verify(java.parent.parent)
+    return java,require_memory(heap_mib)
+
+
+def finish(control, metadata, code, outer=None, console=None, on_complete=None):
+    """Restore presentation/signals and publish a detached copy of the retained outcome."""
+    try: control.restore()
+    except PresentationError as error:
+        code = code or 1
+        metadata.update(status='failed',error=sanitize(error))
+    metadata.update(exit_code=code,finished_at=stamp(),
+                    ui_warning=control.warning or getattr(control.dashboard,'warning',None))
+    try:
+        if outer: save_metadata(outer,metadata)
+        if on_complete:
+            try: on_complete(deepcopy(metadata))
+            except Exception as error:
+                code = code or 1
+                metadata.update(status='failed',exit_code=code,error=f'Completion presentation failed: {sanitize(error)}')
+                if outer: save_metadata(outer,metadata)
+    finally:
+        if console:
+            console.close()
+            if getattr(control.dashboard,'console',None) is console: control.dashboard.console = None
+    return code
+
+
+def main(argv=None, *, profile='research', dashboard=None, on_complete=None, invocation=None) -> int:
+    total = profile_total(profile)
     parser = argparse.ArgumentParser(description=__doc__,epilog='Requires a full JDK 21 (select with JAVA_HOME), Linux memory evidence, and Python 3.11+. Retained outputs are never deleted. Monitoring consumes some runtime resources.')
     parser.add_argument('--output-dir',type=Path,default=ROOT/'results',help='parent for a unique retained runner directory (default: project results)')
     parser.add_argument('--heap-mib',type=heap_value,default=1024,help='Java maximum heap in MiB (default: 1024, minimum: 512)')
     parser.add_argument('--config',type=Path,help='existing properties file; only master.seed and log.level are configurable')
     parser.add_argument('--plain','--no-tui',action='store_true',help='plain status lines')
     parser.add_argument('--skip-build',action='store_true',help='skip Maven clean verify and Python discovery; use the existing packaged JAR')
+    parser.add_argument('--force-build',action='store_true',help='run full verification even when a matching tested build exists')
+    parser.add_argument('--workers',type=worker_value,default='auto',help='independent case workers: auto or 1..32, bounded by CPU and shared heap')
     parser.add_argument('--check',action='store_true',help='check JDK/environment/memory only; do not build or run research')
     args = parser.parse_args(argv)
+    if args.skip_build and args.force_build: parser.error('--force-build and --skip-build are incompatible')
     outer = None
-    metadata = {'started_at':stamp(),'status':'preflight','exit_code':None,'profile':'research','heap_mib':args.heap_mib,
-                'skip_build':args.skip_build,'validation':'NOT_RUN','arguments':list(argv if argv is not None else sys.argv[1:])}
-    dashboard = Dashboard(plain=args.plain,heap_mib=args.heap_mib)
+    metadata = {'started_at':stamp(),'status':'preflight','exit_code':None,'profile':profile,'heap_mib':args.heap_mib,
+                'skip_build':args.skip_build,'validation':'NOT_RUN','tests':'NOT_RUN',
+                'arguments':list(argv if argv is not None else sys.argv[1:])}
+    metadata['execution'] = execution_settings(args.workers, args.heap_mib)
+    if invocation is not None: metadata['invocation'] = deepcopy(invocation)
+    supplied_dashboard = dashboard is not None
+    dashboard = dashboard if supplied_dashboard else Dashboard(plain=args.plain,heap_mib=args.heap_mib,title=profile.upper(),total=total)
     control = ProcessControl(dashboard,ROOT)
     control.install()
     code = 1
     console = None
     try:
-        check_java_options(os.environ)
+        args.output_dir = args.output_dir.resolve()
+        args.output_dir.mkdir(parents=True,exist_ok=True)
+        outer = Path(tempfile.mkdtemp(prefix=profile+'-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-',dir=args.output_dir))
+        control.root = outer
+        console = (outer/'console.log').open('a'); dashboard.console = console
+        metadata['output_directory'] = str(outer)
+        save_metadata(outer,metadata)
         if args.config:
             args.config = args.config.resolve(strict=True)
             if not args.config.is_file(): raise ValueError('Config must be an existing file')
-        java = Path(os.environ['JAVA_HOME'])/'bin/java' if os.environ.get('JAVA_HOME') else Path(shutil.which('java') or '/missing-java').resolve()
-        java = java.resolve(strict=True)
-        javac = java.parent/'javac'
-        if not javac.is_file(): raise ValueError('Select a full JDK 21 with JAVA_HOME (javac missing)')
-        # Temporary version logs are the only preflight artifacts; no results directory is created.
-        with tempfile.TemporaryDirectory(prefix='research-preflight-') as temporary:
-            for tool in (java,javac):
-                log = Path(temporary)/tool.name
-                result = control.run([str(tool),'-version'],log,'preflight',timeout=20)
-                if result or not re.search(r'(?:version\s+"?|javac\s+)21(?:[.\s"+-]|$)',log.read_text(errors='replace')):
-                    raise ValueError(f'{tool.name} must be version 21; select a full JDK 21 with JAVA_HOME')
-        available = require_memory(args.heap_mib)
+        java,available = check_environment(control,args.heap_mib)
         if args.check:
-            dashboard.render('preflight',{'detail':f'PASS: JDK 21; {available//MIB} MiB usable memory. No build/research/validation executed.'},force=True)
-            return 0
-        args.output_dir = args.output_dir.resolve()
-        args.output_dir.mkdir(parents=True,exist_ok=True)
-        outer = Path(tempfile.mkdtemp(prefix='research-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-',dir=args.output_dir))
-        control.root = outer
-        console = (outer/'console.log').open('a')
-        dashboard.console = console
-        metadata['status'] = 'provenance'; save_metadata(outer,metadata)
-        for arguments,name in [(['status','--porcelain'],'source-status'),(['rev-parse','HEAD'],'source-revision')]:
-            code = control.run(['git',*arguments],outer/f'{name}.log','preflight',cwd=ROOT,timeout=10,stderr_log=outer/f'{name}.stderr.log')
-            if code: raise ValueError(f'Git provenance failed with exit {code}; see {outer}/{name}.stderr.log')
-        status = (outer/'source-status.log').read_text(errors='replace')
-        revision = (outer/'source-revision.log').read_text(errors='replace').strip()
-        metadata.update(source_revision=revision,source_dirty=bool(status),source_status=status,java=str(java),
-                        config=str(args.config) if args.config else None,output_directory=str(outer))
-        save_metadata(outer,metadata)
-        if args.skip_build:
-            dashboard.render('build',{'detail':'SKIPPED: Maven clean verify and Python test discovery (--skip-build).'},force=True)
+            control.render('preflight',{'detail':f'PASS: JDK 21; {available//MIB} MiB usable memory. No build/research/validation executed.'},force=True)
+            metadata.update(status='checked')
+            code = 0
         else:
-            for command,log in [([str(ROOT/'mvnw'),'-B','clean','verify'],'build.log'),
-                                ([sys.executable,'-B','-m','unittest','discover','-s','scripts','-p','test_*.py'],'python-tests.log')]:
-                metadata['status']='build'; save_metadata(outer,metadata)
-                code = control.run(command,outer/log,'build',cwd=ROOT)
-                if code: raise ValueError(f'Build/check failed with exit {code}; see {outer/log}')
-        jars = list((ROOT/'target').glob('cloudsim-ho-research-v2-*.jar'))
-        if len(jars)!=1: raise ValueError('Expected exactly one packaged target/cloudsim-ho-research-v2-*.jar')
-        retained = outer/'research.jar'; shutil.copyfile(jars[0],retained)
-        digest = sha256(retained)
-        metadata.update(artifact_sha256=digest,artifact_source=str(jars[0]))
-        command = java_command(java,args.heap_mib,retained,outer,args.config)
-        metadata.update(java_command=command,status='research'); save_metadata(outer,metadata)
-        require_memory(args.heap_mib); control.check()
-        code = control.run(command,outer/'research.log','research',cwd=outer)
-        if code: raise ValueError(f'Research child failed with exit {code}; see {outer/"research.log"}')
-        run = completed_run(outer/'research',digest)
-        if sha256(retained)!=digest: raise ValueError('Retained JAR changed after launch')
-        artifact = json.loads((run/'run.json').read_text())
-        metadata.update(status='validation',run_directory=str(run),artifact_revision=artifact.get('git_revision'),artifact_dirty=artifact.get('git_dirty'))
-        save_metadata(outer,metadata)
-        require_memory(512); control.check()
-        code = control.run([sys.executable,'-B',str(ROOT/'scripts/statistics_validator.py'),str(run)],outer/'validation.log','validation',cwd=ROOT)
-        if code: raise ValueError(f'Independent validation failed with exit {code}; see {outer/"validation.log"}')
-        completed_run(outer/'research',digest)
-        if sha256(retained)!=digest: raise ValueError('Retained JAR changed during validation')
-        with (run/'analysis/pairwise_primary.csv').open(newline='') as claims:
-            decisions = [row['decision'] for row in csv.DictReader(claims)]
-        diagnostic = bool(status) or artifact.get('git_dirty') is not False or artifact.get('git_revision')!=revision or args.skip_build
-        detail = f'VALIDATED: 450/450; {decisions.count("CLAIM")} CLAIM, {decisions.count("NO_CLAIM")} NO_CLAIM. '+('Source/artifact diagnostics.' if diagnostic else 'Clean-source run.')
-        metadata.update(status='complete',validation='PASS',diagnostic=diagnostic,claims=decisions.count('CLAIM'),no_claim=decisions.count('NO_CLAIM'))
-        dashboard.render('complete',{'done':450,'detail':detail+f' Retained: {outer}'},force=True)
-        code = 0
+            code = run_profile(args,profile,total,java,metadata,control)
+            outer = control.root if control.root!=ROOT else None
+            console = getattr(dashboard,'console',None)
     except Interrupted as error:
         code = 128+error.signum
         metadata.update(status='interrupted',error=f'Interrupted by signal {error.signum}')
-        dashboard.render('interrupted',{'detail':metadata['error']+f'; retained: {outer}'},force=True)
     except (OSError,ValueError,KeyError,subprocess.SubprocessError) as error:
-        code = code if code not in (0,1) else 1
+        code = getattr(error,'exit_code',0) or getattr(control,'last_exit_code',0) or 1
         metadata.update(status='failed',error=sanitize(error))
-        dashboard.render('failed',{'detail':metadata['error']+f'; retained: {outer}'},force=True)
     finally:
-        control.restore()
-        metadata.update(exit_code=code,finished_at=stamp(),ui_warning=dashboard.warning)
-        if outer: save_metadata(outer,metadata)
-        if console: console.close()
-        if outer:
+        outer = control.root if control.root!=ROOT else None
+        console = getattr(dashboard,'console',None)
+        if metadata['status'] in ('failed','interrupted'):
+            try: control.render(metadata['status'],{'detail':metadata['error']+f'; retained: {outer}'},force=True)
+            except PresentationError: pass
+        code = finish(control,metadata,code,outer,console,on_complete)
+        if outer and not supplied_dashboard:
             try: print(f'Retained results: {sanitize(outer)}')
             except (OSError,ValueError): pass
     return code
+
+
+def prepare_artifact(args, metadata, control, outer, profile, *, root=None):
+    root = ROOT if root is None else root
+    retained = outer/f'{profile}.jar'
+    if args.skip_build:
+        control.render('build', {'detail': 'SKIPPED: diagnostic build skip; verification NOT RUN.'}, force=True)
+        with cloudsim_build.build_lock(root, control):
+            jars = list((root/'target').glob('cloudsim-ho-research-v2-*.jar'))
+            if len(jars) != 1: raise ValueError('Expected exactly one packaged target JAR')
+            source = jars[0]
+            shutil.copyfile(source, retained)
+        metadata['build'] = 'SKIPPED_DIAGNOSTIC'
+    else:
+        metadata['status'] = 'build'; save_metadata(outer, metadata)
+        source = cloudsim_build.ensure_verified_build(root, control, metadata, outer, force=args.force_build)
+        shutil.copyfile(source, retained)
+        expected = metadata['build_receipt']['artifact']['sha256']
+        if sha256(retained) != expected or sha256(source) != expected:
+            metadata['tests'] = 'FAILED'
+            raise ValueError('Campaign JAR does not match its verified receipt; no experiment was started.')
+    return retained, source
+
+
+def run_profile(args,profile,total,java,metadata,control):
+    dashboard = control.dashboard
+    # Build receipts preserve full verification; experiments still validate independently.
+    outer = control.root
+    metadata['status'] = 'provenance'; save_metadata(outer,metadata)
+    for arguments,name in [(['status','--porcelain'],'source-status'),(['rev-parse','HEAD'],'source-revision')]:
+        code = control.run(['git',*arguments],outer/f'{name}.log','preflight',cwd=ROOT,timeout=10,stderr_log=outer/f'{name}.stderr.log')
+        if code: raise ValueError(f'Git provenance failed with exit {code}; see {outer}/{name}.stderr.log')
+    status = (outer/'source-status.log').read_text(errors='replace')
+    revision = (outer/'source-revision.log').read_text(errors='replace').strip()
+    metadata.update(source_revision=revision,source_dirty=bool(status),source_status=status,java=str(java),
+                    config=str(args.config) if args.config else None,output_directory=str(outer))
+    save_metadata(outer,metadata)
+    retained, artifact_source = prepare_artifact(args, metadata, control, outer, profile)
+    save_metadata(outer,metadata)
+    digest = sha256(retained)
+    metadata.update(artifact_sha256=digest,artifact_source=str(artifact_source))
+    command = java_command(java,args.heap_mib,retained,outer,args.config,profile=profile,workers=metadata['execution']['workers'])
+    metadata.update(java_command=command,status=profile); save_metadata(outer,metadata)
+    require_memory(args.heap_mib); control.check()
+    code = control.run(command,outer/f'{profile}.log',profile,cwd=outer,
+                       progress_reader=lambda:read_progress(outer/profile,profile=profile))
+    if code: raise ValueError(f'{profile.capitalize()} child failed with exit {code}; see {outer/f"{profile}.log"}')
+    run = completed_run(outer/profile,digest,profile=profile)
+    if sha256(retained)!=digest: raise ValueError('Retained JAR changed after launch')
+    artifact = json.loads((run/'run.json').read_text())
+    metadata.update(status='validation',run_directory=str(run),artifact_revision=artifact.get('git_revision'),artifact_dirty=artifact.get('git_dirty'))
+    save_metadata(outer,metadata)
+    require_memory(512); control.check()
+    code = control.run([sys.executable,'-B',str(ROOT/'scripts/statistics_validator.py'),str(run)],outer/'validation.log','validation',cwd=ROOT)
+    if code: raise ValueError(f'Independent validation failed with exit {code}; see {outer/"validation.log"}')
+    completed_run(outer/profile,digest,profile=profile)
+    if sha256(retained)!=digest: raise ValueError('Retained JAR changed during validation')
+    diagnostic = bool(status) or artifact.get('git_dirty') is not False or artifact.get('git_revision')!=revision or args.skip_build
+    detail = f'VALIDATED: {total}/{total}; '
+    if profile=='research':
+        with (run/'analysis/pairwise_primary.csv').open(newline='') as claims:
+            decisions = [row['decision'] for row in csv.DictReader(claims)]
+        metadata.update(claims=decisions.count('CLAIM'),no_claim=decisions.count('NO_CLAIM'))
+        detail += f'{decisions.count("CLAIM")} CLAIM, {decisions.count("NO_CLAIM")} NO_CLAIM. '
+    else: detail += f'{profile.capitalize()} frozen profile; no research claims. '
+    detail += 'Source/artifact diagnostics.' if diagnostic else 'Clean-source run.'
+    metadata.update(status='complete',validation='PASS',diagnostic=diagnostic)
+    control.render('complete',{'done':total,'total':total,'detail':detail+f' Retained: {outer}'},force=True)
+    return 0
 
 
 if __name__=='__main__': sys.exit(main())

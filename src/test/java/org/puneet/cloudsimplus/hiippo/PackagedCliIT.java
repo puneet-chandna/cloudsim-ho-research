@@ -25,6 +25,12 @@ class PackagedCliIT {
     @Test void informationalCommandsHaveNoSideEffects() throws Exception {
         for (var args : List.of(new String[]{}, new String[]{"--help"}, new String[]{"--version"})) {
             assertEquals(0, run(args));
+            if (args.length == 0 || args[0].equals("--help")) {
+                var help=Files.readString(temp.resolve("console.txt"));
+                assertTrue(help.contains("--profile smoke|explore|research"));
+                assertTrue(help.contains("--profile stress"));
+                assertTrue(help.contains("./run-stress.sh --help"));
+            }
             try(var paths = Files.list(temp)) { assertEquals(List.of("console.txt"), paths.map(p -> p.getFileName().toString()).toList()); }
         }
     }
@@ -143,6 +149,19 @@ class PackagedCliIT {
     @Test void invalidOutputIsRuntimeFailure() throws Exception {
         Files.writeString(temp.resolve("file"),"occupied");
         assertEquals(1,run("--profile","smoke","--output-dir","file"));
+    }
+    @Test void stressDispatchPreservesValidationAndIsolatesFrozenProfile() throws Exception {
+        var args=new String[]{"--profile","stress","--vms","10","--hosts","3","--population","4","--iterations","2","--replications","2","--seed","123456","--experiment-phase","stress","--output-dir","stress results"};
+        assertEquals(0,run(args));
+        try(var dirs=Files.list(temp.resolve("stress results"))) {
+            var manifest=JsonParser.parseString(Files.readString(dirs.findFirst().orElseThrow().resolve("run.json"))).getAsJsonObject();
+            assertEquals("COMPLETE",manifest.get("state").getAsString()); assertEquals(8,manifest.get("successful_cases").getAsInt());
+            assertTrue(manifest.get("artifact_sha256").getAsString().matches("[a-f0-9]{64}"));
+        }
+        var duplicate=new ArrayList<>(List.of(args)); duplicate.addAll(List.of("--profile","stress"));
+        assertEquals(2,run(duplicate.toArray(String[]::new)));
+        assertEquals(2,run("--profile","research","--vms","10"));
+        args[11]="2147483647"; assertEquals(2,run(args));
     }
     @Test void invalidPropertyOverlayIsConfigFailureWithoutOutput() throws Exception {
         Files.writeString(temp.resolve("config.properties"),"master.seed=1\nmaster\\u002eseed=2\n");

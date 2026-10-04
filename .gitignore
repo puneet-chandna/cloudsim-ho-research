@@ -63,3 +63,5 @@ hs_err_pid*
 # Local research documentation and recovery workspace
 /docs/
 /.superpowers/
+/.cloudsim/
+__pycache__/
