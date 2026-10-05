@@ -1,6 +1,7 @@
 """Explicit project-local setup; no global installs or shell configuration changes."""
 import hashlib
 import ctypes
+import errno
 from functools import lru_cache
 import importlib.metadata
 import json
@@ -121,15 +122,39 @@ def mac_process_info(pid):
 
 def mac_group_members(group):
     library = _mac_libproc()
+    def query(buffer, size):
+        ctypes.set_errno(0)
+        count = library.proc_listpids(2, group, buffer, size)
+        error = ctypes.get_errno()
+        if count < 0 or (count == 0 and error):
+            raise OSError(error or errno.EIO, 'Cannot enumerate macOS process group')
+        return count
     # PROC_PGRP_ONLY = 2; grow if the group changed during the size probe.
-    size = max(256, library.proc_listpids(2, group, None, 0)+64)
+    size = max(256, query(None, 0)+64)
     while size <= 1024*1024:
         buffer = (ctypes.c_int*(size//ctypes.sizeof(ctypes.c_int)))()
-        count = library.proc_listpids(2, group, buffer, ctypes.sizeof(buffer))
-        if count <= 0: return []
+        count = query(buffer, ctypes.sizeof(buffer))
+        if count == 0: return []
         if count < ctypes.sizeof(buffer): return [pid for pid in buffer[:count//4] if pid > 0]
         size *= 2
-    return []
+    raise OSError(errno.EOVERFLOW, 'macOS process group exceeds probe limit')
+
+
+def mac_group_exited(group):
+    """Confirm an empty/zombie-only group; unknown native state fails closed."""
+    library = _mac_libproc()
+    for pid in mac_group_members(group):
+        info = _MacBsdInfo()
+        ctypes.set_errno(0)
+        # PROC_PIDTBSDINFO = 3, argument 1 includes zombies (SZOMB = 5).
+        count = library.proc_pidinfo(pid, 3, 1, ctypes.byref(info), ctypes.sizeof(info))
+        if count != ctypes.sizeof(info):
+            error = ctypes.get_errno()
+            if error == errno.ESRCH: continue  # Member exited after enumeration.
+            raise OSError(error or errno.EIO, 'Cannot verify macOS process group member')
+        if info.pid != pid: raise OSError(errno.EIO, 'macOS process identity mismatch')
+        if info.pgid == group and info.status != 5: return False
+    return True
 
 
 def settings(root=ROOT):

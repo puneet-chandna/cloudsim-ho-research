@@ -17,7 +17,7 @@ class ExistingValidationTests(unittest.TestCase):
         self.validation = importlib.import_module('run_validation')
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.base = Path(self.temp.name)
+        self.base = Path(self.temp.name).resolve()
         self.root = self.base/'campaign'
         self.root.mkdir()
 

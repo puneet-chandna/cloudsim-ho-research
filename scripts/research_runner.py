@@ -294,19 +294,26 @@ class ProcessControl:
         self.handlers.clear()
         self.present('close')
 
+    def _signal_group(self,pid,number):
+        try: os.killpg(pid,number)
+        except ProcessLookupError: return False
+        except PermissionError:
+            # Darwin reports EPERM for zombie-only groups. A real live member
+            # or an unreadable native probe must still propagate the failure.
+            if sys.platform == 'darwin' and cloudsim_runtime.mac_group_exited(pid): return False
+            raise
+        return True
+
     def stop(self,child):
-        try: os.killpg(child.pid,signal.SIGTERM)
-        except ProcessLookupError: child.wait(); return
+        if not self._signal_group(child.pid,signal.SIGTERM): child.wait(); return
         deadline = time.monotonic()+3
         while time.monotonic()<deadline:
             try: self.present('poll',self)
             except Exception: pass  # Presentation must never prevent owned-group cleanup.
             child.poll()
-            try: os.killpg(child.pid,0)
-            except ProcessLookupError: child.wait(); return
+            if not self._signal_group(child.pid,0): child.wait(); return
             time.sleep(.05)
-        try: os.killpg(child.pid,signal.SIGKILL)
-        except ProcessLookupError: pass
+        self._signal_group(child.pid,signal.SIGKILL)
         child.wait(timeout=3)
 
     def run(self,command,log,stage,cwd=None,timeout=12*60*60,stderr_log=None,deadline=None,progress_reader=None):

@@ -1,5 +1,6 @@
 """macOS probe contracts; native process checks also run on macOS CI."""
 import ctypes
+import errno
 import os
 import signal
 import subprocess
@@ -238,3 +239,55 @@ class MacCleanupOracleTests(unittest.TestCase):
 
 
 if __name__=='__main__': unittest.main()
+
+
+class MacRunnerGroupCompletionTests(unittest.TestCase):
+    def control(self):
+        from pathlib import Path
+        return runner.ProcessControl(runner.Dashboard(plain=True), Path(__file__).resolve().parents[1])
+
+    def library(self, statuses):
+        def query(pid, flavor, argument, pointer, size):
+            self.assertEqual((flavor, argument, size), (3, 1, 136))
+            info = pointer._obj
+            info.pid = pid; info.pgid = 100; info.status = statuses[pid]
+            return size
+        return SimpleNamespace(proc_pidinfo=query)
+
+    def test_zombie_only_group_does_not_override_child_exit(self):
+        for failed_signal in (signal.SIGTERM, 0):
+            with self.subTest(failed_signal=failed_signal):
+                control = self.control()
+                child = SimpleNamespace(pid=100, poll=lambda:0, wait=lambda **kwargs:0)
+                def kill(group, number):
+                    if number == failed_signal: raise PermissionError(errno.EPERM, 'Operation not permitted')
+                with patch.object(runtime.sys, 'platform', 'darwin'), \
+                     patch.object(runtime, 'mac_group_members', return_value=[100,101]), \
+                     patch.object(runtime, '_mac_libproc', return_value=self.library({100:5,101:5})), \
+                     patch.object(runner.os, 'killpg', side_effect=kill):
+                    try: control.stop(child)
+                    except PermissionError: self.fail('Zombie-only Darwin group must preserve the child outcome')
+
+    def test_permission_error_with_a_live_group_member_remains_an_error(self):
+        control = self.control()
+        child = SimpleNamespace(pid=100, wait=lambda **kwargs:0)
+        with patch.object(runtime.sys, 'platform', 'darwin'), \
+             patch.object(runtime, 'mac_group_members', return_value=[100,101]), \
+             patch.object(runtime, '_mac_libproc', return_value=self.library({100:5,101:2})), \
+             patch.object(runner.os, 'killpg', side_effect=PermissionError(errno.EPERM, 'Operation not permitted')):
+            with self.assertRaises(PermissionError): control.stop(child)
+
+    def test_unknown_native_group_state_cannot_be_reported_as_exited(self):
+        control = self.control()
+        child = SimpleNamespace(pid=100, wait=lambda **kwargs:0)
+        def query(*args): ctypes.set_errno(errno.EACCES); return 0
+        with patch.object(runtime.sys, 'platform', 'darwin'), \
+             patch.object(runtime, 'mac_group_members', return_value=[100]), \
+             patch.object(runtime, '_mac_libproc', return_value=SimpleNamespace(proc_pidinfo=query)), \
+             patch.object(runner.os, 'killpg', side_effect=PermissionError(errno.EPERM, 'Operation not permitted')):
+            with self.assertRaises(PermissionError): control.stop(child)
+
+    def test_native_group_enumeration_failure_is_not_an_empty_group(self):
+        def query(*args): ctypes.set_errno(errno.EPERM); return -1
+        with patch.object(runtime, '_mac_libproc', return_value=SimpleNamespace(proc_listpids=query)):
+            with self.assertRaises(PermissionError): runtime.mac_group_members(100)

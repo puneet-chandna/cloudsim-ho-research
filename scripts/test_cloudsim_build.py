@@ -65,7 +65,7 @@ class VerifiedBuildTests(unittest.TestCase):
         self.assertIsNotNone(build, 'Verified-build helper has not been implemented')
         self.temp = tempfile.TemporaryDirectory(prefix='verified build checks ')
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)/'project'
+        self.root = Path(self.temp.name).resolve()/'project'
         for directory in ('src/main', '.mvn/wrapper', 'scripts', '.git/refs/heads', 'jdk/bin'):
             (self.root/directory).mkdir(parents=True, exist_ok=True)
         for name, content in {

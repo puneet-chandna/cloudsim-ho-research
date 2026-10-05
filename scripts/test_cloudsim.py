@@ -23,7 +23,7 @@ class LauncherTests(unittest.TestCase):
         spec.loader.exec_module(self.cli)
         self.temp = tempfile.TemporaryDirectory(prefix='launcher checks ')
         self.addCleanup(self.temp.cleanup)
-        self.base = Path(self.temp.name)
+        self.base = Path(self.temp.name).resolve()
 
     def rejected(self, arguments):
         with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as caught:
@@ -179,7 +179,9 @@ class LauncherTests(unittest.TestCase):
         for profile, cases in [('smoke', 4), ('explore', 40), ('research', 450)]:
             args = self.cli.parse_args(['--profile', profile, '--dry-run', '--config',
                                         str(self.config('master.seed=-9\nlog.level=DEBUG'))])
-            with patch.object(self.cli.subprocess, 'Popen', side_effect=AssertionError('child launched')):
+            with patch.object(self.cli.shared, 'physical_memory', return_value=8*1024**3), \
+                 patch.object(self.cli.shared, 'usable_memory', return_value=4*1024**3), \
+                 patch.object(self.cli.subprocess, 'Popen', side_effect=AssertionError('child launched')):
                 data = self.cli.preview(args)
             self.assertEqual(data['planned_work']['expected_cases'], cases)
             self.assertEqual(data['effective_config']['master.seed'], '-9')

@@ -17,7 +17,7 @@ class InstalledUiTests(unittest.IsolatedAsyncioTestCase):
             app = CloudSimApp()
             async with app.run_test(size=(80,24)):
                 self.assertEqual(app.TITLE,'Lattora')
-                self.assertEqual(app.output_parent,Path(temporary)/('Library/Application Support/lattora/results' if sys.platform=='darwin' else '.local/share/lattora/results'))
+                self.assertEqual(app.output_parent,(Path(temporary)/('Library/Application Support/lattora/results' if sys.platform=='darwin' else '.local/share/lattora/results')).resolve())
                 for selector in ('#build','#test','#force-build','#skip-build','#install-jdk','#select-jdk'):
                     self.assertFalse(app.query_one(selector).display,selector)
                 self.assertIn('bundled',str(app.query_one('#setup-copy').render()).lower())

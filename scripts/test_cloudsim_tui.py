@@ -23,7 +23,7 @@ class InterfaceTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         jdk = self.root/'jdk/bin'; jdk.mkdir(parents=True)
         for name, version in (('java', 'openjdk version "21.0.1"'), ('javac', 'javac 21.0.1')):
             path = jdk/name
