@@ -57,7 +57,7 @@ jobs:
           python3 -m pip install --require-hashes --only-binary=:all: -r packaging/requirements-ui.lock
       - name: Full Java and Python verification with receipt
         run: |
-          if [ "$RUNNER_OS" = macOS ]; then sudo /usr/bin/purge; fi
+          if [ "$RUNNER_OS" = macOS ]; then sudo /usr/sbin/purge; fi
           ./cloudsim.sh --test --plain --output-dir .cloudsim/native-verification
       - name: Assemble the native standalone archive
         env:
@@ -67,7 +67,7 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
         run: |
-          if [ "$RUNNER_OS" = macOS ]; then sudo /usr/bin/purge; fi
+          if [ "$RUNNER_OS" = macOS ]; then sudo /usr/sbin/purge; fi
           python3 -B scripts/accept_lattora.py --archive target/distribution/lattora-*"$TARGET".tar.gz --report "target/distribution/acceptance-$TARGET.json"
       - name: Verify explicit update networking with bundled Python
         env:
