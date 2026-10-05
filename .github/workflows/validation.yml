@@ -65,14 +65,20 @@ jobs:
         run: |
           test "$(uname -m)" = arm64
           ./cloudsim.sh --setup
+          # Reclaim setup's disk cache on the 7 GB runner; retain the real
+          # application's 3 GiB minimum and every subsequent memory check.
+          sudo /usr/bin/purge
           ./cloudsim.sh --check --plain --output-dir .cloudsim/ci/check
           ./run-research.sh --check --plain
       - name: Verify the packaged artifact, native probes and terminal workflows
         shell: bash
-        run: ./cloudsim.sh --test --plain --output-dir .cloudsim/ci/test
+        run: |
+          sudo /usr/bin/purge
+          ./cloudsim.sh --test --plain --output-dir .cloudsim/ci/test
       - name: Run and independently validate every frozen profile
         shell: bash
         run: |
+          sudo /usr/bin/purge
           for profile in smoke explore research; do
             ./cloudsim.sh --profile "$profile" --workers 1 --plain --output-dir ".cloudsim/ci/$profile"
           done
