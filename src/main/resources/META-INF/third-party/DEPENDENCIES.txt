@@ -1,0 +1,43 @@
+Third-party inventory for Lattora engine
+
+These are the exact runtime artifacts included in the shaded JAR. Coordinates
+are sorted; declarations come from the pinned Maven POMs/parent POMs and
+upstream license files. This is technical attribution, not a legal clearance
+or a change to this project's license. Publication requires a separate gate.
+Test/build-only dependencies are not included in this artifact inventory.
+
+coordinate | declared license | source repository | included text
+ch.qos.logback:logback-classic:1.6.4 | EPL-2.0 OR LGPL-2.1-only | https://github.com/qos-ch/logback | EPL-2.0.txt, LGPL-2.1.txt, Logback-NOTICE.txt
+ch.qos.logback:logback-core:1.6.4 | EPL-2.0 OR LGPL-2.1-only | https://github.com/qos-ch/logback | EPL-2.0.txt, LGPL-2.1.txt, Logback-NOTICE.txt
+com.google.code.gson:gson:2.12.1 | Apache-2.0 | https://github.com/google/gson | Apache-2.0.txt
+com.google.errorprone:error_prone_annotations:2.36.0 | Apache-2.0 | https://github.com/google/error-prone | Apache-2.0.txt
+org.apache.commons:commons-collections4:4.4 | Apache-2.0 | https://github.com/apache/commons-collections | Apache-2.0.txt, commons-collections4-NOTICE.txt
+org.apache.commons:commons-csv:1.10.0 | Apache-2.0 | https://github.com/apache/commons-csv | Apache-2.0.txt, commons-csv-NOTICE.txt
+org.apache.commons:commons-lang3:3.18.0 | Apache-2.0 | https://github.com/apache/commons-lang | Apache-2.0.txt, commons-lang3-NOTICE.txt
+org.apache.commons:commons-math3:3.6.1 | Apache-2.0 | https://github.com/apache/commons-math | Apache-2.0.txt, commons-math3-NOTICE.txt
+org.cloudsimplus:cloudsimplus:8.5.7 | GPL-3.0 | https://github.com/cloudsimplus/cloudsimplus | GPL-3.0.txt
+org.jetbrains:annotations:26.0.2 | Apache-2.0 | https://github.com/JetBrains/java-annotations | Apache-2.0.txt
+org.projectlombok:lombok:1.18.38 | MIT and bundled component notices | https://github.com/projectlombok/lombok | Lombok-MIT.txt
+org.slf4j:slf4j-api:2.0.20 | MIT | https://github.com/qos-ch/slf4j | SLF4J-MIT.txt
+
+Text provenance:
+- Apache-2.0.txt, GPL-3.0.txt and LGPL-2.1.txt: standard full license texts from
+  /usr/share/common-licenses (Apache-2.0, GPL-3 and LGPL-2.1 respectively).
+  Canonical publishers: https://www.apache.org/licenses/LICENSE-2.0.txt,
+  https://www.gnu.org/licenses/gpl-3.0.txt and
+  https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt.
+- EPL-2.0.txt: SPDX license-list-data v3.27.0 text/EPL-2.0.txt; canonical publisher:
+  https://www.eclipse.org/legal/epl-2.0/.
+- Logback-NOTICE.txt: upstream v_1.6.4/logback-core/LICENSE.txt (identical to
+  logback-classic/LICENSE.txt), recording the dual-license
+  choice and QOS.ch attribution.
+- SLF4J-MIT.txt, Lombok-MIT.txt and the four Commons NOTICE files are copied
+  from the exact dependency JARs named above. Lombok-MIT.txt retains its ASM,
+  cmdreader and lombok.patcher notices. The pre-existing shaded root LICENSE
+  is Lombok's; it does not describe every dependency or this project.
+- CloudSim Plus 8.5.7 POM declares GPLv3; the artifact contains no license
+  resource, hence the full GPL-3.0 text is supplied here explicitly.
+
+Maintain this inventory and its license resources whenever runtime dependencies
+change. Source URLs identify upstream source projects/releases, not a claim
+that this artifact alone satisfies every distribution obligation.

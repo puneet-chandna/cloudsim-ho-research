@@ -1,142 +1,165 @@
-<div align="center">
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="logo/dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="logo/light.svg">
+    <img src="logo/light.svg" alt="Lattora" width="400" height="116">
+  </picture>
+</p>
+<p align="center">
+  <strong>Reproducible VM placement experiments, in your terminal.</strong>
+</p>
+<p align="center">
+  2.1.0 · Linux x86-64 · Linux ARM64 · macOS Apple Silicon
+</p>
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#your-first-experiment">Quickstart</a> ·
+  <a href="#commands">Commands</a> ·
+  <a href="EXPERIMENTS.md">Experiment guide</a> ·
+  <a href="CONTRIBUTING.md">Contribute</a>
+</p>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="logo/dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="logo/dark.svg">
-  <img alt="CloudSim-HO-Research-V2" src="logo/dark.svg" width="500">
-</picture>
+Lattora compares Hippopotamus Optimization (HO), Genetic Algorithm (GA),
+FirstFit and BestFit for static VM placement with **CloudSim Plus 8.5.7**.
+Plan, run and inspect experiments in one terminal workbench.
 
-<br/>
-<br/>
+- Choose frozen Research or configurable, descriptive Stress.
+- Follow live progress; inspect units and recorded validation.
+- Work offline with bundled runtimes, engine and independent validators.
+- Update manually or roll back; keep your experiments and settings.
 
-**A research framework for evaluating the Hippopotamus Optimization (HO) algorithm for Virtual Machine placement in cloud data centers.**
+<p align="center">
+  <a href="media/workbench.gif"><img src="media/workbench.gif" alt="Lattora workbench showing retained Smoke results, evidence, Stress controls and Harbor, Ember and Paper themes" width="800"></a>
+</p>
+<p align="center">
+  <sub>Tour of the workbench: browse a retained Smoke run and switch themes. Stress screens show configuration only. <a href="media/README.md">Capture notes</a>.</sub>
+</p>
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge)](.)
-[![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](./LICENSE)
-[![Java](https://img.shields.io/badge/Java-21-orange?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/)
-[![Maven](https://img.shields.io/badge/Maven-3.9+-C71A36?style=for-the-badge&logo=apachemaven&logoColor=white)](https://maven.apache.org/)
+## Install
 
-[Documentation](https://cloudsim-ho-project.puneetchandna.com/) · [Contributing](CONTRIBUTING.md) · [Report Bug](https://github.com/puneet-chandna/cloudsim-ho-research-V2/issues)
+**Linux and macOS use the same installer and the same `lattora` command.**
+The standalone app needs no Python, Java, Git or Maven installation.
 
-</div>
-
----
-
-## ✨ Highlights
-
-- 🦛 **Hippopotamus Optimization (HO)** — A comprehensive implementation of the HO algorithm for VM placement.
-- 📊 **Comparative Analysis** — Robust benchmarking against FirstFit, BestFit, and Genetic Algorithm (GA) strategies.
-- 🔬 **Parameter Sensitivity Analysis** — In-depth studies on algorithm parameters and scalability.
-- 📈 **Detailed Metrics** — Resource utilization, SLA violations, and power consumption analysis.
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-Ensure you have the following installed:
-
-| Tool  | Version |
-| :---- | :------ |
-| Java  | 21+     |
-| Maven | 3.9+    |
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/puneet-chandna/cloudsim-ho-research-V2.git
-
-# Navigate to the project directory
-cd cloudsim-ho-research-V2
-
-# Build the project
-mvn clean install
+```sh
+curl -fsSL https://github.com/puneet-chandna/Lattora/releases/latest/download/install.sh | bash
 ```
 
----
+Open a new terminal, or run the activation command printed by the installer, then:
 
-## ⚙️ Usage
-
-### Running Experiments
-
-Run the default experiment suite (Micro, Small, and Medium scenarios):
-
-<details>
-<summary><strong>PowerShell</strong></summary>
-
-```powershell
-./run-experiment.ps1
+```sh
+lattora
 ```
 
-</details>
+The installer verifies and health-checks the archive before activation. It adds
+`~/.local/bin` to Bash, Zsh or Fish configuration once and preserves unrelated
+commands. [Installer options](DISTRIBUTION.md#installer-options) cover pinned
+versions and `--no-modify-path`.
 
-<details>
-<summary><strong>Bash</strong></summary>
+Supported packages target glibc Linux x86-64, glibc Linux ARM64 and native
+Apple Silicon macOS. Windows, Intel macOS, 32-bit ARM and Alpine/musl packages
+are deferred. Runs require at least 3 GiB usable memory and enough headroom for
+the selected heap; `lattora doctor` checks your environment.
 
-```bash
-./run-experiment.sh
+## Your first experiment
+
+In the TUI, choose **Smoke**, review the run plan, and start. Run, Results,
+Tools and Setup stay accessible while work is in progress. `F1` opens help,
+`F2` through `F5` switch tabs, `Ctrl+R` starts a run, `Ctrl+C` opens cancellation,
+and `Ctrl+Q` quits. Harbor, Ember and Paper themes are available in Setup.
+
+For a command-driven run on either Linux or macOS:
+
+```sh
+lattora run --profile smoke
+# Independently recheck the campaign directory printed by the run:
+lattora validate "/path/to/retained/campaign" --plain
 ```
 
-</details>
+Each run retains its inputs, logs, raw results and validation evidence. Open
+**Results** to inspect them or repeat validation. Experiments work offline;
+launching Lattora never checks for updates.
 
-### Running the Simulation from JAR
+## Profiles
 
-Execute the simulation directly from the compiled JAR file:
+| Profile | Purpose | VMs per scenario | Cases |
+| --- | --- | --- | --- |
+| `smoke` | Check the complete experiment pipeline | 10 | 4 |
+| `explore` | Inspect descriptive comparisons | 10, 50 | 40 |
+| `research` | Run the frozen protocol and sensitivity analysis | 10, 50, 100 | 450 |
+| `stress` | Measure a configurable static campaign | User selected | Depends on settings |
 
-<details>
-<summary><strong>PowerShell</strong></summary>
-
-```powershell
-./run-simulation.ps1
+```sh
+lattora run --profile explore
+lattora run --profile research --workers 2 --heap-mib 1024
 ```
 
-</details>
+Research settings and its 100-VM ceiling are fixed. Stress is descriptive and
+does not extend the frozen research claims. The [experiment guide](EXPERIMENTS.md)
+explains budgets, configuration, bounded Stress examples and output files.
+Use `lattora run --help` for all experiment options.
 
-<details>
-<summary><strong>Bash</strong></summary>
+<p align="center">
+  <a href="media/stress-paper.png"><img src="media/stress-paper.png" alt="Paper theme with editable Stress settings and the calibration plan for 50 VMs" width="800"></a>
+</p>
+<p align="center"><sub>Stress in Paper: size, search effort and calibrations. Configuration preview; not executed.</sub></p>
 
-```bash
-./run-simulation.sh
-```
+## Commands
 
-</details>
+| Command | What it does |
+| --- | --- |
+| `lattora` | Open the terminal workbench |
+| `lattora run --profile PROFILE` | Run Smoke, Explore, Research or Stress |
+| `lattora validate DIRECTORY` | Independently validate retained results |
+| `lattora doctor` | Check installation, runtimes, memory and data paths |
+| `lattora --version` | Print the installed version |
+| `lattora update --check` | Check for a newer stable release |
+| `lattora update [VERSION]` | Install the latest stable or a specified version |
+| `lattora rollback` | Restore the previously active version |
+| `lattora completion bash` | Print completions (also `zsh` and `fish`) |
+| `lattora uninstall` | Remove the app while retaining results and settings |
 
----
+Failed updates keep the active installation usable. Existing sessions keep
+their release; new commands use the activated version. Updates and rollback
+preserve user data.
 
-## 📚 Documentation
+## Results and interpretation
 
-For comprehensive guides, API references, and conceptual explanations, visit the **[official documentation](https://cloudsim-ho-project.puneetchandna.com/)**.
+<p align="center">
+  <a href="media/smoke-results.png"><img src="media/smoke-results.png" alt="Retained Smoke results with algorithm means in joules, SLA percent and milliseconds, recorded validation and no research claims" width="800"></a>
+</p>
+<p align="center"><sub>Smoke results: observed means, units and recorded checks. A pipeline check, with no research claim.</sub></p>
 
----
+Installed experiments default to a central results library:
 
-## 🤝 Contributing
+| Platform | Results | Settings |
+| --- | --- | --- |
+| Linux | `~/.local/share/lattora/results/` | `~/.config/lattora/settings.json` |
+| macOS | `~/Library/Application Support/lattora/results/` | `~/Library/Application Support/lattora/settings.json` |
 
-Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) for details on how to get started.
+Linux respects `XDG_DATA_HOME`, `XDG_CONFIG_HOME` and `XDG_CACHE_HOME`. Explicit
+`--output-dir` and `--config` paths are relative to the directory where you invoke
+the command. See [storage and recovery](DISTRIBUTION.md#installation-and-recovery)
+for cache paths and installation layout.
 
----
+Results are conditional on a synthetic, static simulator model. Lattora claims
+no algorithm winner or real datacenter saving. Research reports `NO_CLAIM`
+when the required statistical inference is degenerate. Only complete,
+independently validated datasets are eligible evidence; pre-v2 results and
+interrupted runs are not. Installed runs record release verification separately
+and keep local tests marked `NOT_RUN`.
 
-## 📜 Code of Conduct
+## Development and documentation
 
-This project adheres to a [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
+Contributors use `./lattora.sh` in a source checkout for setup, builds and tests.
+The [development guide](DEVELOPMENT.md) covers Linux and Apple Silicon setup,
+JDK selection and direct engine commands.
 
----
+[Experiments](EXPERIMENTS.md) · [Contributing](CONTRIBUTING.md) ·
+[Packaging and release](DISTRIBUTION.md) ·
+[Project documentation](https://lattora.puneetchandna.com/) ·
+[Code of conduct](CODE_OF_CONDUCT.md)
 
-## 📄 License
-
-This project is licensed under the [MIT License](./LICENSE).
-
----
-
-## 🙏 Acknowledgments
-
-This project is built on top of **[CloudSim Plus](https://cloudsimplus.org/)**, a modern and full-featured framework for modeling and simulating cloud computing environments.
-
----
-
-<div align="center">
-
-Made with ❤️ by [Puneet Chandna](https://github.com/puneet-chandna)
-
-</div>
+Project source uses the [MIT license](LICENSE). Bundled dependencies retain
+their own licenses, including CloudSim Plus GPL-3.0; see the
+[dependency inventory](src/main/resources/META-INF/third-party/DEPENDENCIES.txt),
+[matching source materials](SOURCES.md) and [distribution guide](DISTRIBUTION.md#acceptance-and-release).

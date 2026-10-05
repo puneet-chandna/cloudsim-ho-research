@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="128" viewBox="0 0 440 128" role="img" aria-labelledby="title">
+  <title id="title">Lattora</title>
+  <rect x="12" y="16" width="96" height="96" rx="18" fill="#132b34"/>
+  <path d="M34 39v49h51M50 39v32h35M66 39v15h19" fill="none" stroke="#72d1bd" stroke-width="7" stroke-linejoin="round"/>
+  <text x="136" y="94" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="76" font-weight="600" letter-spacing="-4" textLength="292" lengthAdjust="spacingAndGlyphs" fill="#244e55">Lattora</text>
+</svg>

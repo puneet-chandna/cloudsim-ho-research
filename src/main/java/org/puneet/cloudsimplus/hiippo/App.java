@@ -1,64 +1,38 @@
 package org.puneet.cloudsimplus.hiippo;
 
-import org.puneet.cloudsimplus.hiippo.simulation.ExperimentCoordinator;
-import org.puneet.cloudsimplus.hiippo.simulation.TestScenarios;
-import org.puneet.cloudsimplus.hiippo.util.ExperimentConfig;
-import org.puneet.cloudsimplus.hiippo.util.RunManager;
-import org.puneet.cloudsimplus.hiippo.util.CSVResultsWriter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.puneet.cloudsimplus.hiippo.runtime.RunConfig;
+import org.puneet.cloudsimplus.hiippo.runtime.RunOutput;
+import org.puneet.cloudsimplus.hiippo.runtime.RunCoordinator;
+import org.puneet.cloudsimplus.hiippo.runtime.StressConfig;
+import org.puneet.cloudsimplus.hiippo.runtime.StressRun;
 
-/**
- * Main application class for the Hippopotamus Optimization research framework.
- * Provides entry point for running experiments and demonstrations.
- * 
- * @author Puneet Chandna
- * @version 1.0.0
- * @since 2025-07-22
- */
-public class App {
-    private static final Logger logger = LoggerFactory.getLogger(App.class);
-    
-    public static void main(String[] args) {
-        logger.info("Starting Hippopotamus Optimization Research Framework");
-        
-        try {
-            // Initialize framework components
-            logger.info("Initializing framework components...");
-            RunManager.getInstance();
-            CSVResultsWriter.initializeWithRunManager();
-            logger.info("Framework initialization completed successfully");
-            
-            // Run the complete experimental suite
-            runCompleteExperimentalSuite();
-            
-        } catch (Exception e) {
-            logger.error("Critical error in application execution", e);
-            System.exit(1);
+/** Supported executable entry point. Parsing has no output side effects. */
+public final class App {
+    private static final String USAGE = "Usage: java -jar lattora.jar --profile smoke|explore|research [--config file.properties] [--output-dir directory] [--debug]\n       --profile stress (see ./run-stress.sh --help)\n       --help | --version";
+    public static void main(String[] args) { System.exit(run(args)); }
+    static int run(String[] args) {
+        if (args.length == 0 || (args.length == 1 && args[0].equals("--help"))) {
+            System.out.println(USAGE); return 0;
         }
-    }
-    
-    /**
-     * Runs the complete experimental suite with all algorithms and scenarios.
-     */
-    private static void runCompleteExperimentalSuite() {
-        try {
-            logger.info("Starting complete experimental suite...");
-            
-            // Create experiment coordinator
-            ExperimentCoordinator coordinator = new ExperimentCoordinator(5, false);
-            
-            // CRITICAL: Configure experiments before running
-            coordinator.configureExperiments();
-            
-            // Run the complete experiment
-            coordinator.runCompleteExperiment();
-            
-            logger.info("Complete experimental suite finished successfully!");
-            
-        } catch (Exception e) {
-            logger.error("Failed to run complete experimental suite", e);
-            throw new RuntimeException("Experimental suite execution failed", e);
+        if (args.length == 1 && args[0].equals("--version")) {
+            System.out.println("Lattora " + RunOutput.version()); return 0;
         }
+        for(int i=0;i+1<args.length;i++) if(args[i].equals("--profile") && args[i+1].equals("stress")) {
+            final StressConfig stress;
+            try { stress=StressConfig.parse(args); }
+            catch(IllegalArgumentException | ArithmeticException e) { System.err.println("CONFIG_ERROR: "+e.getMessage()); return 2; }
+            try {
+                System.out.println("COMPLETE: run retained at "+StressRun.execute(stress)); return 0;
+            } catch(Exception e) { System.err.println("RUN_ERROR: "+e.getMessage()); return 1; }
+        }
+        final RunConfig config;
+        try { config = RunConfig.parse(args); }
+        catch (IllegalArgumentException e) { System.err.println("CONFIG_ERROR: " + e.getMessage()); return 2; }
+        catch (Exception e) { System.err.println("IO_ERROR: " + e.getMessage()); return 1; }
+        try (var output = RunOutput.create(config)) {
+            RunCoordinator.execute(config,output);
+            System.out.println("COMPLETE: run retained at " + output.directory());
+            return 0;
+        } catch (Exception e) { System.err.println("RUN_ERROR: " + e.getMessage()); return 1; }
     }
 }
