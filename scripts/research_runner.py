@@ -298,9 +298,15 @@ class ProcessControl:
         try: os.killpg(pid,number)
         except ProcessLookupError: return False
         except PermissionError:
-            # Darwin reports EPERM for zombie-only groups. A real live member
-            # or an unreadable native probe must still propagate the failure.
-            if sys.platform == 'darwin' and cloudsim_runtime.mac_group_exited(pid): return False
+            # Darwin can report EPERM while a member exits, before its BSD
+            # state becomes SZOMB. Confirm completion within a bounded grace
+            # period; live members and unreadable probes still fail closed.
+            if sys.platform == 'darwin':
+                deadline = time.monotonic()+.2
+                while True:
+                    if cloudsim_runtime.mac_group_exited(pid): return False
+                    if time.monotonic() >= deadline: break
+                    time.sleep(.01)
             raise
         return True
 

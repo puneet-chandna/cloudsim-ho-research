@@ -238,8 +238,6 @@ class MacCleanupOracleTests(unittest.TestCase):
                     self.observer.alive(123)
 
 
-if __name__=='__main__': unittest.main()
-
 
 class MacRunnerGroupCompletionTests(unittest.TestCase):
     def control(self):
@@ -291,3 +289,23 @@ class MacRunnerGroupCompletionTests(unittest.TestCase):
         def query(*args): ctypes.set_errno(errno.EPERM); return -1
         with patch.object(runtime, '_mac_libproc', return_value=SimpleNamespace(proc_listpids=query)):
             with self.assertRaises(PermissionError): runtime.mac_group_members(100)
+
+    def test_exiting_member_is_rechecked_before_replacing_the_child_outcome(self):
+        control = self.control()
+        child = SimpleNamespace(pid=100, poll=lambda:0, wait=lambda **kwargs:0)
+        states = iter((2,5))
+        def query(pid, flavor, argument, pointer, size):
+            info = pointer._obj
+            info.pid = pid; info.pgid = 100; info.status = next(states,5)
+            return size
+        def kill(group, number):
+            if number == 0: raise PermissionError(errno.EPERM, 'Operation not permitted')
+        with patch.object(runtime.sys, 'platform', 'darwin'), \
+             patch.object(runtime, 'mac_group_members', return_value=[101]), \
+             patch.object(runtime, '_mac_libproc', return_value=SimpleNamespace(proc_pidinfo=query)), \
+             patch.object(runner.os, 'killpg', side_effect=kill):
+            try: control.stop(child)
+            except PermissionError: self.fail('A member transitioning to zombie state needs a bounded recheck')
+
+
+if __name__=='__main__': unittest.main()
