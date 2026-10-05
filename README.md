@@ -1,11 +1,15 @@
 <p align="center">
-  <img src="logo/dark.svg" alt="Lattora" width="460">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="logo/dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="logo/light.svg">
+    <img src="logo/light.svg" alt="Lattora" width="400" height="116">
+  </picture>
 </p>
 <p align="center">
   <strong>Reproducible VM placement experiments, in your terminal.</strong>
 </p>
 <p align="center">
-  2.1.0 · Linux x86-64 · Linux ARM64 · macOS Apple Silicon
+  2.1.0 preview · Linux x86-64 · Linux ARM64 · macOS Apple Silicon
 </p>
 <p align="center">
   <a href="#install">Install</a> ·
@@ -17,13 +21,19 @@
 
 Lattora compares Hippopotamus Optimization (HO), Genetic Algorithm (GA),
 FirstFit and BestFit for static VM placement with **CloudSim Plus 8.5.7**.
-Run a campaign, watch its progress, and inspect the retained evidence from
-one terminal workbench.
+Plan, run and inspect experiments in one terminal workbench.
 
-- Choose a frozen research profile or configure a descriptive Stress campaign.
-- Browse results with explicit units, validation status and recorded claim decisions.
-- Run offline with bundled Python, Java, the simulation engine and independent validators.
-- Update manually, roll back to a retained version, and keep your experiments and settings.
+- Choose frozen Research or configurable, descriptive Stress.
+- Follow live progress; inspect units and recorded validation.
+- Work offline with bundled runtimes, engine and independent validators.
+- Update manually or roll back; keep your experiments and settings.
+
+<p align="center">
+  <a href="media/workbench.gif"><img src="media/workbench.gif" alt="Lattora workbench showing retained Smoke results, evidence, Stress controls and Harbor, Ember and Paper themes" width="800"></a>
+</p>
+<p align="center">
+  <sub>Tour of the workbench: browse a retained Smoke run and switch themes. Stress screens show configuration only. <a href="media/README.md">Capture notes</a>.</sub>
+</p>
 
 ## Install
 
@@ -31,12 +41,12 @@ one terminal workbench.
 The standalone app needs no Python, Java, Git or Maven installation.
 
 > [!NOTE]
-> Version 2.1.0 is being prepared for release. The command below becomes usable
-> after the stable release is published following acceptance and launch approval.
+> Version 2.1.0 has not been published yet. The command below becomes usable
+> once the stable release is available.
 > To build or try an unpublished archive, see the [distribution guide](DISTRIBUTION.md).
 
 ```sh
-curl -fsSL https://github.com/puneet-chandna/cloudsim-ho-research/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/puneet-chandna/Lattora/releases/latest/download/install.sh | bash
 ```
 
 Open a new terminal, or run the activation command printed by the installer, then:
@@ -93,6 +103,11 @@ does not extend the frozen research claims. The [experiment guide](EXPERIMENTS.m
 explains budgets, configuration, bounded Stress examples and output files.
 Use `lattora run --help` for all experiment options.
 
+<p align="center">
+  <a href="media/stress-paper.png"><img src="media/stress-paper.png" alt="Paper theme with editable Stress settings and the calibration plan for 50 VMs" width="800"></a>
+</p>
+<p align="center"><sub>Stress in Paper: size, search effort and calibrations. Configuration preview; not executed.</sub></p>
+
 ## Commands
 
 | Command | What it does |
@@ -108,11 +123,16 @@ Use `lattora run --help` for all experiment options.
 | `lattora completion bash` | Print completions (also `zsh` and `fish`) |
 | `lattora uninstall` | Remove the app while retaining results and settings |
 
-Failed updates leave the active installation usable. Running sessions finish
-with the release that launched them; later commands use the activated version.
-Updates and rollback preserve user data.
+Failed updates keep the active installation usable. Existing sessions keep
+their release; new commands use the activated version. Updates and rollback
+preserve user data.
 
 ## Results and interpretation
+
+<p align="center">
+  <a href="media/smoke-results.png"><img src="media/smoke-results.png" alt="Retained Smoke results with algorithm means in joules, SLA percent and milliseconds, recorded validation and no research claims" width="800"></a>
+</p>
+<p align="center"><sub>Smoke results: observed means, units and recorded checks. A pipeline check, with no research claim.</sub></p>
 
 Installed experiments default to a central results library:
 
@@ -135,8 +155,7 @@ and keep local tests marked `NOT_RUN`.
 
 ## Development and documentation
 
-Use `lattora` for the installed app on every supported platform. Contributors
-working in a source checkout use `./cloudsim.sh` for setup, builds and tests.
+Contributors use `./cloudsim.sh` in a source checkout for setup, builds and tests.
 The [development guide](DEVELOPMENT.md) covers Linux and Apple Silicon setup,
 JDK selection and direct engine commands.
 

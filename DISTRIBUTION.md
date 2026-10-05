@@ -73,8 +73,8 @@ Once the stable release is published, choose a pinned version or leave shell
 configuration untouched by passing options after `bash -s --`:
 
 ```sh
-curl -fsSL https://github.com/puneet-chandna/cloudsim-ho-research/releases/latest/download/install.sh | bash -s -- --version 2.1.0
-curl -fsSL https://github.com/puneet-chandna/cloudsim-ho-research/releases/latest/download/install.sh | bash -s -- --no-modify-path
+curl -fsSL https://github.com/puneet-chandna/Lattora/releases/latest/download/install.sh | bash -s -- --version 2.1.0
+curl -fsSL https://github.com/puneet-chandna/Lattora/releases/latest/download/install.sh | bash -s -- --no-modify-path
 ```
 
 For an unpublished candidate, extract the verified archive and run its launcher
