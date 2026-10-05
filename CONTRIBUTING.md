@@ -15,7 +15,7 @@ Maven 3.9.16 Wrapper on Linux or Apple Silicon macOS. Follow the
 ```sh
 ./mvnw -B clean verify
 python3 -B -m unittest discover -s scripts -p 'test_statistics_validator.py'
-java -Xmx4g -jar target/cloudsim-ho-research-v2-*.jar --profile smoke --output-dir results/smoke
+java -Xmx4g -jar target/lattora-*.jar --profile smoke --output-dir results/smoke
 python3 scripts/statistics_validator.py "results/smoke/<run-directory>"
 ```
 
@@ -30,7 +30,7 @@ validator and terminal-UI changes; the small statistics suite alone does not
 cover those workflows:
 
 ```sh
-./cloudsim.sh --setup
+./lattora.sh --setup
 .cloudsim/venv/bin/python -B -m unittest discover -s scripts -p 'test_*.py'
 ```
 
@@ -76,7 +76,7 @@ Silicon, with forty-five-minute job timeouts. Tag or manual release preparation
 runs the same archive acceptance and can create a draft. Stable publication
 requires launch approval; no workflow automatically publishes it.
 
-Full research is available through `./cloudsim.sh --profile research` or
+Full research is available through `./lattora.sh --profile research` or
 `./run-research.sh` on Linux and Apple Silicon macOS, with supervised deadlines
 and a bounded heap. GNU `timeout` is needed only for the [raw Linux
 JAR command](DEVELOPMENT.md#direct-engine-cli). Linux memory checks retain

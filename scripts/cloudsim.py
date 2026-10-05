@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One entry point for frozen CloudSim experiments and static stress."""
+"""One entry point for frozen Lattora experiments and static stress."""
 import argparse
 import lattora_context
 from copy import deepcopy
@@ -210,7 +210,7 @@ def preview(options: argparse.Namespace) -> dict:
                 'sensitivity_cases': 90 if options.profile == 'research' else 0}
         commands = [shared.java_command(java, options.heap_mib, retained/(options.profile+'.jar'),
                                         retained, options.config, profile=options.profile,workers=execution['workers'])]
-    launch = [('lattora' if lattora_context.get_context(ROOT).bundled else str(ROOT/'cloudsim.sh')), '--profile', options.profile, *runner_args(options)]
+    launch = [('lattora' if lattora_context.get_context(ROOT).bundled else str(ROOT/'lattora.sh')), '--profile', options.profile, *runner_args(options)]
     warnings = [value for value in (memory.get('warning'), memory.get('policy_note')) if value]
     if memory['usable_memory_bytes'] is None: warnings.append('Usable memory is unknown; launch requires independent verified headroom.')
     if options.skip_build: warnings.append('Diagnostic --skip-build: existing packaged JAR may differ from current source protocol values.')

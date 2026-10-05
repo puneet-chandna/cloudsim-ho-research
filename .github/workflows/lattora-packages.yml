@@ -58,7 +58,7 @@ jobs:
       - name: Full Java and Python verification with receipt
         run: |
           if [ "$RUNNER_OS" = macOS ]; then sudo /usr/sbin/purge; fi
-          ./cloudsim.sh --test --plain --output-dir .cloudsim/native-verification
+          ./lattora.sh --test --plain --output-dir .cloudsim/native-verification
       - name: Assemble the native standalone archive
         env:
           TARGET: ${{ matrix.target }}
@@ -78,7 +78,7 @@ jobs:
           tar -xzf target/distribution/lattora-*"$TARGET".tar.gz -C .cloudsim/update-tls
           .cloudsim/update-tls/lattora-*"$TARGET"/runtime/python/bin/python3 -B - <<'PYTHON'
           import os,urllib.request
-          request=urllib.request.Request('https://api.github.com/repos/puneet-chandna/cloudsim-ho-research/releases?per_page=1',
+          request=urllib.request.Request('https://api.github.com/repos/puneet-chandna/Lattora/releases?per_page=1',
               headers={'User-Agent':'lattora-native-acceptance','Authorization':'Bearer '+os.environ['GH_TOKEN']})
           with urllib.request.urlopen(request,timeout=30) as response:
               assert response.status==200, 'Release API TLS check failed'

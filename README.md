@@ -9,7 +9,7 @@
   <strong>Reproducible VM placement experiments, in your terminal.</strong>
 </p>
 <p align="center">
-  2.1.0 preview · Linux x86-64 · Linux ARM64 · macOS Apple Silicon
+  2.1.0 · Linux x86-64 · Linux ARM64 · macOS Apple Silicon
 </p>
 <p align="center">
   <a href="#install">Install</a> ·
@@ -39,11 +39,6 @@ Plan, run and inspect experiments in one terminal workbench.
 
 **Linux and macOS use the same installer and the same `lattora` command.**
 The standalone app needs no Python, Java, Git or Maven installation.
-
-> [!NOTE]
-> Version 2.1.0 has not been published yet. The command below becomes usable
-> once the stable release is available.
-> To build or try an unpublished archive, see the [distribution guide](DISTRIBUTION.md).
 
 ```sh
 curl -fsSL https://github.com/puneet-chandna/Lattora/releases/latest/download/install.sh | bash
@@ -155,16 +150,16 @@ and keep local tests marked `NOT_RUN`.
 
 ## Development and documentation
 
-Contributors use `./cloudsim.sh` in a source checkout for setup, builds and tests.
+Contributors use `./lattora.sh` in a source checkout for setup, builds and tests.
 The [development guide](DEVELOPMENT.md) covers Linux and Apple Silicon setup,
 JDK selection and direct engine commands.
 
 [Experiments](EXPERIMENTS.md) · [Contributing](CONTRIBUTING.md) ·
 [Packaging and release](DISTRIBUTION.md) ·
-[Project documentation](https://cloudsim-ho-project.puneetchandna.com/) ·
+[Project documentation](https://lattora.puneetchandna.com/) ·
 [Code of conduct](CODE_OF_CONDUCT.md)
 
 Project source uses the [MIT license](LICENSE). Bundled dependencies retain
 their own licenses, including CloudSim Plus GPL-3.0; see the
-[dependency inventory](src/main/resources/META-INF/third-party/DEPENDENCIES.txt)
-and [distribution guide](DISTRIBUTION.md#acceptance-and-release).
+[dependency inventory](src/main/resources/META-INF/third-party/DEPENDENCIES.txt),
+[matching source materials](SOURCES.md) and [distribution guide](DISTRIBUTION.md#acceptance-and-release).

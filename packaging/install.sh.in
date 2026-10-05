@@ -2,7 +2,7 @@
 set -euo pipefail
 # Generated for a release. Runtime archives and checksums are pinned below.
 version='@VERSION@'
-repository='puneet-chandna/cloudsim-ho-research'
+repository='puneet-chandna/Lattora'
 modify_path=true
 requested_version=''
 while [[ $# -gt 0 ]]; do

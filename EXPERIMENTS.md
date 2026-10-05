@@ -3,7 +3,7 @@
 The commands in this guide use the installed `lattora` app on Linux and native
 Apple Silicon macOS. Start with `lattora run --help`, or open `lattora` to review
 the run plan in the terminal. Source contributors can use the same profile flags
-with `./cloudsim.sh`; see the [development guide](DEVELOPMENT.md).
+with `./lattora.sh`; see the [development guide](DEVELOPMENT.md).
 
 ## Frozen profiles
 

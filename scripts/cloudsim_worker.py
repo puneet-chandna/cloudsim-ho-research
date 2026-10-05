@@ -64,7 +64,7 @@ def main(argv=None):
     try:
         code = cloudsim.execute(options, dashboard=EventDashboard(), on_complete=finish,
             invocation={'mode':'interactive', 'arguments':[], 'interactive_choices':list(options.arguments),
-                        'equivalent_cli':[('lattora' if cloudsim.lattora_context.get_context(cloudsim.ROOT).bundled else str(cloudsim.ROOT/'cloudsim.sh')), *options.arguments]})
+                        'equivalent_cli':[('lattora' if cloudsim.lattora_context.get_context(cloudsim.ROOT).bundled else str(cloudsim.ROOT/'lattora.sh')), *options.arguments]})
     except Exception as exception:
         code = 1
         finish({'status':'failed', 'exit_code':code, 'validation':'NOT_RUN',

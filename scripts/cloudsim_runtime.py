@@ -285,7 +285,7 @@ def install_jdk(root=ROOT, report=print):
     report('Downloading Eclipse Temurin JDK 21 for '+platform.system()+' '+platform.machine()+'.')
     with tempfile.TemporaryDirectory(prefix='jdk-download-', dir=target.parent) as temporary:
         archive = Path(temporary)/'jdk.tar.gz'
-        request = urllib.request.Request(url, headers={'User-Agent': 'CloudSim-Launcher'})
+        request = urllib.request.Request(url, headers={'User-Agent': 'Lattora-Launcher'})
         with urllib.request.urlopen(request, timeout=30) as response, archive.open('wb') as output:
             received = 0; last = -1
             total = int(response.headers.get('Content-Length', 0))
@@ -328,7 +328,7 @@ def setup(report=print):
         install_jdk(report=report)
         return 0
     except (OSError, ValueError, subprocess.SubprocessError, tarfile.TarError) as error:
-        report(f'Setup failed: {error}. Retry ./cloudsim.sh --setup, or select an installed JDK 21 in Setup.')
+        report(f'Setup failed: {error}. Retry ./lattora.sh --setup, or select an installed JDK 21 in Setup.')
         return 1
 
 
@@ -339,7 +339,7 @@ def ensure_ui():
     try:
         if importlib.metadata.version('textual')==pinned: return True
     except importlib.metadata.PackageNotFoundError: pass
-    print('CloudSim needs its terminal UI package. It will be installed only in .cloudsim/venv.')
+    print('Lattora needs its terminal UI package. It will be installed only in .cloudsim/venv.')
     try: consent = input('Set up the terminal UI now? [Y/n] ').strip().lower()
     except (EOFError, KeyboardInterrupt): return False
     if consent not in ('', 'y', 'yes'): return False

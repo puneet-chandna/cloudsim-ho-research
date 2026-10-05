@@ -54,7 +54,7 @@ class FixtureControl:
         if command[0] == str(self.root/'mvnw'):
             target = self.root/'target'
             target.mkdir(exist_ok=True)
-            (target/'cloudsim-ho-research-v2-2.0.0.jar').write_bytes(b'verified fixture JAR')
+            (target/'lattora-2.0.0.jar').write_bytes(b'verified fixture JAR')
         if isinstance(self.failure, dict):
             return self.failure.get('maven' if command[0] == str(self.root/'mvnw') else 'python', 0)
         return self.failure if self.failure is not None else 0
@@ -334,7 +334,7 @@ class VerifiedBuildTests(unittest.TestCase):
 
     def test_changed_artifact_hash_is_rejected_and_target_cleaning_preserves_cached_jar(self):
         first = self.verify()
-        target = self.root/'target/cloudsim-ho-research-v2-2.0.0.jar'
+        target = self.root/'target/lattora-2.0.0.jar'
         target.unlink()
         self.next_attempt()
         self.assertEqual(self.verify(), first)
@@ -435,7 +435,7 @@ class VerifiedBuildTests(unittest.TestCase):
     def test_artifact_mutation_after_maven_verification_is_rejected(self):
         def replace_jar(command):
             if command[0] != str(self.root/'mvnw'):
-                (self.root/'target/cloudsim-ho-research-v2-2.0.0.jar').write_bytes(b'untested replacement JAR')
+                (self.root/'target/lattora-2.0.0.jar').write_bytes(b'untested replacement JAR')
         self.control.on_run = replace_jar
         with self.assertRaisesRegex(build.BuildFailure, '[Aa]rtifact.*changed|JAR.*changed'):
             self.verify()
@@ -536,7 +536,7 @@ class VerifiedBuildTests(unittest.TestCase):
         def mutate_and_copy():
             try:
                 with build.build_lock(self.root, copier_control):
-                    target = self.root/'target/cloudsim-ho-research-v2-2.0.0.jar'
+                    target = self.root/'target/lattora-2.0.0.jar'
                     target.write_bytes(b'diagnostic package-only artifact')
                     shutil.copyfile(target, destination)
             except BaseException as error:

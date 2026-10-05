@@ -1,17 +1,17 @@
 # Developing Lattora
 
-This guide is for a source checkout on the `v2` line or a feature branch based
-on it. For the standalone app on Linux or macOS, use the
-[installer and `lattora` quickstart](README.md#install). Source development keeps
-`./cloudsim.sh` for setup, verification and builds; `./lattora.sh` exposes the
-Lattora command interface from the checkout.
+This guide is for a source checkout on `main` or a feature branch based on it. For the standalone app on Linux or macOS, use the
+[installer and `lattora` quickstart](README.md#install). Use `./lattora.sh` for setup, verification, builds and the Lattora command interface.
+The older `./cloudsim.sh` entry point remains a compatibility alias.
+The source cache remains `.cloudsim/` so existing development settings and
+verified builds stay usable; installed user storage uses `lattora`.
 
 ## Source setup
 
 ```sh
-./cloudsim.sh --setup
-./cloudsim.sh --check --plain
-./cloudsim.sh
+./lattora.sh --setup
+./lattora.sh --check --plain
+./lattora.sh
 ```
 
 Use a full **Java 21 JDK** (`java` and `javac`), Git and **Python 3.11+**.
@@ -22,10 +22,10 @@ needed. Initial setup needs network access to download Maven and dependencies.
 For direct Maven/JAR commands, set `JAVA_HOME` to the selected JDK and put its
 `bin` directory on `PATH`. The source launcher selects the project JDK itself.
 
-For the integrated Linux/macOS terminal app, start `./cloudsim.sh`. First launch offers
+For the integrated Linux/macOS terminal app, start `./lattora.sh`. First launch offers
 to install the pinned terminal UI into `.cloudsim/venv`; Setup can download a
 checksum-verified JDK 21 into `.cloudsim/jdk` or select an installed JDK.
-`./cloudsim.sh --setup` performs project-local setup directly (automatic JDK
+`./lattora.sh --setup` performs project-local setup directly (automatic JDK
 download supports Linux x86-64, Linux ARM64 and native Apple Silicon macOS). No global Java alternatives or shell
 settings are changed. The launcher uses the selected JDK for checks, Maven and
 simulation and keeps its default Maven downloads under `.cloudsim/maven`.
@@ -58,9 +58,9 @@ outside the tested support scope.
 From the source checkout:
 
 ```sh
-./cloudsim.sh --setup
-./cloudsim.sh --check --plain
-./cloudsim.sh                    # terminal workbench: Run, Results, Tools, Setup
+./lattora.sh --setup
+./lattora.sh --check --plain
+./lattora.sh                    # terminal workbench: Run, Results, Tools, Setup
 ```
 
 Setup installs the pinned UI and a checksum-verified ARM64 Temurin JDK 21 only
@@ -75,13 +75,13 @@ All profiles, both standalone runners, build/test tools and independent result
 validation use the same commands on Linux and Apple Silicon:
 
 ```sh
-./cloudsim.sh --test --plain
-./cloudsim.sh --profile smoke --plain
-./cloudsim.sh --profile explore --plain
-./cloudsim.sh --profile research --plain
+./lattora.sh --test --plain
+./lattora.sh --profile smoke --plain
+./lattora.sh --profile explore --plain
+./lattora.sh --profile research --plain
 # Small bounded stress example; larger campaigns need more time and RAM:
-./cloudsim.sh --profile stress --vms 100 --hosts 20 --population 10 --iterations 4 --replications 1 --time-limit 5m --plain
-./cloudsim.sh --validate /absolute/path/to/retained/run --plain
+./lattora.sh --profile stress --vms 100 --hosts 20 --population 10 --iterations 4 --replications 1 --time-limit 5m --plain
+./lattora.sh --validate /absolute/path/to/retained/run --plain
 ```
 
 The source runners use the same [deadlines, cancellation and native memory checks](EXPERIMENTS.md#workers-and-memory) as the installed app.
@@ -112,8 +112,8 @@ java -version
 javac -version
 python3 --version
 ./mvnw -B clean verify
-java -jar target/cloudsim-ho-research-v2-*.jar --help
-java -Xmx4g -jar target/cloudsim-ho-research-v2-*.jar --profile smoke --output-dir results/smoke
+java -jar target/lattora-*.jar --help
+java -Xmx4g -jar target/lattora-*.jar --profile smoke --output-dir results/smoke
 ```
 
 The application prints the unique run directory. Validate that exact directory:
@@ -137,7 +137,7 @@ native exit code (Python is invoked as `python`):
 ```powershell
 .\mvnw.cmd -B '-Dmaven.test.skip=true' clean package
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-java -Xmx4g -jar target/cloudsim-ho-research-v2-*.jar --profile smoke --output-dir results/smoke
+java -Xmx4g -jar target/lattora-*.jar --profile smoke --output-dir results/smoke
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 # Substitute the run directory printed above:
 python scripts/statistics_validator.py "results/smoke/<run-directory>"
@@ -159,13 +159,13 @@ The raw JAR has its own CLI contract. Unlike `lattora`, invoking the JAR without
 arguments prints information and exits. Its default output parent is `results`
 relative to the working directory; the installed app uses the central library.
 Direct JAR invocation does not provide the workbench or supervised campaign
-management. Prefer `lattora run` for installed experiments and `./cloudsim.sh`
+management. Prefer `lattora run` for installed experiments and `./lattora.sh`
 for supervised source runs.
 
 ```sh
-java -Xmx4g -jar target/cloudsim-ho-research-v2-*.jar --profile explore --output-dir results/explore
+java -Xmx4g -jar target/lattora-*.jar --profile explore --output-dir results/explore
 # This external deadline command is Linux only:
-timeout 12h java -Xmx4g -jar target/cloudsim-ho-research-v2-*.jar --profile research --output-dir results/research
+timeout 12h java -Xmx4g -jar target/lattora-*.jar --profile research --output-dir results/research
 ```
 
 No arguments, standalone `--help` or `--version` print information and exit 0

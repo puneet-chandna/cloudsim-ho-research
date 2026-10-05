@@ -184,7 +184,7 @@ def accept(archive, report):
             installer=work/'install.sh'; installer.write_text(installer_script(manifest['version'],{target_platform():asset}))
             # Route only the expected official URL to the exact accepted archive.
             curl=tools/'curl'
-            expected='https://github.com/puneet-chandna/cloudsim-ho-research/releases/download/v'+manifest['version']+'/'+archive.name
+            expected='https://github.com/puneet-chandna/Lattora/releases/download/v'+manifest['version']+'/'+archive.name
             curl.write_text('#!/bin/sh\nfound=false\nfor arg; do [ "$arg" != '+shlex.quote(expected)+' ] || found=true; done\n'+
                             '[ "$found" = true ] || exit 99\nwhile [ "$#" -gt 0 ]; do\n'+
                             '  if [ "$1" = -o ]; then exec '+shlex.quote(shutil.which('cp'))+' '+shlex.quote(str(archive))+' "$2"; fi\n'+

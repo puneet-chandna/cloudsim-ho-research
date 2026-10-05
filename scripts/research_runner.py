@@ -214,7 +214,7 @@ class Dashboard:
         elapsed = int(now-self.started)
         total = progress.get('total',self.total)
         bar = ('['+'#'*(done*20//total)+'-'*(20-done*20//total)+f'] {done*100//total}% cases') if done is not None else 'Progress: stage in progress'
-        lines = [f'CLOUDSIM  /  {self.title}',f'Stage: {stage}    Elapsed: {elapsed//60:02d}:{elapsed%60:02d}',
+        lines = [f'LATTORA  /  {self.title}',f'Stage: {stage}    Elapsed: {elapsed//60:02d}:{elapsed%60:02d}',
                  f'Cases: {done if done is not None else "-"}/{total}    Java RSS: {rss(pid) if pid else "-"}    Heap: {self.heap_mib} MiB',bar,detail]
         lines += [sanitize(line) for line in progress.get('extra_lines',[])[:3]]
         if self.console:
@@ -436,8 +436,8 @@ def check_environment(control, heap_mib: int) -> tuple[Path, int]:
     javac = java.parent/'javac'
     if not javac.is_file():
         raise ValueError(f'Java setup required: {java} has no matching javac. '
-                         'Use Setup in the app, or run ./cloudsim.sh --setup to install a local JDK 21. '
-                         'Run ./cloudsim.sh --check to confirm setup; changing experiment settings cannot fix this.')
+                         'Use Setup in the app, or run ./lattora.sh --setup to install a local JDK 21. '
+                         'Run ./lattora.sh --check to confirm setup; changing experiment settings cannot fix this.')
     verify(java.parent.parent)
     return java,require_memory(heap_mib)
 
@@ -552,7 +552,7 @@ def prepare_artifact(args, metadata, control, outer, profile, *, root=None):
     if args.skip_build:
         control.render('build', {'detail': 'SKIPPED: diagnostic build skip; verification NOT RUN.'}, force=True)
         with cloudsim_build.build_lock(root, control):
-            jars = list((root/'target').glob('cloudsim-ho-research-v2-*.jar'))
+            jars = list((root/'target').glob('lattora-*.jar'))
             if len(jars) != 1: raise ValueError('Expected exactly one packaged target JAR')
             source = jars[0]
             shutil.copyfile(source, retained)

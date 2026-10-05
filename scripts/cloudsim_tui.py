@@ -524,7 +524,7 @@ class CloudSimApp(App):
             'F2 / F3 / F4 / F5: Run / Results / Tools / Setup. Ctrl+N: edit or start another run.\n'
             'Ctrl+C: confirm cancellation. Ctrl+Q: quit. Esc closes a dialog.\n'
             'Results are validated independently. Build/test success is a separate status.\n'
-            'CLI automation: ./cloudsim.sh --help'))
+            'CLI automation: '+('lattora run --help' if self.context.bundled else './lattora.sh run --help')))
 
     def action_quit_requested(self):
         if not self.busy: self.exit(0); return
@@ -1016,6 +1016,6 @@ class CloudSimApp(App):
 
 def run():
     if os.environ.get('TERM', 'dumb') in ('', 'dumb'):
-        print('A capable terminal is required. Use ./cloudsim.sh --plain --check or --profile smoke|explore|research|stress.', file=sys.stderr)
+        print('A capable terminal is required. Use ./lattora.sh --plain --check or --profile smoke|explore|research|stress.', file=sys.stderr)
         return 2
     return CloudSimApp().run() or 0

@@ -96,6 +96,8 @@ jobs:
 
           Python, Textual, Java 21, the simulation engine and independent validators are included. See release.json, SHA256SUMS and the native acceptance reports for verification evidence.
 
+          Matching source and build materials: the lattora-*-sources.tar.gz asset (SHA-256 in SHA256SUMS). See its SOURCES.md and the SOURCES.md included in each standalone archive.
+
           This is a reviewable draft. Publish only after reviewing all native acceptance reports and receiving launch approval.
           TEXT
             gh release create "$RELEASE_TAG" --draft --verify-tag --title "Lattora ${RELEASE_TAG#v}" --notes-file release-notes.md

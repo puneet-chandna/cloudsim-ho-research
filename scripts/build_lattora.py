@@ -106,6 +106,43 @@ def unpack_runtime(archive, destination, kind):
         source.rename(destination)
 
 
+
+def python_notices(archive, destination):
+    destination = Path(destination); destination.mkdir(parents=True,exist_ok=True)
+    with tarfile.open(archive,'r:*') as stream:
+        for member in stream:
+            if member.name != 'python/PYTHON.json' and not member.name.startswith('python/licenses/'):
+                continue
+            if member.isdir(): continue
+            if not member.isfile() or member.size > 4*1024**2:
+                raise ValueError('Invalid Python license archive member')
+            name = Path(member.name).name
+            if name in ('.','..'): raise ValueError('Invalid Python license name')
+            (destination/name).write_bytes(stream.extractfile(member).read())
+    if not (destination/'PYTHON.json').is_file() or not list(destination.glob('LICENSE*.txt')):
+        raise ValueError('Python native licenses or component metadata missing')
+
+
+def release_sources(output, version):
+    records = load_json(ROOT/'packaging/sources.json')
+    archive = Path(output)/f'lattora-{version}-sources.tar.gz'
+    with tempfile.TemporaryDirectory(prefix='.sources-',dir=output) as temporary:
+        bundle = Path(temporary)/f'lattora-{version}-sources'; bundle.mkdir()
+        subprocess.run(['git','-C',str(ROOT),'archive','--format=tar','HEAD',
+                        '-o',str(bundle/'lattora-source.tar')],check=True)
+        shutil.copyfile(ROOT/'SOURCES.md',bundle/'SOURCES.md')
+        vendor = bundle/'upstream'; vendor.mkdir()
+        for name, record in records.items():
+            if Path(name).name != name: raise ValueError('Invalid source archive name')
+            source = cached_runtime(ROOT/'.cloudsim/lattora-sources','upstream',name,record)
+            shutil.copyfile(source,vendor/name)
+        manifest = {'version':version,'source_revision':_git_revision(ROOT),
+                    'upstream':records,'files':inventory(bundle)}
+        (bundle/'sources.json').write_text(json.dumps(manifest,indent=2)+'\n')
+        with tarfile.open(archive,'w:gz') as stream: stream.add(bundle,arcname=bundle.name)
+    return archive
+
+
 def assemble(target, receipt_path, output, cache, *, allow_dirty=False, wheelhouse=None):
     root = ROOT; output = Path(output).resolve(); cache = Path(cache).resolve()
     lock = runtime_lock()
@@ -143,7 +180,11 @@ def assemble(target, receipt_path, output, cache, *, allow_dirty=False, wheelhou
         if sha256(bundle/'engine/app.jar') != receipt['artifact']['sha256']:
             raise ValueError('Verified engine copy hash mismatch; packaging stopped.')
         shutil.copyfile(root/'LICENSE',bundle/'LICENSE')
+        shutil.copyfile(root/'SOURCES.md',bundle/'SOURCES.md')
         licenses = bundle/'licenses'; licenses.mkdir(exist_ok=True)
+        notices = cached_runtime(cache,target,'python-licenses',lock['targets'][target]['python_licenses'])
+        python_notices(notices,licenses/'python')
+        shutil.copytree(root/'packaging/python-licenses',licenses/'python',dirs_exist_ok=True)
         shutil.copytree(root/'src/main/resources/META-INF/third-party',licenses/'engine')
         shutil.copyfile(requirements,licenses/'requirements-ui.lock')
         (bundle/'bin/lattora').write_text(LAUNCHER); (bundle/'bin/lattora').chmod(0o755)
@@ -207,11 +248,14 @@ def release_metadata(output):
         if sha256(archive) != asset['sha256'] or archive.stat().st_size != asset['size']: raise ValueError('Release archive changed')
     (output/'release.json').write_text(json.dumps({'schema':1,'product':'lattora','version':version,'assets':assets,'acceptance':reports},indent=2)+'\n')
     installer = output/'install.sh'; installer.write_text(installer_script(version,assets)); installer.chmod(0o755)
-    paths = [*(output/a['name'] for a in assets.values()),*(output/('acceptance-'+t+'.json') for t in assets),output/'release.json',installer]
+    sources = release_sources(output,version)
+    paths = [sources,*(output/a['name'] for a in assets.values()),*(output/('acceptance-'+t+'.json') for t in assets),output/'release.json',installer]
     (output/'SHA256SUMS').write_text(''.join(sha256(p)+'  '+p.name+'\n' for p in sorted(paths)))
 
 
 def main():
+    if sys.version_info[:3] != (3,14,8):
+        raise SystemExit('Packaging requires Python 3.14.8; source development supports Python 3.11+.')
     parser = argparse.ArgumentParser(description=__doc__,allow_abbrev=False)
     parser.add_argument('--target',choices=tuple(runtime_lock()['targets']))
     parser.add_argument('--receipt',type=Path,default=ROOT/'.cloudsim/verified-build.json')

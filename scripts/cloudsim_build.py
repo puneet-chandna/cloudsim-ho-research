@@ -242,9 +242,9 @@ def _cached_receipt(cache, fingerprint):
 
 
 def _packaged_jar(root):
-    jars = list((root/'target').glob('cloudsim-ho-research-v2-*.jar'))
+    jars = list((root/'target').glob('lattora-*.jar'))
     if len(jars) != 1 or not jars[0].is_file() or jars[0].is_symlink():
-        raise BuildFailure('Expected exactly one packaged target/cloudsim-ho-research-v2-*.jar')
+        raise BuildFailure('Expected exactly one packaged target/lattora-*.jar')
     return jars[0]
 
 

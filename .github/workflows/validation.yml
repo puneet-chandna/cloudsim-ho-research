@@ -40,11 +40,11 @@ jobs:
       - name: Retain and independently validate four-case smoke
         shell: bash
         run: |
-          java -Xmx4g -jar target/cloudsim-ho-research-v2-*.jar --profile smoke --output-dir target/ci-smoke
+          java -Xmx4g -jar target/lattora-*.jar --profile smoke --output-dir target/ci-smoke
           runs=(target/ci-smoke/*)
           test "${#runs[@]}" -eq 1
           python3 scripts/statistics_validator.py "${runs[0]}"
-          python3 -c 'import hashlib,json,pathlib; jar=next(pathlib.Path("target").glob("cloudsim-ho-research-v2-*.jar")); run=next(pathlib.Path("target/ci-smoke").iterdir()); assert json.loads((run/"run.json").read_text())["artifact_sha256"]==hashlib.sha256(jar.read_bytes()).hexdigest()'
+          python3 -c 'import hashlib,json,pathlib; jar=next(pathlib.Path("target").glob("lattora-*.jar")); run=next(pathlib.Path("target/ci-smoke").iterdir()); assert json.loads((run/"run.json").read_text())["artifact_sha256"]==hashlib.sha256(jar.read_bytes()).hexdigest()'
 
   macos-validation:
     # macos-15 is Apple Silicon; Intel macOS is outside the supported scope.
@@ -64,28 +64,28 @@ jobs:
         shell: bash
         run: |
           test "$(uname -m)" = arm64
-          ./cloudsim.sh --setup
+          ./lattora.sh --setup
           # Reclaim setup's disk cache on the 7 GB runner; retain the real
           # application's 3 GiB minimum and every subsequent memory check.
           sudo /usr/sbin/purge
-          ./cloudsim.sh --check --plain --output-dir .cloudsim/ci/check
+          ./lattora.sh --check --plain --output-dir .cloudsim/ci/check
           ./run-research.sh --check --plain
       - name: Verify the packaged artifact, native probes and terminal workflows
         shell: bash
         run: |
           sudo /usr/sbin/purge
-          ./cloudsim.sh --test --plain --output-dir .cloudsim/ci/test
+          ./lattora.sh --test --plain --output-dir .cloudsim/ci/test
       - name: Run and independently validate every frozen profile
         shell: bash
         run: |
           sudo /usr/sbin/purge
           for profile in smoke explore research; do
-            ./cloudsim.sh --profile "$profile" --workers 1 --plain --output-dir ".cloudsim/ci/$profile"
+            ./lattora.sh --profile "$profile" --workers 1 --plain --output-dir ".cloudsim/ci/$profile"
           done
       - name: Run bounded static stress with native RSS monitoring
         shell: bash
         run: |
-          ./cloudsim.sh --profile stress --vms 100 --hosts 20 --population 10 --iterations 4 --replications 1 --workers 2 --time-limit 5m --plain --output-dir .cloudsim/ci/stress
+          ./lattora.sh --profile stress --vms 100 --hosts 20 --population 10 --iterations 4 --replications 1 --workers 2 --time-limit 5m --plain --output-dir .cloudsim/ci/stress
           .cloudsim/venv/bin/python -B - <<'PY'
           import json
           from pathlib import Path
@@ -121,7 +121,7 @@ jobs:
           if ($IsWindows) { .\mvnw.cmd -B '-Dmaven.test.skip=true' clean package }
           else { ./mvnw -B '-Dmaven.test.skip=true' clean package }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $jar = @(Get-ChildItem target/cloudsim-ho-research-v2-*.jar)
+          $jar = @(Get-ChildItem target/lattora-*.jar)
           if ($jar.Count -ne 1) { throw 'Expected one packaged engine' }
           java -Xmx4g -jar $jar[0].FullName --profile smoke --output-dir target/ci-smoke
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

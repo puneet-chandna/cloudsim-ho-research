@@ -9,6 +9,7 @@
     <artifactId>cloudsim-ho-research-v2</artifactId>
     <version>2.1.0</version>
     <packaging>jar</packaging>
+    <name>Lattora</name>
     
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
@@ -104,6 +105,7 @@
         </dependencies>
     
     <build>
+        <finalName>lattora-${project.version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

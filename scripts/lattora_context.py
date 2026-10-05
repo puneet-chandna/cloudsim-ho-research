@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-REPOSITORY = 'puneet-chandna/cloudsim-ho-research'
+REPOSITORY = 'puneet-chandna/Lattora'
 VERSION_PATTERN = r'(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)'
 
 

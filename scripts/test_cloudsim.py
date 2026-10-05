@@ -242,7 +242,7 @@ class LauncherTests(unittest.TestCase):
             args = self.cli.parse_args(['--'+action, '--output-dir', str(self.base)])
             project = self.base/(action+'-'+str(expected))
             (project/'target').mkdir(parents=True)
-            (project/'target/cloudsim-ho-research-v2-2.0.0.jar').write_bytes(b'packaged fixture')
+            (project/'target/lattora-2.0.0.jar').write_bytes(b'packaged fixture')
             completed = []
             def controlled(command, log, *positional, **keywords):
                 if command[0] == 'git': log.write_text(''); return 0

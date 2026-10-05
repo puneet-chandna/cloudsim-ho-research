@@ -15,7 +15,7 @@ class PackagingTests(unittest.TestCase):
         lock = builder.runtime_lock()
         self.assertEqual(set(lock['targets']),{'linux-x86_64','linux-arm64','macos-arm64'})
         for target, record in lock['targets'].items():
-            for runtime in ('python','java'):
+            for runtime in ('python','java','python_licenses'):
                 self.assertRegex(record[runtime]['sha256'],r'^[a-f0-9]{64}$')
         self.assertEqual(lock['python_version'],'3.14.8')
 
@@ -28,9 +28,50 @@ class PackagingTests(unittest.TestCase):
         assets={'linux-x86_64':{'name':'lattora-2.1.0-linux-x86_64.tar.gz','sha256':'a'*64,'size':123}}
         script=builder.installer_script('2.1.0',assets)
         self.assertIn('a'*64,script)
+        self.assertIn("repository='puneet-chandna/Lattora'",script)
         self.assertIn('--no-modify-path',script)
         self.assertIn('Unsupported',script)
         self.assertNotIn('sudo',script)
+
+    def test_python_native_notices_include_metadata_and_reject_missing_inventory(self):
+        import io
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); archive = root/'runtime.tar.gz'
+            with tarfile.open(archive,'w:gz') as stream:
+                for name, data in [('python/PYTHON.json',b'{"python_version":"3.14.8"}'),
+                                   ('python/licenses/LICENSE.bdb.txt',b'native notice'),
+                                   ('python/install/bin/python3',b'excluded executable')]:
+                    member = tarfile.TarInfo(name); member.size = len(data)
+                    stream.addfile(member,io.BytesIO(data))
+            builder.python_notices(archive,root/'licenses')
+            self.assertEqual({path.name for path in (root/'licenses').iterdir()},
+                             {'PYTHON.json','LICENSE.bdb.txt'})
+            with tarfile.open(archive,'w:gz'): pass
+            with self.assertRaisesRegex(ValueError,'missing'):
+                builder.python_notices(archive,root/'empty')
+
+    def test_source_release_retains_exact_sources_and_rejects_corrupt_cache(self):
+        import json
+        from lattora_context import sha256
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary); (root/'packaging').mkdir(); (root/'output').mkdir()
+            (root/'SOURCES.md').write_text('source directions')
+            cache=root/'.cloudsim/lattora-sources'; cache.mkdir(parents=True)
+            source=cache/'dependency.tar.gz-upstream.tar.gz'; source.write_bytes(b'exact upstream source')
+            record={'url':'https://example.invalid/source','sha256':sha256(source)}
+            (root/'packaging/sources.json').write_text(json.dumps({'dependency.tar.gz':record}))
+            def snapshot(command,**kwargs): Path(command[-1]).write_bytes(b'exact Git snapshot')
+            with patch.object(builder,'ROOT',root),patch.object(builder,'_git_revision',return_value='a'*40), \
+                 patch.object(builder.subprocess,'run',side_effect=snapshot):
+                archive=builder.release_sources(root/'output','2.1.0')
+                with tarfile.open(archive) as stream:
+                    manifest=json.load(stream.extractfile('lattora-2.1.0-sources/sources.json'))
+                    self.assertEqual(manifest['source_revision'],'a'*40)
+                    self.assertEqual(manifest['files']['upstream/dependency.tar.gz']['sha256'],record['sha256'])
+                    self.assertEqual(stream.extractfile('lattora-2.1.0-sources/lattora-source.tar').read(),b'exact Git snapshot')
+                source.write_bytes(b'corrupt cache')
+                with self.assertRaisesRegex(ValueError,'checksum'):
+                    builder.release_sources(root/'output','2.1.0')
 
     def test_inventory_rejects_external_symlinks(self):
         with tempfile.TemporaryDirectory() as temporary:

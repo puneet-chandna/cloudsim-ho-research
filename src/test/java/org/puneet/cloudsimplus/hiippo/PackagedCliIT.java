@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class PackagedCliIT {
     @TempDir Path temp;
     private Path jar() throws Exception {
-        return Path.of(System.getProperty("artifact.path", "target/cloudsim-ho-research-v2-2.1.0.jar")).toAbsolutePath();
+        return Path.of(System.getProperty("artifact.path", "target/lattora-2.1.0.jar")).toAbsolutePath();
     }
     private int run(String... args) throws Exception {
         return runWithJvm(List.of(), args);

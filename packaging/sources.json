@@ -1,0 +1,126 @@
+{
+  "OpenJDK21U-jdk-sources_21.0.12.1_1.tar.gz": {
+    "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk-sources_21.0.12.1_1.tar.gz",
+    "sha256": "573057d03584ae793fb7ec9a14c76d826d9187a53efeefd99da47403a5308234"
+  },
+  "temurin-build-e6ba7dec.tar.gz": {
+    "url": "https://codeload.github.com/adoptium/temurin-build/tar.gz/e6ba7dec3d07654074559310376a3ae89da5f4ac",
+    "sha256": "b1340378b9ed62b32acfacd012dd069ec2b9d940fc39d3c73f32142d64e89713"
+  },
+  "cloudsimplus-8.5.7-source.tar.gz": {
+    "url": "https://codeload.github.com/cloudsimplus/cloudsimplus/tar.gz/f23d4b165402e4976de854ceed5e52bc7b78c520",
+    "sha256": "68cbdda4bb96a3fc6a4bcd211e9026b38624c764662860dbfaffea8aaa271a35"
+  },
+  "python-build-standalone-20261003.tar.gz": {
+    "url": "https://codeload.github.com/astral-sh/python-build-standalone/tar.gz/5e46737f6480fc315ebfea83866910cbfcc772f0",
+    "sha256": "2c4bc5e43a0276046f080f40f0bd9586b10f2a6aa1714c592557f57ef0821e0c"
+  },
+  "Python-3.14.8.tar.xz": {
+    "url": "https://www.python.org/ftp/python/3.14.8/Python-3.14.8.tar.xz",
+    "sha256": "c2215904f02b175596dc49351585104f4bc20341e1c47378b26a2c274360ce73"
+  },
+  "db-6.0.19.tar.gz": {
+    "url": "https://ftp.osuosl.org/pub/blfs/conglomeration/db/db-6.0.19.tar.gz",
+    "sha256": "2917c28f60903908c2ca4587ded1363b812c4e830a5326aaa77c9879d13ae18e"
+  },
+  "logback-classic-1.6.4-sources.jar": {
+    "url": "https://repo.maven.apache.org/maven2/ch/qos/logback/logback-classic/1.6.4/logback-classic-1.6.4-sources.jar",
+    "sha256": "8bfff4be62348a0769087caa1004be1d93da6558845cf1ded199bbbf5ab43676"
+  },
+  "logback-classic-1.6.4.pom": {
+    "url": "https://repo.maven.apache.org/maven2/ch/qos/logback/logback-classic/1.6.4/logback-classic-1.6.4.pom",
+    "sha256": "ebf6e181d88454f6afb173fc5b6eb76df817ab6ceaf1944b9fd1205550ff173f"
+  },
+  "logback-core-1.6.4-sources.jar": {
+    "url": "https://repo.maven.apache.org/maven2/ch/qos/logback/logback-core/1.6.4/logback-core-1.6.4-sources.jar",
+    "sha256": "57fbcfa4278ee5b53733a45b620f27dca753755f6affecde75e2e064a8727ebc"
+  },
+  "logback-core-1.6.4.pom": {
+    "url": "https://repo.maven.apache.org/maven2/ch/qos/logback/logback-core/1.6.4/logback-core-1.6.4.pom",
+    "sha256": "47abe4a4b97939b2e39d2be2a4ce2ae9ab4e418c44c75e5393dadfb6c0bec897"
+  },
+  "gson-2.12.1-sources.jar": {
+    "url": "https://repo.maven.apache.org/maven2/com/google/code/gson/gson/2.12.1/gson-2.12.1-sources.jar",
+    "sha256": "c5ab4ceb195f2a9278058d6a396c4872a1a07ed8b53fe80230dfd3f173d7cf56"
+  },
+  "gson-2.12.1.pom": {
+    "url": "https://repo.maven.apache.org/maven2/com/google/code/gson/gson/2.12.1/gson-2.12.1.pom",
+    "sha256": "0b5735ec85f45282f1e2c769779800427b150a8163f405093a9280b71cab1978"
+  },
+  "error_prone_annotations-2.36.0-sources.jar": {
+    "url": "https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_annotations/2.36.0/error_prone_annotations-2.36.0-sources.jar",
+    "sha256": "7e117e0931cb2cb4226372af336189b49edb79969d120ec958a6df0beacb0612"
+  },
+  "error_prone_annotations-2.36.0.pom": {
+    "url": "https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_annotations/2.36.0/error_prone_annotations-2.36.0.pom",
+    "sha256": "d79cfd37c85f76d6b754c7501ee1dc8447b7b2642c2382d778252166bd331e9c"
+  },
+  "commons-collections4-4.4-sources.jar": {
+    "url": "https://repo.maven.apache.org/maven2/org/apache/commons/commons-collections4/4.4/commons-collections4-4.4-sources.jar",
+    "sha256": "93b4ff13ee810830a247dfa83bf5b73c401a591af4c11f3efb9b9da581e70452"
+  },
+  "commons-collections4-4.4.pom": {
+    "url": "https://repo.maven.apache.org/maven2/org/apache/commons/commons-collections4/4.4/commons-collections4-4.4.pom",
+    "sha256": "271bd673839af46e73aff957e2918d4bf96f5ac4f6c6cf4d5be93fd1f1271c4d"
+  },
+  "commons-csv-1.10.0-sources.jar": {
+    "url": "https://repo.maven.apache.org/maven2/org/apache/commons/commons-csv/1.10.0/commons-csv-1.10.0-sources.jar",
+    "sha256": "94fa4e32ed1c1aeba053dfac8b69fb7f0d267a70c633ce85ed2a5fa9659be00f"
+  },
+  "commons-csv-1.10.0.pom": {
+    "url": "https://repo.maven.apache.org/maven2/org/apache/commons/commons-csv/1.10.0/commons-csv-1.10.0.pom",
+    "sha256": "243541ad501e43ef09bacf7a86c87f7c3ed018d34a823ff5f54e5a8c5811094f"
+  },
+  "commons-lang3-3.18.0-sources.jar": {
+    "url": "https://repo.maven.apache.org/maven2/org/apache/commons/commons-lang3/3.18.0/commons-lang3-3.18.0-sources.jar",
+    "sha256": "b15732a13e40df7f07c30f2cb8572874798e8dde581f1398943d2ad3765bafaa"
+  },
+  "commons-lang3-3.18.0.pom": {
+    "url": "https://repo.maven.apache.org/maven2/org/apache/commons/commons-lang3/3.18.0/commons-lang3-3.18.0.pom",
+    "sha256": "aa254b373b6f6d46bc9dca86331b072a8ab86eb25ea9921fd439618392e98a16"
+  },
+  "commons-math3-3.6.1-sources.jar": {
+    "url": "https://repo.maven.apache.org/maven2/org/apache/commons/commons-math3/3.6.1/commons-math3-3.6.1-sources.jar",
+    "sha256": "e2ff85a3c360d56c51a7021614a194f3fbaf224054642ac535016f118322934d"
+  },
+  "commons-math3-3.6.1.pom": {
+    "url": "https://repo.maven.apache.org/maven2/org/apache/commons/commons-math3/3.6.1/commons-math3-3.6.1.pom",
+    "sha256": "fad72336ea7d7dd06da103144e3740db508fa4b17d9c54d7847737edc24a7e60"
+  },
+  "cloudsimplus-8.5.7-sources.jar": {
+    "url": "https://repo.maven.apache.org/maven2/org/cloudsimplus/cloudsimplus/8.5.7/cloudsimplus-8.5.7-sources.jar",
+    "sha256": "8d3efcacfc661b2f1e018e279761fc4ae1e5584a770b2022d20930568688966c"
+  },
+  "cloudsimplus-8.5.7.pom": {
+    "url": "https://repo.maven.apache.org/maven2/org/cloudsimplus/cloudsimplus/8.5.7/cloudsimplus-8.5.7.pom",
+    "sha256": "25b6e2e33fbd7449f0e70758a942ff487b598dde01a084c54fe42c415c42e3a2"
+  },
+  "annotations-26.0.2-sources.jar": {
+    "url": "https://repo.maven.apache.org/maven2/org/jetbrains/annotations/26.0.2/annotations-26.0.2-sources.jar",
+    "sha256": "a3bea3ada0af186437f8f3a089e6b0f52ac5aa068c1cb829058fb8a5069f6b0f"
+  },
+  "annotations-26.0.2.pom": {
+    "url": "https://repo.maven.apache.org/maven2/org/jetbrains/annotations/26.0.2/annotations-26.0.2.pom",
+    "sha256": "7ebeceade8dada7cb17eff3e014922c39022d2a378e3e2d2461f28f016ffc7f7"
+  },
+  "lombok-1.18.38-sources.jar": {
+    "url": "https://repo.maven.apache.org/maven2/org/projectlombok/lombok/1.18.38/lombok-1.18.38-sources.jar",
+    "sha256": "6ab6cab07c460987a0fc8d7b118cb6400d8bad21ba0bffe5d3b780ae13d663c2"
+  },
+  "lombok-1.18.38.pom": {
+    "url": "https://repo.maven.apache.org/maven2/org/projectlombok/lombok/1.18.38/lombok-1.18.38.pom",
+    "sha256": "8165ee87299a7daf069a7c981b7bb860434213b9afcaabab0b469b3babf48e6d"
+  },
+  "slf4j-api-2.0.20-sources.jar": {
+    "url": "https://repo.maven.apache.org/maven2/org/slf4j/slf4j-api/2.0.20/slf4j-api-2.0.20-sources.jar",
+    "sha256": "565e509928d095e20c5d93ca5e3a528e98fc7410c3ca4e84b05ccfadf21b40ba"
+  },
+  "slf4j-api-2.0.20.pom": {
+    "url": "https://repo.maven.apache.org/maven2/org/slf4j/slf4j-api/2.0.20/slf4j-api-2.0.20.pom",
+    "sha256": "2e625c3f553cddd49f8554cea9926cbf70673b3d6833464f0c5a02f4d9130594"
+  },
+  "zstd-1.5.7.tar.gz": {
+    "url": "https://github.com/python/cpython-source-deps/archive/refs/tags/zstd-1.5.7.tar.gz",
+    "sha256": "f24b52470d12f466e9fa4fcc94e6c530625ada51d7b36de7fdc6ed7e6f499c8e"
+  }
+}

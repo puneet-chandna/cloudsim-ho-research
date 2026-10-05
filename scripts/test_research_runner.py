@@ -362,7 +362,7 @@ class RunnerChecks(unittest.TestCase):
 
     def fixture(self):
         root = self.base/'project space'; (root/'scripts').mkdir(parents=True)
-        (root/'target').mkdir(); (root/'target/cloudsim-ho-research-v2-2.0.0.jar').write_bytes(b'controlled artifact')
+        (root/'target').mkdir(); (root/'target/lattora-2.0.0.jar').write_bytes(b'controlled artifact')
         source=(ROOT/'scripts/research_runner.py').read_text()
         # Controlled subprocess contracts must not depend on concurrent host memory use.
         source=source.replace("if __name__=='__main__':", "require_memory=lambda heap:4*1024**3\n\nif __name__=='__main__':")

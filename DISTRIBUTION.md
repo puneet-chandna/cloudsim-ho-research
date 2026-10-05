@@ -7,11 +7,14 @@ GitHub repository are retained.
 
 ## Build an archive
 
-From a clean, reviewed checkout on a supported native machine:
+From a clean, reviewed checkout on a supported native machine, using
+**Python 3.14.8** for packaging (including its standard Zstandard reader).
+Source development still supports Python 3.11+. Create source setup with
+Python 3.14.8 so the commands below use that interpreter:
 
 ```sh
-./cloudsim.sh --setup
-./cloudsim.sh --test --plain
+./lattora.sh --setup
+./lattora.sh --test --plain
 .cloudsim/venv/bin/python -B scripts/build_lattora.py --target linux-x86_64
 .cloudsim/venv/bin/python -B scripts/accept_lattora.py \
   --archive target/distribution/lattora-2.1.0-linux-x86_64.tar.gz \
@@ -30,8 +33,9 @@ executable so validators and supervised workers use the same pinned interpreter.
 Textual 8.2.8 and its complete transitive closure are pinned with wheel hashes in
 `packaging/requirements-ui.lock`. Runtime links are materialized as files so the
 bootstrap can reject all archive links and special files before extraction.
-Dependency notices ship in the runtime trees, Python distribution metadata,
-`licenses/engine` and the JAR. See the project license and dependency inventory.
+Dependency notices ship in the runtime trees, the full portable-Python native
+license inventory, Python distribution metadata,
+`licenses/engine` and the JAR. See the project license, dependency inventory and [matching source materials](SOURCES.md).
 The manifest records every runtime, script, resource and engine hash.
 
 Options include `--runtime-cache DIRECTORY` for verified runtime downloads,
@@ -59,8 +63,9 @@ release. There is no automatic publication step.
 
 Review the three reports, archive hashes, licenses and draft assets before launch
 approval. Project source uses MIT; bundled dependencies retain their own licenses,
-including CloudSim Plus GPL-3.0. Technical notice inclusion does not resolve
-distribution/legal obligations; review those separately before publishing a binary.
+The combined engine uses GPL-3.0. Release assembly includes a checksum-pinned
+corresponding-source archive alongside the binaries, including dependency
+sources and runtime build materials; [SOURCES.md](SOURCES.md) explains access.
 
 Publishing the approved draft activates the public `releases/latest`
 installer. Native CI results are required; cross-platform fixture tests on Linux
