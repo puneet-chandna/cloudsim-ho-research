@@ -1,322 +1,151 @@
-<p align="center"><img src="logo/dark.svg" alt="Lattora" width="500"></p>
+<p align="center">
+  <img src="logo/dark.svg" alt="Lattora" width="460">
+</p>
+<p align="center">
+  <strong>Reproducible VM placement experiments, in your terminal.</strong>
+</p>
+<p align="center">
+  2.1.0 · Linux x86-64 · Linux ARM64 · macOS Apple Silicon
+</p>
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#your-first-experiment">Quickstart</a> ·
+  <a href="#commands">Commands</a> ·
+  <a href="EXPERIMENTS.md">Experiment guide</a> ·
+  <a href="CONTRIBUTING.md">Contribute</a>
+</p>
 
-# Lattora
+Lattora compares Hippopotamus Optimization (HO), Genetic Algorithm (GA),
+FirstFit and BestFit for static VM placement with **CloudSim Plus 8.5.7**.
+Run a campaign, watch its progress, and inspect the retained evidence from
+one terminal workbench.
 
-A bounded, reproducible comparison of Hippopotamus Optimization (HO), GA,
-FirstFit and BestFit for static VM placement using CloudSim Plus 8.5.7.
-The current source version is **2.1.0**. Historical pre-v2 results are
-invalid research evidence. No algorithm winner or real datacenter saving is claimed.
+- Choose a frozen research profile or configure a descriptive Stress campaign.
+- Browse results with explicit units, validation status and recorded claim decisions.
+- Run offline with bundled Python, Java, the simulation engine and independent validators.
+- Update manually, roll back to a retained version, and keep your experiments and settings.
 
-Lattora is the terminal workbench; CloudSim Plus remains the simulation engine.
-Standalone release candidates bundle Python, the Textual UI, a Java 21 runtime,
-the prebuilt engine and independent validators. Experiments work offline after
-installation. Supported targets are glibc Linux x86-64, glibc Linux ARM64 and
-native Apple Silicon macOS. Windows, Intel macOS, 32-bit ARM and Alpine/musl
-standalone packages are deferred.
+## Install
 
-## Install and use
+**Linux and macOS use the same installer and the same `lattora` command.**
+The standalone app needs no Python, Java, Git or Maven installation.
 
-**2.1.0 is being prepared. The public installer becomes available only after
-native release acceptance and launch approval.** Once the stable release is
-published:
+> [!NOTE]
+> Version 2.1.0 is being prepared for release. The command below becomes usable
+> after the stable release is published following acceptance and launch approval.
+> To build or try an unpublished archive, see the [distribution guide](DISTRIBUTION.md).
 
 ```sh
 curl -fsSL https://github.com/puneet-chandna/cloudsim-ho-research/releases/latest/download/install.sh | bash
+```
+
+Open a new terminal, or run the activation command printed by the installer, then:
+
+```sh
 lattora
 ```
 
-No Python, Java, Git or Maven installation is needed. The installer needs Bash,
-curl, tar, awk and `sha256sum` or `shasum`. It verifies the archive, checks all
-components and stages a version before activating it. It adds `~/.local/bin`
-to Bash, Zsh or Fish configuration once; open a new terminal or use the printed
-activation command. To leave shell configuration untouched, append
-`| bash -s -- --no-modify-path`. To choose a version, use
-`| bash -s -- --version 2.1.0`. An unrelated existing `lattora` command is preserved.
+The installer verifies and health-checks the archive before activation. It adds
+`~/.local/bin` to Bash, Zsh or Fish configuration once and preserves unrelated
+commands. [Installer options](DISTRIBUTION.md#installer-options) cover pinned
+versions and `--no-modify-path`.
+
+Supported packages target glibc Linux x86-64, glibc Linux ARM64 and native
+Apple Silicon macOS. Windows, Intel macOS, 32-bit ARM and Alpine/musl packages
+are deferred. Runs require at least 3 GiB usable memory and enough headroom for
+the selected heap; `lattora doctor` checks your environment.
+
+## Your first experiment
+
+In the TUI, choose **Smoke**, review the run plan, and start. Run, Results,
+Tools and Setup stay accessible while work is in progress. `F1` opens help,
+`F2` through `F5` switch tabs, `Ctrl+R` starts a run, `Ctrl+C` opens cancellation,
+and `Ctrl+Q` quits. Harbor, Ember and Paper themes are available in Setup.
+
+For a command-driven run on either Linux or macOS:
 
 ```sh
 lattora run --profile smoke
+# Independently recheck the campaign directory printed by the run:
+lattora validate "/path/to/retained/campaign" --plain
+```
+
+Each run retains its inputs, logs, raw results and validation evidence. Open
+**Results** to inspect them or repeat validation. Experiments work offline;
+launching Lattora never checks for updates.
+
+## Profiles
+
+| Profile | Purpose | VMs per scenario | Cases |
+| --- | --- | --- | --- |
+| `smoke` | Check the complete experiment pipeline | 10 | 4 |
+| `explore` | Inspect descriptive comparisons | 10, 50 | 40 |
+| `research` | Run the frozen protocol and sensitivity analysis | 10, 50, 100 | 450 |
+| `stress` | Measure a configurable static campaign | User selected | Depends on settings |
+
+```sh
+lattora run --profile explore
 lattora run --profile research --workers 2 --heap-mib 1024
-lattora run --profile stress --vms 100 --hosts 20 --population 10 --iterations 4 --replications 1 --time-limit 5m
-lattora validate /path/to/retained/campaign --plain
-lattora doctor
-lattora --version
-lattora update --check
-lattora update                 # latest stable Lattora release
-lattora update 2.1.0           # specific stable version
-lattora rollback
-lattora completion bash        # also zsh and fish
-lattora uninstall              # retains experiments and settings
 ```
 
-Updates are explicit; opening the app never checks the network. Legacy releases
-without a Lattora manifest are ignored. Failed downloads, integrity checks or
-installation health checks preserve the active version. Running sessions keep
-their original runtime and engine while later commands use the activated version.
-Installed experiments report release verification separately and keep local
-build/tests marked `NOT_RUN`.
+Research settings and its 100-VM ceiling are fixed. Stress is descriptive and
+does not extend the frozen research claims. The [experiment guide](EXPERIMENTS.md)
+explains budgets, configuration, bounded Stress examples and output files.
+Use `lattora run --help` for all experiment options.
 
-Application versions live in `~/.local/share/lattora/versions/`; the command is
-`~/.local/bin/lattora`. On Linux, results use
-`${XDG_DATA_HOME:-~/.local/share}/lattora/results`, settings use
-`${XDG_CONFIG_HOME:-~/.config}/lattora/settings.json`, and cache uses
-`${XDG_CACHE_HOME:-~/.cache}/lattora`. On macOS, results and settings use
-`~/Library/Application Support/lattora/` and cache uses
-`~/Library/Caches/lattora/`. Explicit output and configuration paths are resolved
-from the invocation directory. Updates, rollback and uninstall retain user data.
-Uninstall refuses while an app session is running.
+## Commands
 
-[Distribution and release guide](DISTRIBUTION.md) describes local archive builds,
-native acceptance and the draft-only release workflow. Source development
-continues through `./cloudsim.sh` and `./lattora.sh`.
+| Command | What it does |
+| --- | --- |
+| `lattora` | Open the terminal workbench |
+| `lattora run --profile PROFILE` | Run Smoke, Explore, Research or Stress |
+| `lattora validate DIRECTORY` | Independently validate retained results |
+| `lattora doctor` | Check installation, runtimes, memory and data paths |
+| `lattora --version` | Print the installed version |
+| `lattora update --check` | Check for a newer stable release |
+| `lattora update [VERSION]` | Install the latest stable or a specified version |
+| `lattora rollback` | Restore the previously active version |
+| `lattora completion bash` | Print completions (also `zsh` and `fish`) |
+| `lattora uninstall` | Remove the app while retaining results and settings |
 
-The executable contract is the [frozen configuration](src/main/resources/protocol.properties)
-and [`RunConfig.effective()`](src/main/java/org/puneet/cloudsimplus/hiippo/runtime/RunConfig.java),
-checked independently by the [output validator](scripts/statistics_validator.py).
-[Documentation](https://cloudsim-ho-project.puneetchandna.com/),
-[contributing](CONTRIBUTING.md), [code of conduct](CODE_OF_CONDUCT.md).
+Failed updates leave the active installation usable. Running sessions finish
+with the release that launched them; later commands use the activated version.
+Updates and rollback preserve user data.
 
-## Build and verify
+## Results and interpretation
 
-Use a full **Java 21 JDK** (`java` and `javac`), Git and **Python 3.11+**.
-Linux and macOS tests require the executable `python3` for independent stdlib oracles.
-Wrapper bootstrap requires `unzip` and either `sha256sum` or `shasum`.
-The included Maven Wrapper pins Maven 3.9.16; no global Maven installation is
-needed. Initial setup needs network access to download Maven and dependencies.
-Set `JAVA_HOME` to the JDK and put its `bin` directory on `PATH`.
+Installed experiments default to a central results library:
 
-For the integrated Linux/macOS terminal app, start `./cloudsim.sh`. First launch offers
-to install the pinned terminal UI into `.cloudsim/venv`; Setup can download a
-checksum-verified JDK 21 into `.cloudsim/jdk` or select an installed JDK.
-`./cloudsim.sh --setup` performs project-local setup directly (automatic JDK
-download supports Linux x86-64, Linux ARM64 and native Apple Silicon macOS). No global Java alternatives or shell
-settings are changed. The launcher uses the selected JDK for checks, Maven and
-simulation and keeps its default Maven downloads under `.cloudsim/maven`.
+| Platform | Results | Settings |
+| --- | --- | --- |
+| Linux | `~/.local/share/lattora/results/` | `~/.config/lattora/settings.json` |
+| macOS | `~/Library/Application Support/lattora/results/` | `~/Library/Application Support/lattora/settings.json` |
 
-Run, Results, Tools and Setup stay available during a job. Choose Smoke,
-Explore, Research or Static Stress; stress size, population, iterations,
-replications and seed are directly editable while frozen protocol settings remain read-only. Failed attempts keep
-their settings and logs. Ctrl+C opens cancellation, Ctrl+Q quits, and F1 shows
-keyboard help. F2–F5 switch between Run, Results, Tools and Setup. Small
-terminals scroll instead of hiding errors.
-The appearance selector offers Harbor, Ember and Paper palettes. A brief opening
-reveal leaves input available immediately; `TEXTUAL_ANIMATIONS=none` disables
-motion, and `NO_COLOR` is respected.
+Linux respects `XDG_DATA_HOME`, `XDG_CONFIG_HOME` and `XDG_CACHE_HOME`. Explicit
+`--output-dir` and `--config` paths are relative to the directory where you invoke
+the command. See [storage and recovery](DISTRIBUTION.md#installation-and-recovery)
+for cache paths and installation layout.
 
-Automation uses `--profile smoke|explore|research|stress`, `--check`, `--build`,
-`--test` or `--validate DIRECTORY`. Add `--plain` for plain progress. Help,
-dry-run and existing-output validation do not need Java or the terminal UI.
-Setup is explicit; direct experiment actions never download a JDK automatically.
+Results are conditional on a synthetic, static simulator model. Lattora claims
+no algorithm winner or real datacenter saving. Research reports `NO_CLAIM`
+when the required statistical inference is degenerate. Only complete,
+independently validated datasets are eligible evidence; pre-v2 results and
+interrupted runs are not. Installed runs record release verification separately
+and keep local tests marked `NOT_RUN`.
 
-### macOS quickstart (Apple Silicon)
+## Development and documentation
 
-Use a native ARM64 terminal and an up-to-date Python 3.11+ installation with
-`venv`/`pip`. The Python bundled with macOS may be too old. If you use
-[Homebrew](https://brew.sh/), `brew install python git` supplies the prerequisites;
-otherwise install Python from [python.org](https://www.python.org/downloads/macos/)
-and Git separately. Check `uname -m` reports `arm64` and `python3 --version`
-reports 3.11 or newer before starting. Intel Macs and Rosetta execution are
-outside the tested support scope.
+Use `lattora` for the installed app on every supported platform. Contributors
+working in a source checkout use `./cloudsim.sh` for setup, builds and tests.
+The [development guide](DEVELOPMENT.md) covers Linux and Apple Silicon setup,
+JDK selection and direct engine commands.
 
-From the source checkout:
+[Experiments](EXPERIMENTS.md) · [Contributing](CONTRIBUTING.md) ·
+[Packaging and release](DISTRIBUTION.md) ·
+[Project documentation](https://cloudsim-ho-project.puneetchandna.com/) ·
+[Code of conduct](CODE_OF_CONDUCT.md)
 
-```sh
-./cloudsim.sh --setup
-./cloudsim.sh --check --plain
-./cloudsim.sh                    # terminal workbench: Run, Results, Tools, Setup
-```
-
-Setup installs the pinned UI and a checksum-verified ARM64 Temurin JDK 21 only
-under `.cloudsim`. You can instead select a full installed JDK in Setup using
-its `Contents/Home` directory. Selection honors `JAVA_HOME`, saved project
-settings, the managed JDK, then `/usr/libexec/java_home -v 21`; it does not treat
-Apple's `/usr/bin/java` stub as a JDK. An explicit `JAVA_HOME` must point to JDK
-21. No Homebrew Java package, global Maven, GNU coreutils or shell changes are
-required by the launcher.
-
-All profiles, both standalone runners, build/test tools and independent result
-validation use the same commands on Linux and Apple Silicon:
-
-```sh
-./cloudsim.sh --test --plain
-./cloudsim.sh --profile smoke --plain
-./cloudsim.sh --profile explore --plain
-./cloudsim.sh --profile research --plain
-# Small bounded stress example; larger campaigns need more time and RAM:
-./cloudsim.sh --profile stress --vms 100 --hosts 20 --population 10 --iterations 4 --replications 1 --time-limit 5m --plain
-./cloudsim.sh --validate /absolute/path/to/retained/run --plain
-```
-
-The runners enforce their own deadlines and process-group cancellation, so
-macOS does not need Linux's `timeout` command. macOS memory checks use
-`sysctl hw.memsize` and `vm_stat`'s actual page size, counting free, inactive
-and speculative pages. Wired memory, compressed pages and swap are excluded;
-the existing minimum 3 GiB usable-memory check and heap-plus-1-GiB headroom
-still apply. These are launch checks, not a memory reservation or a guarantee
-that a large stress campaign fits. Native RSS samples report a sampled peak;
-brief peaks between samples may be missed. Linux retains its `/proc` metrics
-and every visible cgroup-v2 ancestor limit.
-
-Apple Silicon CI exercises local setup, Maven verification, all Python/TUI
-tests (including resize/cancellation and orphan cleanup), Smoke, Explore,
-all 450 Research cases and bounded stress with independent validation.
-That native job must pass before claiming macOS execution is verified;
-Linux tests and simulated macOS probes alone do not establish it.
-
-### Build verification and runtime behavior
-
-Experiments reuse a tested build when source, Git revision, JDK, Python/UI
-dependencies and the retained JAR hash still match its verification receipt.
-The first run or a changed input runs Maven `clean verify` and the Python suite.
-`--force-build` and Tools → Test explicitly repeat full verification;
-`--skip-build` is a separate diagnostic option. Every experiment still runs its
-independent result validator. Results distinguishes experiments, setup checks
-and validation reports, and explains which selections can be validated.
-Completed experiments show case/evaluation totals, elapsed time, runtime limits
-and algorithm means with explicit units. Analysis checks distinguish recorded
-validation from the lightweight integrity check used to display a summary;
-Stress remains descriptive and Research shows its recorded claim decisions.
-Saved paths, commands and raw metadata are available under Saved evidence.
-
-`--workers auto` (default) runs independent cases concurrently within CPU and
-shared heap limits: at most one worker per 512 MiB, capped at 32. Use
-`--workers 1` for serial execution, or request a count with `--workers 4`.
-Seeds, paired workloads and canonical output order are unchanged; individual
-CloudSim event loops remain sequential. The heap cap is shared across workers.
-The limit bounds concurrency; it does not guarantee that any size fits in RAM.
-Research keeps at most one pending case per worker because it retains full
-traces. Stress can queue up to four cases per worker (128 maximum), retaining
-scalar evidence in temporary disk spools so faster cases can advance to the
-next replication while a slower optimizer runs. Scientific rows are still
-published in their canonical order.
-
-Stress runs the selected full campaign only. Short calibration campaigns use
-N10/T10/R1 at up to 100 VMs, 500 VMs and the selected size first. For Large,
-these are 100/20, 500/100 and 10000/2000 VMs/hosts, followed by the full Large
-campaign. It does not run the full intermediate presets. Calibrations run
-serially so their resource measurements remain comparable.
-
-From the supplied v2 source checkout (not a fresh clone of the public default
-branch), run:
-
-```sh
-java -version
-javac -version
-python3 --version
-./mvnw -B clean verify
-java -jar target/cloudsim-ho-research-v2-*.jar --help
-java -Xmx4g -jar target/cloudsim-ho-research-v2-*.jar --profile smoke --output-dir results/smoke
-```
-
-The application prints the unique run directory. Validate that exact directory:
-
-```sh
-python3 scripts/statistics_validator.py results/smoke/<run-directory>
-```
-
-Replace `<run-directory>` with the printed child name. `verify` includes unit
-tests and real packaged CLI integration tests; `test` alone does not verify the
-shaded JAR. The validator checks manifest/file hashes, raw matrices, canonical
-inputs, placements, budgets, metrics and independent analysis. Keep the exact
-JAR alongside its validated results and compare its SHA-256 to `artifact_sha256`.
-
-Windows support is **packaged smoke only**, not the Linux/macOS research/test contract.
-In PowerShell, build the package without the Linux oracle suite and check every
-native exit code (Python is invoked as `python`):
-
-```powershell
-.\mvnw.cmd -B '-Dmaven.test.skip=true' clean package
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-java -Xmx4g -jar target/cloudsim-ho-research-v2-*.jar --profile smoke --output-dir results/smoke
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-# Substitute the run directory printed above:
-python scripts/statistics_validator.py results/smoke/<run-directory>
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-```
-
-Native macOS/Windows execution and remote CI are separate gates; local Linux
-validation does not establish them. CI retains the Linux PR validation and
-manual Linux/Windows packaged smoke, and adds Apple Silicon validation on PRs
-and manual dispatch, with twenty-minute job timeouts. It never publishes
-packages. The macOS job runs the frozen research matrix; long stress campaigns
-remain local.
-
-## Run profiles and configuration
-
-| Profile | Scenarios (VMs/hosts) | Replications | HO N/T | Cases |
-| --- | --- | --- | --- | --- |
-| smoke | Micro 10/3 | 1 | 10/4 | 4 |
-| explore | Micro 10/3, Small 50/10 | 5 | 20/20 | 40 |
-| research | Micro 10/3, Small 50/10, Medium 100/20 | 30 | 30/40 | 360 main + 90 OAT |
-
-All four algorithms run in every main replication. Research additionally runs
-HO on Small with nine distinct one-at-a-time (OAT) N/T settings and ten paired
-sensitivity replications. The shared (30,40) setting is counted once. These
-settings and the **100-VM ceiling** are fixed; larger frozen scenarios, GPU, Pareto optimization, overcommit and migrations are future work.
-
-```sh
-java -Xmx4g -jar target/cloudsim-ho-research-v2-*.jar --profile explore --output-dir results/explore
-# Linux only; for a portable supervised run use ./cloudsim.sh --profile research:
-timeout 12h java -Xmx4g -jar target/cloudsim-ho-research-v2-*.jar --profile research --output-dir results/research
-```
-
-Validate each complete directory with the same Python command. A timeout or
-interruption leaves incomplete evidence; never combine fragments. Stable Lattora releases
-require all **450 Research cases on each distribution target** from the exact versioned artifact, valid
-independent analyses and two reviewer approvals. That acceptance is not implied
-by the version number or smoke/explore checks.
-
-No arguments, standalone `--help` or `--version` print information and exit 0
-without creating files. A run requires `--profile smoke|explore|research`.
-Optional flags are `--config file.properties`, `--output-dir directory` (default
-`results`) and `--debug`. CLI values take precedence over the overlay, then
-profile defaults. Only these UTF-8 Java properties are accepted:
-
-```properties
-master.seed=123456
-log.level=INFO
-```
-
-`master.seed` is a signed 64-bit decimal; `log.level` is `INFO` or `DEBUG`.
-Unknown/duplicate keys (including escaped equivalents), malformed UTF-8,
-invalid values or conflicting/missing options exit **2** before output creation.
-Missing/unreadable config files and execution/output failures exit **1**. Only
-complete valid runs exit **0**. `output.dir`, scenario and algorithm settings
-are not configurable keys. `--debug` selects DEBUG without relaxing log bounds.
-
-## What is measured
-
-The optimizer minimizes estimated steady host power in **watts**. The simulation
-separately integrates actual event-time power into **joules** and **kWh**;
-used hosts remain on through the final workload horizon. SLA violations count
-failed/censored cloudlets or slowdown strictly above 1.10 against independently
-simulated isolated references, divided by all requested cloudlets.
-
-Strict reservation, constant utilization and one cloudlet per VM can make SLA
-identically zero and horizon placement-invariant. The conservative paired
-wild-bootstrap/BCa/Holm analysis reports **NO_CLAIM** when required inference is
-degenerate; descriptive energy differences do not override that gate. Results
-are conditional on this synthetic simulator model, not production evidence.
-
-HO implements all three paper phases with a declared Gaussian Mantegna Levy
-adaptation. Its full objective-call budget is **N + 3NT**, including predators:
-130/1220/3630 for the three main profiles. GA receives the same budget. The
-[search implementation](src/main/java/org/puneet/cloudsimplus/hiippo/placement/Search.java)
-and independent [optimizer oracle](scripts/optimizer_oracle.py) specify and check
-the equations, draw order and deterministic repair. The frozen configuration
-and output validator define the practical margins and inference gates.
-
-## Outputs and licensing
-
-Each unique directory contains `run.json`, sorted `effective.properties`,
-`raw/main_results.csv`, `raw/placements.csv`, `raw/optimizer_trace.csv` and
-`logs/run.log`. Explore adds descriptive analysis; research adds sensitivity
-rows, paired primary comparisons, runtime summaries and an analysis report.
-Only a validated `COMPLETE` manifest is eligible evidence. `RUNNING` and `FAILED`
-directories remain for diagnosis. Logs rotate at 10 MiB with three retained
-archives, including DEBUG. Existing local logs/results are never cleaned by the app.
-
-Project source has the [MIT license](LICENSE). Bundled dependencies retain their
-own licenses, including CloudSim Plus GPL-3.0; the JAR includes notices and a
-[dependency inventory](src/main/resources/META-INF/third-party/DEPENDENCIES.txt).
-Technical notice inclusion does not resolve distribution/legal obligations;
-review those separately before publishing a binary.
+Project source uses the [MIT license](LICENSE). Bundled dependencies retain
+their own licenses, including CloudSim Plus GPL-3.0; see the
+[dependency inventory](src/main/resources/META-INF/third-party/DEPENDENCIES.txt)
+and [distribution guide](DISTRIBUTION.md#acceptance-and-release).

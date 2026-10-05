@@ -58,9 +58,35 @@ optionally creates a **draft** GitHub release. It refuses to change a published
 release. There is no automatic publication step.
 
 Review the three reports, archive hashes, licenses and draft assets before launch
-approval. Publishing the approved draft activates the public `releases/latest`
+approval. Project source uses MIT; bundled dependencies retain their own licenses,
+including CloudSim Plus GPL-3.0. Technical notice inclusion does not resolve
+distribution/legal obligations; review those separately before publishing a binary.
+
+Publishing the approved draft activates the public `releases/latest`
 installer. Native CI results are required; cross-platform fixture tests on Linux
 are not evidence of native ARM or macOS execution.
+
+## Installer options
+
+The public bootstrap requires Bash, curl, tar, awk and `sha256sum` or `shasum`.
+Once the stable release is published, choose a pinned version or leave shell
+configuration untouched by passing options after `bash -s --`:
+
+```sh
+curl -fsSL https://github.com/puneet-chandna/cloudsim-ho-research/releases/latest/download/install.sh | bash -s -- --version 2.1.0
+curl -fsSL https://github.com/puneet-chandna/cloudsim-ho-research/releases/latest/download/install.sh | bash -s -- --no-modify-path
+```
+
+For an unpublished candidate, extract the verified archive and run its launcher
+from that directory:
+
+```sh
+./bin/lattora _install
+```
+
+This stages the bundle under the versioned installation root, performs its
+health check and prints activation instructions. Local candidate installation
+does not publish a release or activate the public bootstrap URL.
 
 ## Installation and recovery
 
@@ -73,7 +99,11 @@ remove a running release. Rollback verifies the previously active version before
 activation. Integrity failures reject experiments before Java execution. Release
 verification records never claim local tests ran in an installed experiment.
 
-Data locations and commands are documented in the README. The installation root
+Data locations and commands are documented in the [README](README.md#results-and-interpretation).
+Linux cache uses `${XDG_CACHE_HOME:-~/.cache}/lattora`; macOS cache uses
+`~/Library/Caches/lattora/`. Linux settings and results respect their XDG locations;
+macOS stores both under `~/Library/Application Support/lattora/`.
+The command is exposed through `~/.local/bin/lattora`. The installation root
 stays under `~/.local/share/lattora` even if Linux XDG data locations differ;
 experiment/configuration/cache locations respect XDG. Uninstall removes only
 managed app versions, its command and activation state. It preserves experiments,
