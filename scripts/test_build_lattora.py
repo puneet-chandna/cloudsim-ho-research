@@ -1,5 +1,9 @@
 from pathlib import Path
 import tempfile
+import os
+import shlex
+import subprocess
+import tarfile
 import unittest
 from unittest.mock import patch
 
@@ -78,3 +82,43 @@ class PackagingTests(unittest.TestCase):
                  patch.object(builder.subprocess,'run'),patch.object(builder.shutil,'copyfile',side_effect=changed_copy):
                 with self.assertRaisesRegex(ValueError,'engine.*hash'):
                     builder.assemble('linux-x86_64',receipt,Path(temporary)/'output',Path(temporary)/'cache')
+
+
+class BootstrapArgumentsTests(unittest.TestCase):
+    def check_arguments(self, *, requested=False):
+        from lattora_context import sha256, target_platform
+        for no_path in (False, True):
+            with self.subTest(requested=requested, no_path=no_path), tempfile.TemporaryDirectory(prefix='bootstrap arguments ') as temporary:
+                root=Path(temporary).resolve(); home=root/'fresh home'; home.mkdir()
+                tools=root/'tools'; tools.mkdir()
+                target=target_platform(); name='lattora-2.1.0-'+target
+                bundle=root/name; (bundle/'bin').mkdir(parents=True)
+                launcher=bundle/'bin/lattora'
+                launcher.write_text('#!/bin/sh\n[ "$1" = _install ] || exit 99\nshift\nprintf "%s\\n" "$#" "$@" > "$HOME/arguments"\n')
+                launcher.chmod(0o755)
+                archive=root/(name+'.tar.gz')
+                with tarfile.open(archive,'w:gz') as stream: stream.add(bundle,arcname=name)
+                forwarded=root/'forwarded.sh'
+                forwarded.write_text('#!/bin/bash\nset -eu\nprintf "%s\\n" "$#" "$@" > "$HOME/arguments"\n')
+                curl=tools/'curl'
+                curl.write_text('#!/bin/sh\nfor arg; do\n'+
+                    '  case "$arg" in */v2.1.1/install.sh) exec /bin/cat '+shlex.quote(str(forwarded))+' ;; esac\n'+
+                    'done\nwhile [ "$#" -gt 0 ]; do\n'+
+                    '  if [ "$1" = -o ]; then exec /bin/cp '+shlex.quote(str(archive))+' "$2"; fi\n'+
+                    '  shift\ndone\nexit 98\n')
+                curl.chmod(0o755)
+                installer=root/'install.sh'
+                installer.write_text(builder.installer_script('2.1.0',{target:{'name':archive.name,'sha256':sha256(archive),'size':archive.stat().st_size}}))
+                flags=(['--version','2.1.1'] if requested else [])+(['--no-modify-path'] if no_path else [])
+                shell=os.environ.get('LATTORA_TEST_BASH','/bin/bash')
+                env={**os.environ,'HOME':str(home),'PATH':str(tools)+':/usr/bin:/bin:/usr/sbin:/sbin'}
+                result=subprocess.run([shell,installer,*flags],env=env,capture_output=True,text=True)
+                self.assertEqual(result.returncode,0,result.stderr)
+                self.assertTrue((home/'arguments').exists(), 'Bootstrap returned success without invoking installation: '+result.stderr)
+                self.assertEqual((home/'arguments').read_text(), '1\n--no-modify-path\n' if no_path else '0\n')
+
+    def test_native_bash_bootstrap_forwards_zero_or_one_options(self):
+        self.check_arguments()
+
+    def test_native_bash_pinned_version_forwarding_preserves_options(self):
+        self.check_arguments(requested=True)

@@ -192,7 +192,13 @@ def accept(archive, report):
             run(['/bin/bash',installer],env,cwd,logs/'install.log')
             # Experiments have no network tool on their PATH after bootstrap.
             curl.unlink()
-            command=home/'.local/bin/lattora'; root=(home/'.local/share/lattora/current').resolve()
+            command=home/'.local/bin/lattora'; current=home/'.local/share/lattora/current'
+            require(command.is_file() and current.is_symlink() and current.exists(),
+                    'Bootstrap returned success without activating an installation')
+            root=current.resolve(strict=True)
+            require(root.parent==(home/'.local/share/lattora/versions').resolve(strict=True)
+                    and root.name==manifest['version'], 'Bootstrap did not activate the versioned release')
+            require(verify_distribution(root)==manifest, 'Bootstrap installed a different distribution')
             python=root/'runtime/python/bin/python3'
             run([staged/'bin/lattora','_install'],env,cwd,logs/'rerun.log')
             require(bash_config(home).read_text().count('# >>> lattora PATH >>>')==1,'PATH was appended twice')

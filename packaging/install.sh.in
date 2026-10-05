@@ -13,10 +13,12 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
 done
+# Empty positional parameters are safe with nounset on macOS Bash 3.2.
+set --
+if [[ "$modify_path" == false ]]; then set -- --no-modify-path; fi
 if [[ -n "$requested_version" && "$requested_version" != "$version" ]]; then
   [[ "$requested_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo 'Invalid stable version' >&2; exit 2; }
-  args=(); if [[ "$modify_path" == false ]]; then args+=(--no-modify-path); fi
-  curl -fsSL "https://github.com/$repository/releases/download/v$requested_version/install.sh" | bash -s -- "${args[@]}"
+  curl -fsSL "https://github.com/$repository/releases/download/v$requested_version/install.sh" | bash -s -- "$@"
   exit
 fi
 case "$(uname -s)/$(uname -m)" in
@@ -51,5 +53,4 @@ tar -tvzf "$scratch/bundle.tar.gz" > "$scratch/types"
 awk 'substr($0,1,1) != "-" && substr($0,1,1) != "d" {bad=1} END {exit bad}' "$scratch/types" || { echo 'Archive links or special files are not allowed.' >&2; exit 1; }
 mkdir "$scratch/extracted"
 tar -xzf "$scratch/bundle.tar.gz" -C "$scratch/extracted"
-args=(); if [[ "$modify_path" == false ]]; then args+=(--no-modify-path); fi
-"$scratch/extracted/$root/bin/lattora" _install "${args[@]}"
+"$scratch/extracted/$root/bin/lattora" _install "$@"
